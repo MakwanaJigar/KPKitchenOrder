@@ -1,8 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -20,9 +16,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -40,524 +34,277 @@ const LOGOUT_API_URL =
  * Profile
  * ========================================================= */
 
-const Profile = ({
-  navigation,
-}) => {
-  const {
-    width,
-  } =
-    useWindowDimensions();
+const Profile = ({ navigation }) => {
+  const { width } = useWindowDimensions();
 
-  const [
-    notificationsEnabled,
-    setNotificationsEnabled,
-  ] =
-    useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
-  const [
-    autoRenewEnabled,
-    setAutoRenewEnabled,
-  ] =
-    useState(false);
+  const [autoRenewEnabled, setAutoRenewEnabled] = useState(false);
 
-  const [
-    profile,
-    setProfile,
-  ] =
-    useState(null);
+  const [profile, setProfile] = useState(null);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [
-    error,
-    setError,
-  ] =
-    useState(null);
+  const [error, setError] = useState(null);
 
-  const [
-    logoutLoading,
-    setLogoutLoading,
-  ] =
-    useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
-  const [
-    logoutPopupVisible,
-    setLogoutPopupVisible,
-  ] =
-    useState(false);
+  const [logoutPopupVisible, setLogoutPopupVisible] = useState(false);
 
   /* =====================================================
    * Responsive
    * ===================================================== */
 
-  const responsive =
-    useMemo(
-      () => {
-        const isTablet =
-          width >=
-          768;
+  const responsive = useMemo(() => {
+    const isTablet = width >= 768;
 
-        return {
-          isTablet,
+    return {
+      isTablet,
 
-          contentWidth:
-            isTablet
-              ? Math.min(
-                  width -
-                    80,
-                  720,
-                )
-              : width,
+      contentWidth: isTablet ? Math.min(width - 80, 720) : width,
 
-          horizontalPadding:
-            isTablet
-              ? 28
-              : 14,
+      horizontalPadding: isTablet ? 28 : 14,
 
-          avatarSize:
-            isTablet
-              ? 105
-              : 82,
-        };
-      },
-      [
-        width,
-      ],
-    );
+      avatarSize: isTablet ? 105 : 82,
+    };
+  }, [width]);
 
   /* =====================================================
    * Fetch Profile
    * ===================================================== */
 
-  const fetchProfile =
-    async () => {
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+
+      setError(null);
+
+      const token = await AsyncStorage.getItem('token');
+
+      console.log('==============================');
+
+      console.log('PROFILE API CALL');
+
+      console.log('URL:', PROFILE_API_URL);
+
+      console.log('TOKEN:', token);
+
+      console.log('==============================');
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
+      const response = await fetch(PROFILE_API_URL, {
+        method: 'GET',
+
+        headers: {
+          Accept: 'application/json',
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const responseText = await response.text();
+
+      console.log('PROFILE STATUS:', response.status);
+
+      console.log('RAW PROFILE RESPONSE:', responseText);
+
+      let result;
+
       try {
-        setLoading(
-          true,
-        );
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        throw new Error('Invalid response received from server.');
+      }
 
-        setError(
-          null,
-        );
+      console.log('PROFILE RESPONSE:', JSON.stringify(result, null, 2));
 
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          await AsyncStorage.removeItem('token');
 
-        console.log(
-          '==============================',
-        );
+          navigation.reset({
+            index: 0,
 
-        console.log(
-          'PROFILE API CALL',
-        );
-
-        console.log(
-          'URL:',
-          PROFILE_API_URL,
-        );
-
-        console.log(
-          'TOKEN:',
-          token,
-        );
-
-        console.log(
-          '==============================',
-        );
-
-        if (
-          !token
-        ) {
-          throw new Error(
-            'Authentication token not found. Please login again.',
-          );
-        }
-
-        const response =
-          await fetch(
-            PROFILE_API_URL,
-            {
-              method:
-                'GET',
-
-              headers: {
-                Accept:
-                  'application/json',
-
-                'Content-Type':
-                  'application/json',
-
-                Authorization:
-                  `Bearer ${token}`,
+            routes: [
+              {
+                name: 'Login',
               },
-            },
-          );
+            ],
+          });
 
-        const responseText =
-          await response.text();
-
-        console.log(
-          'PROFILE STATUS:',
-          response.status,
-        );
-
-        console.log(
-          'RAW PROFILE RESPONSE:',
-          responseText,
-        );
-
-        let result;
-
-        try {
-          result =
-            JSON.parse(
-              responseText,
-            );
-        } catch (
-          jsonError
-        ) {
-          throw new Error(
-            'Invalid response received from server.',
-          );
+          return;
         }
 
-        console.log(
-          'PROFILE RESPONSE:',
-          JSON.stringify(
-            result,
-            null,
-            2,
-          ),
-        );
-
-        if (
-          !response.ok
-        ) {
-          if (
-            response.status ===
-              401 ||
-            response.status ===
-              403
-          ) {
-            await AsyncStorage.removeItem(
-              'token',
-            );
-
-            navigation.reset({
-              index:
-                0,
-
-              routes: [
-                {
-                  name:
-                    'Login',
-                },
-              ],
-            });
-
-            return;
-          }
-
-          throw new Error(
-            result?.message ||
-              result?.error ||
-              `Unable to load profile. Status: ${response.status}`,
-          );
-        }
-
-        const profileData =
-          result?.data ??
-          result?.customer ??
-          result?.user ??
-          result;
-
-        setProfile(
-          profileData,
-        );
-      } catch (
-        err
-      ) {
-        console.log(
-          'PROFILE API ERROR:',
-          err,
-        );
-
-        setError(
-          err?.message ||
-            'Unable to load profile.',
-        );
-      } finally {
-        setLoading(
-          false,
+        throw new Error(
+          result?.message ||
+            result?.error ||
+            `Unable to load profile. Status: ${response.status}`,
         );
       }
-    };
+
+      const profileData =
+        result?.data ?? result?.customer ?? result?.user ?? result;
+
+      setProfile(profileData);
+    } catch (err) {
+      console.log('PROFILE API ERROR:', err);
+
+      setError(err?.message || 'Unable to load profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* =====================================================
    * Initial Profile Load
    * ===================================================== */
 
-  useEffect(
-    () => {
-      fetchProfile();
-    },
-    [],
-  );
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   /* =====================================================
    * Logout API
    * ===================================================== */
 
-  const performLogout =
-    async () => {
-      try {
-        setLogoutLoading(
-          true,
-        );
+  const performLogout = async () => {
+    try {
+      setLogoutLoading(true);
 
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
+      const token = await AsyncStorage.getItem('token');
 
-        console.log(
-          '==============================',
-        );
+      console.log('==============================');
 
-        console.log(
-          'LOGOUT API CALL',
-        );
+      console.log('LOGOUT API CALL');
 
-        console.log(
-          'URL:',
-          LOGOUT_API_URL,
-        );
+      console.log('URL:', LOGOUT_API_URL);
 
-        console.log(
-          'TOKEN:',
-          token,
-        );
+      console.log('TOKEN:', token);
 
-        console.log(
-          '==============================',
-        );
+      console.log('==============================');
 
-        if (
-          token
-        ) {
-          const response =
-            await fetch(
-              LOGOUT_API_URL,
-              {
-                method:
-                  'POST',
+      if (token) {
+        const response = await fetch(LOGOUT_API_URL, {
+          method: 'POST',
 
-                headers: {
-                  Accept:
-                    'application/json',
+          headers: {
+            Accept: 'application/json',
 
-                  'Content-Type':
-                    'application/json',
+            'Content-Type': 'application/json',
 
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              },
-            );
-
-          const responseText =
-            await response.text();
-
-          console.log(
-            'LOGOUT STATUS:',
-            response.status,
-          );
-
-          console.log(
-            'LOGOUT RESPONSE:',
-            responseText,
-          );
-        }
-
-        await AsyncStorage.removeItem(
-          'token',
-        );
-
-        await AsyncStorage.removeItem(
-          'user',
-        );
-
-        navigation.reset({
-          index:
-            0,
-
-          routes: [
-            {
-              name:
-                'Login',
-            },
-          ],
+            Authorization: `Bearer ${token}`,
+          },
         });
-      } catch (
-        err
-      ) {
-        console.log(
-          'LOGOUT ERROR:',
-          err,
-        );
 
-        await AsyncStorage.removeItem(
-          'token',
-        );
+        const responseText = await response.text();
 
-        await AsyncStorage.removeItem(
-          'user',
-        );
+        console.log('LOGOUT STATUS:', response.status);
 
-        navigation.reset({
-          index:
-            0,
-
-          routes: [
-            {
-              name:
-                'Login',
-            },
-          ],
-        });
-      } finally {
-        setLogoutLoading(
-          false,
-        );
+        console.log('LOGOUT RESPONSE:', responseText);
       }
-    };
+
+      await AsyncStorage.removeItem('token');
+
+      await AsyncStorage.removeItem('user');
+
+      navigation.reset({
+        index: 0,
+
+        routes: [
+          {
+            name: 'Login',
+          },
+        ],
+      });
+    } catch (err) {
+      console.log('LOGOUT ERROR:', err);
+
+      await AsyncStorage.removeItem('token');
+
+      await AsyncStorage.removeItem('user');
+
+      navigation.reset({
+        index: 0,
+
+        routes: [
+          {
+            name: 'Login',
+          },
+        ],
+      });
+    } finally {
+      setLogoutLoading(false);
+    }
+  };
 
   /* =====================================================
    * Logout Confirmation Popup
    * ===================================================== */
 
-  const handleLogout =
-    () => {
-      if (
-        logoutLoading
-      ) {
-        return;
-      }
+  const handleLogout = () => {
+    if (logoutLoading) {
+      return;
+    }
 
-      setLogoutPopupVisible(
-        true,
-      );
-    };
+    setLogoutPopupVisible(true);
+  };
 
-  const handleCancelLogout =
-    () => {
-      if (
-        logoutLoading
-      ) {
-        return;
-      }
+  const handleCancelLogout = () => {
+    if (logoutLoading) {
+      return;
+    }
 
-      setLogoutPopupVisible(
-        false,
-      );
-    };
+    setLogoutPopupVisible(false);
+  };
 
-  const handleConfirmLogout =
-    async () => {
-      if (
-        logoutLoading
-      ) {
-        return;
-      }
+  const handleConfirmLogout = async () => {
+    if (logoutLoading) {
+      return;
+    }
 
-      await performLogout();
+    await performLogout();
 
-      setLogoutPopupVisible(
-        false,
-      );
-    };
+    setLogoutPopupVisible(false);
+  };
 
   /* =====================================================
    * Profile Values
    * ===================================================== */
 
-  const userName =
-    profile?.name ??
-    profile?.full_name ??
-    'Customer';
+  const userName = profile?.name ?? profile?.full_name ?? 'Customer';
 
-  const userEmail =
-    profile?.email ??
-    'No email';
+  const userEmail = profile?.email ?? 'No email';
 
-  const userPhone =
-    profile?.phone ??
-    profile?.mobile ??
-    'Not provided';
+  const userPhone = profile?.phone ?? profile?.mobile ?? 'Not provided';
 
-  const userPincode =
-    profile?.pincode ??
-    '';
+  const userPincode = profile?.pincode ?? '';
 
-  const userAddress =
-    profile?.address ??
-    'No address available';
+  const userAddress = profile?.address ?? 'No address available';
 
   const dietaryPreference =
-    profile
-      ?.dietary_preference ??
-    profile
-      ?.dietaryPreference ??
-    'Standard';
+    profile?.dietary_preference ?? profile?.dietaryPreference ?? 'Standard';
 
   const profileImage =
-    profile
-      ?.profile_image ??
-    profile?.image ??
-    profile?.avatar ??
-    null;
+    profile?.profile_image ?? profile?.image ?? profile?.avatar ?? null;
 
   /* =====================================================
    * Loading
    * ===================================================== */
 
-  if (
-    loading
-  ) {
+  if (loading) {
     return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFF9F6"
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
 
-        <View
-          style={
-            styles.centerContainer
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color="#A00B0F"
-          />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#A00B0F" />
 
-          <Text
-            style={
-              styles.loadingTitle
-            }
-          >
-            Loading Profile...
-          </Text>
+          <Text style={styles.loadingTitle}>Loading Profile...</Text>
         </View>
       </SafeAreaView>
     );
@@ -567,57 +314,18 @@ const Profile = ({
    * Error
    * ===================================================== */
 
-  if (
-    error &&
-    !profile
-  ) {
+  if (error && !profile) {
     return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFF9F6"
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
 
-        <View
-          style={
-            styles.centerContainer
-          }
-        >
-          <Text
-            style={
-              styles.errorTitle
-            }
-          >
-            Unable to Load Profile
-          </Text>
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorTitle}>Unable to Load Profile</Text>
 
-          <Text
-            style={
-              styles.errorText
-            }
-          >
-            {error}
-          </Text>
+          <Text style={styles.errorText}>{error}</Text>
 
-          <TouchableOpacity
-            style={
-              styles.retryButton
-            }
-            onPress={
-              fetchProfile
-            }
-          >
-            <Text
-              style={
-                styles.retryButtonText
-              }
-            >
-              TRY AGAIN
-            </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
+            <Text style={styles.retryButtonText}>TRY AGAIN</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -630,36 +338,25 @@ const Profile = ({
 
   return (
     <>
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFF9F6"
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
 
         <View
           style={[
             styles.screenContainer,
 
             {
-              width:
-                responsive.contentWidth,
+              width: responsive.contentWidth,
             },
           ]}
         >
           <ScrollView
-            showsVerticalScrollIndicator={
-              false
-            }
+            showsVerticalScrollIndicator={false}
             contentContainerStyle={[
               styles.scrollContent,
 
               {
-                paddingHorizontal:
-                  responsive.horizontalPadding,
+                paddingHorizontal: responsive.horizontalPadding,
               },
             ]}
           >
@@ -667,55 +364,25 @@ const Profile = ({
              * Header
              * ================================================= */}
 
-            <View
-              style={
-                styles.header
-              }
-            >
+            <View style={styles.header}>
               <View>
-                <Text
-                  style={
-                    styles.headerEyebrow
-                  }
-                >
-                  MY ACCOUNT
-                </Text>
+                <Text style={styles.headerEyebrow}>MY ACCOUNT</Text>
 
-                <Text
-                  style={
-                    styles.headerTitle
-                  }
-                >
-                  Profile
-                </Text>
+                <Text style={styles.headerTitle}>Profile</Text>
               </View>
 
               <Pressable
-                hitSlop={
-                  10
-                }
-                style={
-                  styles.notificationButton
-                }
-                onPress={() =>
-                  navigation.navigate(
-                    'Notification',
-                  )
-                }
+                hitSlop={10}
+                style={styles.notificationButton}
+                onPress={() => navigation.navigate('Notification')}
               >
                 <Image
                   source={require('../assets/login-icons/notification.png')}
-                  style={
-                    styles.smallIcon
-                  }
+                  style={styles.smallIcon}
                   resizeMode="contain"
                 />
 
-                <View
-                  style={
-                    styles.notificationDot
-                  }
-                />
+                <View style={styles.notificationDot} />
               </Pressable>
             </View>
 
@@ -723,31 +390,22 @@ const Profile = ({
              * Profile
              * ================================================= */}
 
-            <View
-              style={
-                styles.profileSection
-              }
-            >
+            <View style={styles.profileSection}>
               <View>
                 {profileImage ? (
                   <Image
                     source={{
-                      uri:
-                        profileImage,
+                      uri: profileImage,
                     }}
                     style={[
                       styles.profileImage,
 
                       {
-                        width:
-                          responsive.avatarSize,
+                        width: responsive.avatarSize,
 
-                        height:
-                          responsive.avatarSize,
+                        height: responsive.avatarSize,
 
-                        borderRadius:
-                          responsive.avatarSize /
-                          2,
+                        borderRadius: responsive.avatarSize / 2,
                       },
                     ]}
                     resizeMode="cover"
@@ -759,15 +417,11 @@ const Profile = ({
                       styles.profileImage,
 
                       {
-                        width:
-                          responsive.avatarSize,
+                        width: responsive.avatarSize,
 
-                        height:
-                          responsive.avatarSize,
+                        height: responsive.avatarSize,
 
-                        borderRadius:
-                          responsive.avatarSize /
-                          2,
+                        borderRadius: responsive.avatarSize / 2,
                       },
                     ]}
                     resizeMode="cover"
@@ -775,81 +429,40 @@ const Profile = ({
                 )}
 
                 <TouchableOpacity
-                  activeOpacity={
-                    0.8
-                  }
-                  style={
-                    styles.cameraButton
-                  }
-                  onPress={() =>
-                    console.log(
-                      'Change photo pressed',
-                    )
-                  }
+                  activeOpacity={0.8}
+                  style={styles.cameraButton}
+                  onPress={() => console.log('Change photo pressed')}
                 >
                   <Image
                     source={require('../assets/login-icons/camera.png')}
-                    style={
-                      styles.smallIcon
-                    }
+                    style={styles.smallIcon}
                     resizeMode="contain"
                   />
                 </TouchableOpacity>
               </View>
 
-              <View
-                style={
-                  styles.profileDetails
-                }
-              >
-                <Text
-                  numberOfLines={
-                    1
-                  }
-                  style={
-                    styles.userName
-                  }
-                >
-                  {
-                    userName
-                  }
+              <View style={styles.profileDetails}>
+                <Text numberOfLines={1} style={styles.userName}>
+                  {userName}
                 </Text>
 
-                <Text
-                  numberOfLines={
-                    1
-                  }
-                  style={
-                    styles.userEmail
-                  }
-                >
-                  {
-                    userEmail
-                  }
+                <Text numberOfLines={1} style={styles.userEmail}>
+                  {userEmail}
                 </Text>
               </View>
 
               <Pressable
-                hitSlop={
-                  10
-                }
-                style={
-                  styles.editProfileButton
-                }
+                hitSlop={10}
+                style={styles.editProfileButton}
                 onPress={() =>
-                  navigation.navigate(
-                    'EditProfile',
-                    {
-                      profile,
-                    },
-                  )
+                  navigation.navigate('EditProfile', {
+                    profile,
+                  })
                 }
               >
                 <Image
                   source={require('../assets/login-icons/edit.png')}
-                  style={
-                    styles.smallIcon
-                  }
+                  style={styles.smallIcon}
                   resizeMode="contain"
                 />
               </Pressable>
@@ -859,38 +472,17 @@ const Profile = ({
              * Personal Details
              * ================================================= */}
 
-            <SectionCard
-              title="Personal Details"
-            >
-              <ProfileInformationRow
-                label="Full Name"
-                value={
-                  userName
-                }
-              />
+            <SectionCard title="Personal Details">
+              <ProfileInformationRow label="Full Name" value={userName} />
 
-              <ProfileInformationRow
-                label="Email Address"
-                value={
-                  userEmail
-                }
-              />
+              <ProfileInformationRow label="Email Address" value={userEmail} />
 
-              <ProfileInformationRow
-                label="Mobile Number"
-                value={
-                  userPhone
-                }
-              />
+              <ProfileInformationRow label="Mobile Number" value={userPhone} />
 
               <ProfileInformationRow
                 label="Dietary Preference"
-                value={
-                  dietaryPreference
-                }
-                showBorder={
-                  false
-                }
+                value={dietaryPreference}
+                showBorder={false}
               />
             </SectionCard>
 
@@ -901,97 +493,39 @@ const Profile = ({
             <SectionCard
               title="Delivery Addresses"
               rightText="Manage"
-              onRightPress={() =>
-                navigation.navigate(
-                  'AddressList',
-                )
-              }
+              onRightPress={() => navigation.navigate('AddressList')}
             >
               <Pressable
-                style={
-                  styles.addressContainer
-                }
-                onPress={() =>
-                  navigation.navigate(
-                    'AddressList',
-                  )
-                }
+                style={styles.addressContainer}
+                onPress={() => navigation.navigate('AddressList')}
               >
-                <View
-                  style={
-                    styles.addressIconContainer
-                  }
-                >
+                <View style={styles.addressIconContainer}>
                   <Image
                     source={require('../assets/login-icons/home-1.png')}
-                    style={
-                      styles.smallIcon
-                    }
+                    style={styles.smallIcon}
                     resizeMode="contain"
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.addressDetails
-                  }
-                >
-                  <View
-                    style={
-                      styles.addressTitleRow
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.addressTitle
-                      }
-                    >
-                      Home
-                    </Text>
+                <View style={styles.addressDetails}>
+                  <View style={styles.addressTitleRow}>
+                    <Text style={styles.addressTitle}>Home</Text>
 
-                    <View
-                      style={
-                        styles.defaultBadge
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.defaultBadgeText
-                        }
-                      >
-                        Default
-                      </Text>
+                    <View style={styles.defaultBadge}>
+                      <Text style={styles.defaultBadgeText}>Default</Text>
                     </View>
                   </View>
 
-                  <Text
-                    style={
-                      styles.addressText
-                    }
-                  >
-                    {
-                      userAddress
-                    }
-                  </Text>
+                  <Text style={styles.addressText}>{userAddress}</Text>
 
                   {!!userPincode && (
-                    <Text
-                      style={
-                        styles.addressText
-                      }
-                    >
-                      {
-                        userPincode
-                      }
-                    </Text>
+                    <Text style={styles.addressText}>{userPincode}</Text>
                   )}
                 </View>
 
                 <Image
                   source={require('../assets/login-icons/location.png')}
-                  style={
-                    styles.smallIcon
-                  }
+                  style={styles.smallIcon}
                   resizeMode="contain"
                 />
               </Pressable>
@@ -1004,210 +538,105 @@ const Profile = ({
             <SectionCard
               title="Payment Methods"
               rightText="Manage"
-              onRightPress={() =>
-                navigation.navigate(
-                  'PaymentDetails',
-                )
-              }
+              onRightPress={() => navigation.navigate('PaymentDetails')}
             >
               <Pressable
-                style={
-                  styles.paymentContainer
-                }
-                onPress={() =>
-                  navigation.navigate(
-                    'PaymentDetails',
-                  )
-                }
+                style={styles.paymentContainer}
+                onPress={() => navigation.navigate('PaymentDetails')}
               >
-                <View
-                  style={
-                    styles.paymentIconContainer
-                  }
-                >
+                <View style={styles.paymentIconContainer}>
                   <Image
                     source={require('../assets/login-icons/wallet.png')}
-                    style={
-                      styles.smallIcon
-                    }
+                    style={styles.smallIcon}
                     resizeMode="contain"
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.paymentDetails
-                  }
-                >
-                  <Text
-                    style={
-                      styles.paymentTitle
-                    }
-                  >
-                    Payment Methods
-                  </Text>
+                <View style={styles.paymentDetails}>
+                  <Text style={styles.paymentTitle}>Payment Methods</Text>
 
-                  <Text
-                    style={
-                      styles.paymentSubtitle
-                    }
-                  >
+                  <Text style={styles.paymentSubtitle}>
                     Manage your saved payment options
                   </Text>
                 </View>
               </Pressable>
-            </SectionCard>
-
-            {/* =================================================
-             * Orders
-             * ================================================= */}
-
-            <SectionCard
-              title="Orders"
-            >
-              {/* Previous Orders */}
-
-              <TouchableOpacity
-                activeOpacity={
-                  0.8
-                }
-                style={[
-                  styles.previousOrderRow,
-
-                  styles.orderMenuWithBorder,
-                ]}
-                onPress={() =>
-                  navigation.navigate(
-                    'PreviousOrder',
-                  )
-                }
-              >
-                <View
-                  style={
-                    styles.previousOrderIconContainer
-                  }
-                >
-                  <Image
-                    source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
-                    style={
-                      styles.previousOrderIcon
-                    }
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View
-                  style={
-                    styles.previousOrderDetails
-                  }
-                >
-                  <Text
-                    style={
-                      styles.previousOrderTitle
-                    }
-                  >
-                    Previous Orders
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.previousOrderSubtitle
-                    }
-                  >
-                    View your previous tiffin orders
-                  </Text>
-                </View>
-
-                <Image
-                  source={require('../assets/login-icons/next.png')}
-                  style={
-                    styles.previousOrderArrow
-                  }
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-
+              
               {/* =================================================
                * NEW - Weekly Order Invoices
                * ================================================= */}
 
               <TouchableOpacity
-                activeOpacity={
-                  0.8
-                }
-                style={
-                  styles.previousOrderRow
-                }
-                onPress={() =>
-                  navigation.navigate(
-                    'WeeklyInvoice',
-                  )
-                }
+                activeOpacity={0.8}
+                style={styles.previousOrderRow}
+                onPress={() => navigation.navigate('WeeklyInvoice')}
               >
-                <View
-                  style={
-                    styles.weeklyInvoiceIconContainer
-                  }
-                >
+                <View style={styles.weeklyInvoiceIconContainer}>
                   <Image
                     source={require('../assets/login-icons/wallet.png')}
-                    style={
-                      styles.previousOrderIcon
-                    }
+                    style={styles.previousOrderIcon}
                     resizeMode="contain"
                   />
                 </View>
 
-                <View
-                  style={
-                    styles.previousOrderDetails
-                  }
-                >
-                  <View
-                    style={
-                      styles.weeklyInvoiceTitleRow
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.previousOrderTitle
-                      }
-                    >
+                <View style={styles.previousOrderDetails}>
+                  <View style={styles.weeklyInvoiceTitleRow}>
+                    <Text style={styles.previousOrderTitle}>
                       Weekly Order Invoices
                     </Text>
 
-                    <View
-                      style={
-                        styles.weeklyBadge
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.weeklyBadgeText
-                        }
-                      >
-                        WEEKLY
-                      </Text>
+                    <View style={styles.weeklyBadge}>
+                      <Text style={styles.weeklyBadgeText}>WEEKLY</Text>
                     </View>
                   </View>
 
-                  <Text
-                    style={
-                      styles.previousOrderSubtitle
-                    }
-                  >
+                  <Text style={styles.previousOrderSubtitle}>
                     Monday-to-Monday orders & weekly payment
                   </Text>
                 </View>
 
                 <Image
                   source={require('../assets/login-icons/next.png')}
-                  style={
-                    styles.previousOrderArrow
-                  }
+                  style={styles.previousOrderArrow}
                   resizeMode="contain"
                 />
               </TouchableOpacity>
+            </SectionCard>
+
+            {/* =================================================
+             * Orders
+             * ================================================= */}
+
+            <SectionCard title="Orders">
+              {/* Previous Orders */}
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[styles.previousOrderRow, styles.orderMenuWithBorder]}
+                onPress={() => navigation.navigate('PreviousOrder')}
+              >
+                <View style={styles.previousOrderIconContainer}>
+                  <Image
+                    source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+                    style={styles.previousOrderIcon}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                <View style={styles.previousOrderDetails}>
+                  <Text style={styles.previousOrderTitle}>Your Orders</Text>
+
+                  <Text style={styles.previousOrderSubtitle}>
+                    View your previous tiffin orders
+                  </Text>
+                </View>
+
+                <Image
+                  source={require('../assets/login-icons/next.png')}
+                  style={styles.previousOrderArrow}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+
             </SectionCard>
 
             {/* =================================================
@@ -1244,57 +673,33 @@ const Profile = ({
              * ================================================= */}
 
             <TouchableOpacity
-              activeOpacity={
-                0.8
-              }
-              disabled={
-                logoutLoading
-              }
+              activeOpacity={0.8}
+              disabled={logoutLoading}
               style={[
                 styles.logoutButton,
 
                 logoutLoading && {
-                  opacity:
-                    0.6,
+                  opacity: 0.6,
                 },
               ]}
-              onPress={
-                handleLogout
-              }
+              onPress={handleLogout}
             >
               {logoutLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#FFFFFF"
-                />
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Image
                     source={require('../assets/login-icons/logout-light.png')}
-                    style={
-                      styles.logoutIcon
-                    }
+                    style={styles.logoutIcon}
                     resizeMode="contain"
                   />
 
-                  <Text
-                    style={
-                      styles.logoutText
-                    }
-                  >
-                    Log Out
-                  </Text>
+                  <Text style={styles.logoutText}>Log Out</Text>
                 </>
               )}
             </TouchableOpacity>
 
-            <Text
-              style={
-                styles.versionText
-              }
-            >
-              App Version 1.0.0
-            </Text>
+            <Text style={styles.versionText}>App Version 1.0.0</Text>
           </ScrollView>
         </View>
       </SafeAreaView>
@@ -1304,47 +709,24 @@ const Profile = ({
        * ===================================================== */}
 
       <Modal
-        visible={
-          logoutPopupVisible
-        }
+        visible={logoutPopupVisible}
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={
-          handleCancelLogout
-        }
+        onRequestClose={handleCancelLogout}
       >
         <Pressable
-          style={
-            styles.logoutPopupOverlay
-          }
-          onPress={
-            handleCancelLogout
-          }
+          style={styles.logoutPopupOverlay}
+          onPress={handleCancelLogout}
         >
-          <Pressable
-            style={
-              styles.logoutPopupCard
-            }
-            onPress={() => {}}
-          >
+          <Pressable style={styles.logoutPopupCard} onPress={() => {}}>
             {/* Logout Icon */}
 
-            <View
-              style={
-                styles.logoutPopupIconOuter
-              }
-            >
-              <View
-                style={
-                  styles.logoutPopupIconInner
-                }
-              >
+            <View style={styles.logoutPopupIconOuter}>
+              <View style={styles.logoutPopupIconInner}>
                 <Image
                   source={require('../assets/login-icons/logout-light.png')}
-                  style={
-                    styles.logoutPopupIcon
-                  }
+                  style={styles.logoutPopupIcon}
                   resizeMode="contain"
                 />
               </View>
@@ -1352,115 +734,55 @@ const Profile = ({
 
             {/* Heading */}
 
-            <Text
-              style={
-                styles.logoutPopupTitle
-              }
-            >
-              Log Out?
-            </Text>
+            <Text style={styles.logoutPopupTitle}>Log Out?</Text>
 
-            <Text
-              style={
-                styles.logoutPopupDescription
-              }
-            >
+            <Text style={styles.logoutPopupDescription}>
               Are you sure you want to log out of your account?
             </Text>
 
             {/* Information */}
 
-            <View
-              style={
-                styles.logoutInfoBox
-              }
-            >
-              <Text
-                style={
-                  styles.logoutInfoIcon
-                }
-              >
-                i
-              </Text>
+            <View style={styles.logoutInfoBox}>
+              <Text style={styles.logoutInfoIcon}>i</Text>
 
-              <Text
-                style={
-                  styles.logoutInfoText
-                }
-              >
+              <Text style={styles.logoutInfoText}>
                 You will need to sign in again to access your account.
               </Text>
             </View>
 
             {/* Buttons */}
 
-            <View
-              style={
-                styles.logoutPopupButtons
-              }
-            >
+            <View style={styles.logoutPopupButtons}>
               <TouchableOpacity
-                disabled={
-                  logoutLoading
-                }
-                activeOpacity={
-                  0.8
-                }
-                onPress={
-                  handleCancelLogout
-                }
-                style={
-                  styles.logoutCancelButton
-                }
+                disabled={logoutLoading}
+                activeOpacity={0.8}
+                onPress={handleCancelLogout}
+                style={styles.logoutCancelButton}
               >
-                <Text
-                  style={
-                    styles.logoutCancelText
-                  }
-                >
-                  Cancel
-                </Text>
+                <Text style={styles.logoutCancelText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                disabled={
-                  logoutLoading
-                }
-                activeOpacity={
-                  0.85
-                }
-                onPress={
-                  handleConfirmLogout
-                }
+                disabled={logoutLoading}
+                activeOpacity={0.85}
+                onPress={handleConfirmLogout}
                 style={[
                   styles.logoutConfirmButton,
 
-                  logoutLoading &&
-                    styles.logoutConfirmButtonDisabled,
+                  logoutLoading && styles.logoutConfirmButtonDisabled,
                 ]}
               >
                 {logoutLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
                     <Image
                       source={require('../assets/login-icons/logout.png')}
-                      style={
-                        styles.logoutConfirmIcon
-                      }
+                      style={styles.logoutConfirmIcon}
                       resizeMode="contain"
                     />
 
-                    <Text
-                      style={
-                        styles.logoutConfirmText
-                      }
-                    >
-                      Log Out
-                    </Text>
+                    <Text style={styles.logoutConfirmText}>Log Out</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1476,55 +798,17 @@ const Profile = ({
  * Section Card
  * ========================================================= */
 
-const SectionCard = ({
-  title,
-  children,
-  rightText,
-  onRightPress,
-}) => {
+const SectionCard = ({ title, children, rightText, onRightPress }) => {
   return (
-    <View
-      style={
-        styles.sectionCard
-      }
-    >
-      <View
-        style={
-          styles.sectionHeader
-        }
-      >
-        <View
-          style={
-            styles.sectionHeaderTitle
-          }
-        >
-          <Text
-            style={
-              styles.sectionTitle
-            }
-          >
-            {title}
-          </Text>
+    <View style={styles.sectionCard}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeaderTitle}>
+          <Text style={styles.sectionTitle}>{title}</Text>
         </View>
 
         {rightText ? (
-          <Pressable
-            hitSlop={
-              10
-            }
-            onPress={
-              onRightPress
-            }
-          >
-            <Text
-              style={
-                styles.sectionRightText
-              }
-            >
-              {
-                rightText
-              }
-            </Text>
+          <Pressable hitSlop={10} onPress={onRightPress}>
+            <Text style={styles.sectionRightText}>{rightText}</Text>
           </Pressable>
         ) : null}
       </View>
@@ -1538,41 +822,13 @@ const SectionCard = ({
  * Profile Row
  * ========================================================= */
 
-const ProfileInformationRow = ({
-  label,
-  value,
-  showBorder =
-    true,
-}) => {
+const ProfileInformationRow = ({ label, value, showBorder = true }) => {
   return (
-    <View
-      style={[
-        styles.informationRow,
+    <View style={[styles.informationRow, !showBorder && styles.noBorder]}>
+      <Text style={styles.informationLabel}>{label}</Text>
 
-        !showBorder &&
-          styles.noBorder,
-      ]}
-    >
-      <Text
-        style={
-          styles.informationLabel
-        }
-      >
-        {label}
-      </Text>
-
-      <Text
-        numberOfLines={
-          2
-        }
-        style={
-          styles.informationValue
-        }
-      >
-        {String(
-          value ??
-            '',
-        )}
+      <Text numberOfLines={2} style={styles.informationValue}>
+        {String(value ?? '')}
       </Text>
     </View>
   );
@@ -1587,98 +843,51 @@ const PreferenceRow = ({
   title,
   subtitle,
   onPress,
-  showSwitch =
-    false,
+  showSwitch = false,
   switchValue,
   onSwitchChange,
-  showBorder =
-    true,
+  showBorder = true,
 }) => {
   const content = (
     <>
-      <View
-        style={
-          styles.preferenceIcon
-        }
-      >
+      <View style={styles.preferenceIcon}>
         <Image
-          source={
-            image
-          }
-          style={
-            styles.preferenceImage
-          }
+          source={image}
+          style={styles.preferenceImage}
           resizeMode="contain"
         />
       </View>
 
-      <View
-        style={
-          styles.preferenceDetails
-        }
-      >
-        <Text
-          style={
-            styles.preferenceTitle
-          }
-        >
-          {title}
-        </Text>
+      <View style={styles.preferenceDetails}>
+        <Text style={styles.preferenceTitle}>{title}</Text>
 
-        <Text
-          style={
-            styles.preferenceSubtitle
-          }
-        >
-          {subtitle}
-        </Text>
+        <Text style={styles.preferenceSubtitle}>{subtitle}</Text>
       </View>
 
       {showSwitch ? (
         <Switch
-          value={
-            switchValue
-          }
-          onValueChange={
-            onSwitchChange
-          }
+          value={switchValue}
+          onValueChange={onSwitchChange}
           trackColor={{
-            false:
-              '#DDD7D2',
+            false: '#DDD7D2',
 
-            true:
-              '#E6A27E',
+            true: '#E6A27E',
           }}
-          thumbColor={
-            switchValue
-              ? '#B64D19'
-              : '#FFFFFF'
-          }
+          thumbColor={switchValue ? '#B64D19' : '#FFFFFF'}
         />
       ) : (
         <Image
           source={require('../assets/login-icons/back.png')}
-          style={
-            styles.preferenceArrow
-          }
+          style={styles.preferenceArrow}
           resizeMode="contain"
         />
       )}
     </>
   );
 
-  if (
-    showSwitch
-  ) {
+  if (showSwitch) {
     return (
-      <View
-        style={[
-          styles.preferenceRow,
-
-          !showBorder &&
-            styles.noBorder,
-        ]}
-      >
+      <View style={[styles.preferenceRow, !showBorder && styles.noBorder]}>
         {content}
       </View>
     );
@@ -1686,15 +895,8 @@ const PreferenceRow = ({
 
   return (
     <Pressable
-      style={[
-        styles.preferenceRow,
-
-        !showBorder &&
-          styles.noBorder,
-      ]}
-      onPress={
-        onPress
-      }
+      style={[styles.preferenceRow, !showBorder && styles.noBorder]}
+      onPress={onPress}
     >
       {content}
     </Pressable>
@@ -1707,1446 +909,1038 @@ export default Profile;
  * Styles
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        '#F5F0ED',
-    },
-
-    screenContainer: {
-      flex:
-        1,
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
 
-      alignSelf:
-        'center',
+    backgroundColor: '#F5F0ED',
+  },
 
-      backgroundColor:
-        '#FFF9F6',
-    },
+  screenContainer: {
+    flex: 1,
 
-    scrollContent: {
-      paddingTop:
-        12,
-
-      paddingBottom:
-        120,
-    },
+    alignSelf: 'center',
 
-    centerContainer: {
-      flex:
-        1,
+    backgroundColor: '#FFF9F6',
+  },
 
-      alignItems:
-        'center',
+  scrollContent: {
+    paddingTop: 12,
 
-      justifyContent:
-        'center',
+    paddingBottom: 120,
+  },
 
-      paddingHorizontal:
-        30,
-    },
+  centerContainer: {
+    flex: 1,
 
-    loadingTitle: {
-      marginTop:
-        14,
+    alignItems: 'center',
 
-      color:
-        '#231815',
+    justifyContent: 'center',
 
-      fontSize:
-        14,
+    paddingHorizontal: 30,
+  },
 
-      fontWeight:
-        '700',
-    },
+  loadingTitle: {
+    marginTop: 14,
 
-    errorTitle: {
-      color:
-        '#231815',
+    color: '#231815',
 
-      fontSize:
-        18,
+    fontSize: 14,
 
-      fontWeight:
-        '800',
+    fontWeight: '700',
+  },
 
-      textAlign:
-        'center',
-    },
+  errorTitle: {
+    color: '#231815',
 
-    errorText: {
-      color:
-        '#8B7770',
+    fontSize: 18,
 
-      fontSize:
-        12,
+    fontWeight: '800',
 
-      marginTop:
-        8,
+    textAlign: 'center',
+  },
 
-      textAlign:
-        'center',
-    },
+  errorText: {
+    color: '#8B7770',
 
-    retryButton: {
-      marginTop:
-        18,
+    fontSize: 12,
 
-      backgroundColor:
-        '#A00B0F',
+    marginTop: 8,
 
-      borderRadius:
-        10,
+    textAlign: 'center',
+  },
 
-      paddingHorizontal:
-        22,
+  retryButton: {
+    marginTop: 18,
 
-      paddingVertical:
-        12,
-    },
+    backgroundColor: '#A00B0F',
 
-    retryButtonText: {
-      color:
-        '#FFFFFF',
+    borderRadius: 10,
 
-      fontSize:
-        11,
+    paddingHorizontal: 22,
 
-      fontWeight:
-        '800',
-    },
+    paddingVertical: 12,
+  },
 
-    /* =====================================================
-     * Header
-     * ===================================================== */
+  retryButtonText: {
+    color: '#FFFFFF',
 
-    header: {
-      minHeight:
-        56,
+    fontSize: 11,
 
-      flexDirection:
-        'row',
+    fontWeight: '800',
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Header
+   * ===================================================== */
 
-      justifyContent:
-        'space-between',
+  header: {
+    minHeight: 56,
 
-      marginBottom:
-        14,
-    },
+    flexDirection: 'row',
 
-    headerEyebrow: {
-      color:
-        '#A84B20',
+    alignItems: 'center',
 
-      fontSize:
-        9,
+    justifyContent: 'space-between',
 
-      fontWeight:
-        '800',
+    marginBottom: 14,
+  },
 
-      letterSpacing:
-        1,
-    },
+  headerEyebrow: {
+    color: '#A84B20',
 
-    headerTitle: {
-      color:
-        '#231815',
+    fontSize: 9,
 
-      fontSize:
-        24,
+    fontWeight: '800',
 
-      fontWeight:
-        '900',
+    letterSpacing: 1,
+  },
 
-      marginTop:
-        2,
-    },
+  headerTitle: {
+    color: '#231815',
 
-    notificationButton: {
-      width:
-        40,
+    fontSize: 24,
 
-      height:
-        40,
+    fontWeight: '900',
 
-      alignItems:
-        'center',
+    marginTop: 2,
+  },
 
-      justifyContent:
-        'center',
+  notificationButton: {
+    width: 40,
 
-      backgroundColor:
-        '#FFFFFF',
+    height: 40,
 
-      borderWidth:
-        1,
+    alignItems: 'center',
 
-      borderColor:
-        '#EFE5E0',
+    justifyContent: 'center',
 
-      borderRadius:
-        14,
-    },
+    backgroundColor: '#FFFFFF',
 
-    notificationDot: {
-      position:
-        'absolute',
+    borderWidth: 1,
 
-      top:
-        8,
+    borderColor: '#EFE5E0',
 
-      right:
-        9,
+    borderRadius: 14,
+  },
 
-      width:
-        6,
+  notificationDot: {
+    position: 'absolute',
 
-      height:
-        6,
+    top: 8,
 
-      backgroundColor:
-        '#A84B20',
+    right: 9,
 
-      borderWidth:
-        1,
+    width: 6,
 
-      borderColor:
-        '#FFFFFF',
+    height: 6,
 
-      borderRadius:
-        3,
-    },
+    backgroundColor: '#A84B20',
 
-    smallIcon: {
-      width:
-        20,
+    borderWidth: 1,
 
-      height:
-        20,
-    },
+    borderColor: '#FFFFFF',
 
-    /* =====================================================
-     * Profile
-     * ===================================================== */
+    borderRadius: 3,
+  },
 
-    profileSection: {
-      flexDirection:
-        'row',
+  smallIcon: {
+    width: 20,
 
-      alignItems:
-        'center',
+    height: 20,
+  },
 
-      backgroundColor:
-        '#FFFFFF',
+  /* =====================================================
+   * Profile
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  profileSection: {
+    flexDirection: 'row',
 
-      borderColor:
-        '#EFE5E0',
+    alignItems: 'center',
 
-      borderRadius:
-        18,
+    backgroundColor: '#FFFFFF',
 
-      padding:
-        14,
+    borderWidth: 1,
 
-      marginBottom:
-        13,
+    borderColor: '#EFE5E0',
 
-      shadowColor:
-        '#583829',
+    borderRadius: 18,
 
-      shadowOffset: {
-        width:
-          0,
+    padding: 14,
 
-        height:
-          4,
-      },
+    marginBottom: 13,
 
-      shadowOpacity:
-        0.06,
+    shadowColor: '#583829',
 
-      shadowRadius:
-        10,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        2,
+      height: 4,
     },
 
-    profileImage: {
-      backgroundColor:
-        '#E8DDD7',
-    },
+    shadowOpacity: 0.06,
 
-    cameraButton: {
-      position:
-        'absolute',
+    shadowRadius: 10,
 
-      right:
-        -8,
+    elevation: 2,
+  },
 
-      bottom:
-        -10,
+  profileImage: {
+    backgroundColor: '#E8DDD7',
+  },
 
-      width:
-        37,
+  cameraButton: {
+    position: 'absolute',
 
-      height:
-        37,
+    right: -8,
 
-      alignItems:
-        'center',
+    bottom: -10,
 
-      justifyContent:
-        'center',
+    width: 37,
 
-      backgroundColor:
-        '#FFFFFF',
+    height: 37,
 
-      borderRadius:
-        50,
+    alignItems: 'center',
 
-      borderWidth:
-        1,
+    justifyContent: 'center',
 
-      borderColor:
-        '#EFE5E0',
-    },
+    backgroundColor: '#FFFFFF',
 
-    profileDetails: {
-      flex:
-        1,
+    borderRadius: 50,
 
-      marginLeft:
-        13,
+    borderWidth: 1,
 
-      paddingRight:
-        8,
-    },
+    borderColor: '#EFE5E0',
+  },
 
-    userName: {
-      color:
-        '#221714',
+  profileDetails: {
+    flex: 1,
 
-      fontSize:
-        17,
+    marginLeft: 13,
 
-      fontWeight:
-        '900',
-    },
+    paddingRight: 8,
+  },
 
-    userEmail: {
-      color:
-        '#8B7770',
+  userName: {
+    color: '#221714',
 
-      fontSize:
-        10,
+    fontSize: 17,
 
-      marginTop:
-        4,
-    },
+    fontWeight: '900',
+  },
 
-    editProfileButton: {
-      width:
-        36,
+  userEmail: {
+    color: '#8B7770',
 
-      height:
-        36,
+    fontSize: 10,
 
-      alignItems:
-        'center',
+    marginTop: 4,
+  },
 
-      justifyContent:
-        'center',
+  editProfileButton: {
+    width: 36,
 
-      backgroundColor:
-        '#FFF1E9',
+    height: 36,
 
-      borderRadius:
-        12,
-    },
+    alignItems: 'center',
 
-    /* =====================================================
-     * Section Card
-     * ===================================================== */
+    justifyContent: 'center',
 
-    sectionCard: {
-      width:
-        '100%',
+    backgroundColor: '#FFF1E9',
 
-      backgroundColor:
-        '#FFFFFF',
+    borderRadius: 12,
+  },
 
-      borderWidth:
-        1,
+  /* =====================================================
+   * Section Card
+   * ===================================================== */
 
-      borderColor:
-        '#EFE5E0',
+  sectionCard: {
+    width: '100%',
 
-      borderRadius:
-        17,
+    backgroundColor: '#FFFFFF',
 
-      paddingHorizontal:
-        13,
+    borderWidth: 1,
 
-      paddingTop:
-        13,
+    borderColor: '#EFE5E0',
 
-      paddingBottom:
-        3,
+    borderRadius: 17,
 
-      marginBottom:
-        13,
+    paddingHorizontal: 13,
 
-      shadowColor:
-        '#503328',
+    paddingTop: 13,
 
-      shadowOffset: {
-        width:
-          0,
+    paddingBottom: 3,
 
-        height:
-          3,
-      },
+    marginBottom: 13,
 
-      shadowOpacity:
-        0.04,
+    shadowColor: '#503328',
 
-      shadowRadius:
-        8,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        2,
+      height: 3,
     },
 
-    sectionHeader: {
-      flexDirection:
-        'row',
+    shadowOpacity: 0.04,
 
-      alignItems:
-        'center',
+    shadowRadius: 8,
 
-      justifyContent:
-        'space-between',
+    elevation: 2,
+  },
 
-      marginBottom:
-        8,
-    },
+  sectionHeader: {
+    flexDirection: 'row',
 
-    sectionHeaderTitle: {
-      flexDirection:
-        'row',
+    alignItems: 'center',
 
-      alignItems:
-        'center',
-    },
+    justifyContent: 'space-between',
 
-    sectionTitle: {
-      color:
-        '#2B1D18',
+    marginBottom: 8,
+  },
 
-      fontSize:
-        20,
+  sectionHeaderTitle: {
+    flexDirection: 'row',
 
-      fontWeight:
-        '800',
-    },
+    alignItems: 'center',
+  },
 
-    sectionRightText: {
-      color:
-        '#A84B20',
+  sectionTitle: {
+    color: '#2B1D18',
 
-      fontSize:
-        10,
+    fontSize: 20,
 
-      fontWeight:
-        '700',
-    },
+    fontWeight: '800',
+  },
 
-    /* =====================================================
-     * Information
-     * ===================================================== */
+  sectionRightText: {
+    color: '#A84B20',
 
-    informationRow: {
-      minHeight:
-        49,
+    fontSize: 10,
 
-      flexDirection:
-        'row',
+    fontWeight: '700',
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Information
+   * ===================================================== */
 
-      justifyContent:
-        'space-between',
+  informationRow: {
+    minHeight: 49,
 
-      borderBottomWidth:
-        1,
+    flexDirection: 'row',
 
-      borderBottomColor:
-        '#F0E8E4',
-    },
+    alignItems: 'center',
 
-    informationLabel: {
-      flex:
-        0.42,
+    justifyContent: 'space-between',
 
-      color:
-        '#8A7670',
+    borderBottomWidth: 1,
 
-      fontSize:
-        10,
-    },
+    borderBottomColor: '#F0E8E4',
+  },
 
-    informationValue: {
-      flex:
-        0.58,
+  informationLabel: {
+    flex: 0.42,
 
-      color:
-        '#32231E',
+    color: '#8A7670',
 
-      fontSize:
-        10,
+    fontSize: 10,
+  },
 
-      fontWeight:
-        '600',
+  informationValue: {
+    flex: 0.58,
 
-      textAlign:
-        'right',
-    },
+    color: '#32231E',
 
-    noBorder: {
-      borderBottomWidth:
-        0,
-    },
+    fontSize: 10,
 
-    /* =====================================================
-     * Address
-     * ===================================================== */
+    fontWeight: '600',
 
-    addressContainer: {
-      flexDirection:
-        'row',
+    textAlign: 'right',
+  },
 
-      alignItems:
-        'center',
+  noBorder: {
+    borderBottomWidth: 0,
+  },
 
-      backgroundColor:
-        '#FFF9F6',
+  /* =====================================================
+   * Address
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  addressContainer: {
+    flexDirection: 'row',
 
-      borderColor:
-        '#EFE4DE',
+    alignItems: 'center',
 
-      borderRadius:
-        13,
+    backgroundColor: '#FFF9F6',
 
-      padding:
-        11,
+    borderWidth: 1,
 
-      marginBottom:
-        11,
-    },
+    borderColor: '#EFE4DE',
 
-    addressIconContainer: {
-      width:
-        40,
+    borderRadius: 13,
 
-      height:
-        40,
+    padding: 11,
 
-      alignItems:
-        'center',
+    marginBottom: 11,
+  },
 
-      justifyContent:
-        'center',
+  addressIconContainer: {
+    width: 40,
 
-      backgroundColor:
-        '#FFF0E8',
+    height: 40,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      marginRight:
-        11,
-    },
+    justifyContent: 'center',
 
-    addressDetails: {
-      flex:
-        1,
-    },
+    backgroundColor: '#FFF0E8',
 
-    addressTitleRow: {
-      flexDirection:
-        'row',
+    borderRadius: 11,
 
-      alignItems:
-        'center',
-    },
+    marginRight: 11,
+  },
 
-    addressTitle: {
-      color:
-        '#2C201B',
+  addressDetails: {
+    flex: 1,
+  },
 
-      fontSize:
-        11,
+  addressTitleRow: {
+    flexDirection: 'row',
 
-      fontWeight:
-        '800',
-    },
+    alignItems: 'center',
+  },
 
-    defaultBadge: {
-      backgroundColor:
-        '#FBE4D8',
+  addressTitle: {
+    color: '#2C201B',
 
-      borderRadius:
-        12,
+    fontSize: 11,
 
-      paddingHorizontal:
-        6,
+    fontWeight: '800',
+  },
 
-      paddingVertical:
-        3,
+  defaultBadge: {
+    backgroundColor: '#FBE4D8',
 
-      marginLeft:
-        6,
-    },
+    borderRadius: 12,
 
-    defaultBadgeText: {
-      color:
-        '#A00B0F',
+    paddingHorizontal: 6,
 
-      fontSize:
-        7,
+    paddingVertical: 3,
 
-      fontWeight:
-        '700',
-    },
+    marginLeft: 6,
+  },
 
-    addressText: {
-      color:
-        '#87766F',
+  defaultBadgeText: {
+    color: '#A00B0F',
 
-      fontSize:
-        9,
+    fontSize: 7,
 
-      lineHeight:
-        13,
+    fontWeight: '700',
+  },
 
-      marginTop:
-        2,
-    },
+  addressText: {
+    color: '#87766F',
 
-    /* =====================================================
-     * Payment
-     * ===================================================== */
+    fontSize: 9,
 
-    paymentContainer: {
-      minHeight:
-        61,
+    lineHeight: 13,
 
-      flexDirection:
-        'row',
+    marginTop: 2,
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Payment
+   * ===================================================== */
 
-      backgroundColor:
-        '#FFF9F6',
+  paymentContainer: {
+    minHeight: 61,
 
-      borderWidth:
-        1,
+    flexDirection: 'row',
 
-      borderColor:
-        '#EFE4DE',
+    alignItems: 'center',
 
-      borderRadius:
-        13,
+    backgroundColor: '#FFF9F6',
 
-      padding:
-        10,
+    borderWidth: 1,
 
-      marginBottom:
-        11,
-    },
+    borderColor: '#EFE4DE',
 
-    paymentIconContainer: {
-      width:
-        40,
+    borderRadius: 13,
 
-      height:
-        40,
+    padding: 10,
 
-      alignItems:
-        'center',
+    marginBottom: 11,
+  },
 
-      justifyContent:
-        'center',
+  paymentIconContainer: {
+    width: 40,
 
-      backgroundColor:
-        '#FFF0E8',
+    height: 40,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      marginRight:
-        11,
-    },
+    justifyContent: 'center',
 
-    paymentDetails: {
-      flex:
-        1,
-    },
+    backgroundColor: '#FFF0E8',
 
-    paymentTitle: {
-      color:
-        '#2D201B',
+    borderRadius: 11,
 
-      fontSize:
-        11,
+    marginRight: 11,
+  },
 
-      fontWeight:
-        '800',
-    },
+  paymentDetails: {
+    flex: 1,
+  },
 
-    paymentSubtitle: {
-      color:
-        '#897871',
+  paymentTitle: {
+    color: '#2D201B',
 
-      fontSize:
-        8,
+    fontSize: 11,
 
-      marginTop:
-        3,
-    },
+    fontWeight: '800',
+  },
 
-    /* =====================================================
-     * Order Menus
-     * ===================================================== */
+  paymentSubtitle: {
+    color: '#897871',
 
-    previousOrderRow: {
-      width:
-        '100%',
+    fontSize: 8,
 
-      minHeight:
-        66,
+    marginTop: 3,
+  },
 
-      flexDirection:
-        'row',
+  /* =====================================================
+   * Order Menus
+   * ===================================================== */
 
-      alignItems:
-        'center',
+  previousOrderRow: {
+    width: '100%',
 
-      backgroundColor:
-        '#FFF9F6',
+    minHeight: 66,
 
-      borderWidth:
-        1,
+    flexDirection: 'row',
 
-      borderColor:
-        '#EFE4DE',
+    alignItems: 'center',
 
-      borderRadius:
-        13,
+    backgroundColor: '#FFF9F6',
 
-      paddingHorizontal:
-        11,
+    borderWidth: 1,
 
-      paddingVertical:
-        10,
+    borderColor: '#EFE4DE',
 
-      marginBottom:
-        11,
-    },
+    borderRadius: 13,
 
-    orderMenuWithBorder: {
-      marginBottom:
-        8,
-    },
+    paddingHorizontal: 11,
 
-    previousOrderIconContainer: {
-      width:
-        40,
+    paddingVertical: 10,
 
-      height:
-        40,
+    marginBottom: 11,
+  },
 
-      alignItems:
-        'center',
+  orderMenuWithBorder: {
+    marginBottom: 8,
+  },
 
-      justifyContent:
-        'center',
+  previousOrderIconContainer: {
+    width: 40,
 
-      backgroundColor:
-        '#FFF0E8',
+    height: 40,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      marginRight:
-        11,
-    },
+    justifyContent: 'center',
 
-    previousOrderIcon: {
-      width:
-        21,
+    backgroundColor: '#FFF0E8',
 
-      height:
-        21,
-    },
+    borderRadius: 11,
 
-    previousOrderDetails: {
-      flex:
-        1,
+    marginRight: 11,
+  },
 
-      paddingRight:
-        10,
-    },
+  previousOrderIcon: {
+    width: 21,
 
-    previousOrderTitle: {
-      color:
-        '#30231E',
+    height: 21,
+  },
 
-      fontSize:
-        11,
+  previousOrderDetails: {
+    flex: 1,
 
-      fontWeight:
-        '800',
-    },
+    paddingRight: 10,
+  },
 
-    previousOrderSubtitle: {
-      color:
-        '#908079',
+  previousOrderTitle: {
+    color: '#30231E',
 
-      fontSize:
-        8.5,
+    fontSize: 11,
 
-      marginTop:
-        4,
-    },
+    fontWeight: '800',
+  },
 
-    previousOrderArrow: {
-      width:
-        17,
+  previousOrderSubtitle: {
+    color: '#908079',
 
-      height:
-        17,
+    fontSize: 8.5,
 
-      opacity:
-        0.65,
-    },
+    marginTop: 4,
+  },
 
-    /* =====================================================
-     * NEW Weekly Invoice Menu
-     * ===================================================== */
+  previousOrderArrow: {
+    width: 17,
 
-    weeklyInvoiceIconContainer: {
-      width:
-        40,
+    height: 17,
 
-      height:
-        40,
+    opacity: 0.65,
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * NEW Weekly Invoice Menu
+   * ===================================================== */
 
-      justifyContent:
-        'center',
+  weeklyInvoiceIconContainer: {
+    width: 40,
 
-      backgroundColor:
-        '#FDE8E8',
+    height: 40,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      marginRight:
-        11,
-    },
+    justifyContent: 'center',
 
-    weeklyInvoiceTitleRow: {
-      flexDirection:
-        'row',
+    backgroundColor: '#FDE8E8',
 
-      alignItems:
-        'center',
+    borderRadius: 11,
 
-      flexWrap:
-        'wrap',
-    },
+    marginRight: 11,
+  },
 
-    weeklyBadge: {
-      marginLeft:
-        7,
+  weeklyInvoiceTitleRow: {
+    flexDirection: 'row',
 
-      backgroundColor:
-        '#FBE4D8',
+    alignItems: 'center',
 
-      borderRadius:
-        10,
+    flexWrap: 'wrap',
+  },
 
-      paddingHorizontal:
-        6,
+  weeklyBadge: {
+    marginLeft: 7,
 
-      paddingVertical:
-        2,
-    },
+    backgroundColor: '#FBE4D8',
 
-    weeklyBadgeText: {
-      color:
-        '#A00B0F',
+    borderRadius: 10,
 
-      fontSize:
-        6,
+    paddingHorizontal: 6,
 
-      fontWeight:
-        '900',
+    paddingVertical: 2,
+  },
 
-      letterSpacing:
-        0.4,
-    },
+  weeklyBadgeText: {
+    color: '#A00B0F',
 
-    /* =====================================================
-     * Preferences
-     * ===================================================== */
+    fontSize: 6,
 
-    preferenceRow: {
-      minHeight:
-        61,
+    fontWeight: '900',
 
-      flexDirection:
-        'row',
+    letterSpacing: 0.4,
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Preferences
+   * ===================================================== */
 
-      borderBottomWidth:
-        1,
+  preferenceRow: {
+    minHeight: 61,
 
-      borderBottomColor:
-        '#F0E8E4',
-    },
+    flexDirection: 'row',
 
-    preferenceIcon: {
-      width:
-        36,
+    alignItems: 'center',
 
-      height:
-        36,
+    borderBottomWidth: 1,
 
-      alignItems:
-        'center',
+    borderBottomColor: '#F0E8E4',
+  },
 
-      justifyContent:
-        'center',
+  preferenceIcon: {
+    width: 36,
 
-      backgroundColor:
-        '#FFF0E8',
+    height: 36,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      marginRight:
-        10,
-    },
+    justifyContent: 'center',
 
-    preferenceImage: {
-      width:
-        19,
+    backgroundColor: '#FFF0E8',
 
-      height:
-        19,
-    },
+    borderRadius: 11,
 
-    preferenceDetails: {
-      flex:
-        1,
+    marginRight: 10,
+  },
 
-      paddingRight:
-        8,
-    },
+  preferenceImage: {
+    width: 19,
 
-    preferenceTitle: {
-      color:
-        '#30231E',
+    height: 19,
+  },
 
-      fontSize:
-        10,
+  preferenceDetails: {
+    flex: 1,
 
-      fontWeight:
-        '700',
-    },
+    paddingRight: 8,
+  },
 
-    preferenceSubtitle: {
-      color:
-        '#908079',
+  preferenceTitle: {
+    color: '#30231E',
 
-      fontSize:
-        8,
+    fontSize: 10,
 
-      marginTop:
-        3,
-    },
+    fontWeight: '700',
+  },
 
-    preferenceArrow: {
-      width:
-        17,
+  preferenceSubtitle: {
+    color: '#908079',
 
-      height:
-        17,
+    fontSize: 8,
 
-      opacity:
-        0.65,
-    },
+    marginTop: 3,
+  },
 
-    /* =====================================================
-     * Logout
-     * ===================================================== */
+  preferenceArrow: {
+    width: 17,
 
-    logoutButton: {
-      minHeight:
-        52,
+    height: 17,
 
-      flexDirection:
-        'row',
+    opacity: 0.65,
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Logout
+   * ===================================================== */
 
-      justifyContent:
-        'center',
+  logoutButton: {
+    minHeight: 52,
 
-      backgroundColor:
-        '#A00B0F',
+    flexDirection: 'row',
 
-      borderRadius:
-        14,
+    alignItems: 'center',
 
-      marginBottom:
-        14,
-    },
+    justifyContent: 'center',
 
-    logoutIcon: {
-      width:
-        19,
+    backgroundColor: '#A00B0F',
 
-      height:
-        19,
-    },
+    borderRadius: 14,
 
-    logoutText: {
-      color:
-        '#FFFFFF',
+    marginBottom: 14,
+  },
 
-      fontSize:
-        16,
+  logoutIcon: {
+    width: 19,
 
-      fontWeight:
-        '800',
+    height: 19,
+  },
 
-      marginLeft:
-        7,
-    },
+  logoutText: {
+    color: '#FFFFFF',
 
-    versionText: {
-      color:
-        '#AA9C96',
+    fontSize: 16,
 
-      fontSize:
-        9,
+    fontWeight: '800',
 
-      textAlign:
-        'center',
+    marginLeft: 7,
+  },
 
-      marginBottom:
-        8,
-    },
+  versionText: {
+    color: '#AA9C96',
 
-    /* =====================================================
-     * Custom Logout Popup
-     * ===================================================== */
+    fontSize: 9,
 
-    logoutPopupOverlay: {
-      flex:
-        1,
+    textAlign: 'center',
 
-      alignItems:
-        'center',
+    marginBottom: 8,
+  },
 
-      justifyContent:
-        'center',
+  /* =====================================================
+   * Custom Logout Popup
+   * ===================================================== */
 
-      backgroundColor:
-        'rgba(28, 19, 17, 0.62)',
+  logoutPopupOverlay: {
+    flex: 1,
 
-      paddingHorizontal:
-        22,
-    },
+    alignItems: 'center',
 
-    logoutPopupCard: {
-      width:
-        '100%',
+    justifyContent: 'center',
 
-      maxWidth:
-        380,
+    backgroundColor: 'rgba(28, 19, 17, 0.62)',
 
-      alignItems:
-        'center',
+    paddingHorizontal: 22,
+  },
 
-      backgroundColor:
-        '#FFFFFF',
+  logoutPopupCard: {
+    width: '100%',
 
-      borderRadius:
-        26,
+    maxWidth: 380,
 
-      paddingHorizontal:
-        22,
+    alignItems: 'center',
 
-      paddingTop:
-        28,
+    backgroundColor: '#FFFFFF',
 
-      paddingBottom:
-        21,
+    borderRadius: 26,
 
-      shadowColor:
-        '#000000',
+    paddingHorizontal: 22,
 
-      shadowOffset: {
-        width:
-          0,
+    paddingTop: 28,
 
-        height:
-          10,
-      },
+    paddingBottom: 21,
 
-      shadowOpacity:
-        0.24,
+    shadowColor: '#000000',
 
-      shadowRadius:
-        20,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        18,
+      height: 10,
     },
 
-    logoutPopupIconOuter: {
-      width:
-        84,
+    shadowOpacity: 0.24,
 
-      height:
-        84,
+    shadowRadius: 20,
 
-      alignItems:
-        'center',
+    elevation: 18,
+  },
 
-      justifyContent:
-        'center',
+  logoutPopupIconOuter: {
+    width: 84,
 
-      backgroundColor:
-        '#FFF0F0',
+    height: 84,
 
-      borderRadius:
-        42,
+    alignItems: 'center',
 
-      marginBottom:
-        15,
-    },
+    justifyContent: 'center',
 
-    logoutPopupIconInner: {
-      width:
-        58,
+    backgroundColor: '#FFF0F0',
 
-      height:
-        58,
+    borderRadius: 42,
 
-      alignItems:
-        'center',
+    marginBottom: 15,
+  },
 
-      justifyContent:
-        'center',
+  logoutPopupIconInner: {
+    width: 58,
 
-      backgroundColor:
-        '#F9DCDD',
+    height: 58,
 
-      borderRadius:
-        29,
+    alignItems: 'center',
 
-      borderWidth:
-        1,
+    justifyContent: 'center',
 
-      borderColor:
-        '#EFC4C6',
-    },
+    backgroundColor: '#F9DCDD',
 
-    logoutPopupIcon: {
-      width:
-        26,
+    borderRadius: 29,
 
-      height:
-        26,
+    borderWidth: 1,
 
-      tintColor:
-        '#A00B0F',
-    },
+    borderColor: '#EFC4C6',
+  },
 
-    logoutPopupTitle: {
-      color:
-        '#281C19',
+  logoutPopupIcon: {
+    width: 26,
 
-      fontSize:
-        21,
+    height: 26,
 
-      lineHeight:
-        27,
+    tintColor: '#A00B0F',
+  },
 
-      fontWeight:
-        '900',
+  logoutPopupTitle: {
+    color: '#281C19',
 
-      textAlign:
-        'center',
-    },
+    fontSize: 21,
 
-    logoutPopupDescription: {
-      maxWidth:
-        290,
+    lineHeight: 27,
 
-      color:
-        '#766B67',
+    fontWeight: '900',
 
-      fontSize:
-        10.5,
+    textAlign: 'center',
+  },
 
-      lineHeight:
-        17,
+  logoutPopupDescription: {
+    maxWidth: 290,
 
-      textAlign:
-        'center',
+    color: '#766B67',
 
-      marginTop:
-        7,
-    },
+    fontSize: 10.5,
 
-    logoutInfoBox: {
-      width:
-        '100%',
+    lineHeight: 17,
 
-      minHeight:
-        50,
+    textAlign: 'center',
 
-      flexDirection:
-        'row',
+    marginTop: 7,
+  },
 
-      alignItems:
-        'center',
+  logoutInfoBox: {
+    width: '100%',
 
-      backgroundColor:
-        '#FFF7F4',
+    minHeight: 50,
 
-      borderWidth:
-        1,
+    flexDirection: 'row',
 
-      borderColor:
-        '#F0E3DE',
+    alignItems: 'center',
 
-      borderRadius:
-        12,
+    backgroundColor: '#FFF7F4',
 
-      paddingHorizontal:
-        11,
+    borderWidth: 1,
 
-      paddingVertical:
-        9,
+    borderColor: '#F0E3DE',
 
-      marginTop:
-        18,
-    },
+    borderRadius: 12,
 
-    logoutInfoIcon: {
-      width:
-        22,
+    paddingHorizontal: 11,
 
-      height:
-        22,
+    paddingVertical: 9,
 
-      lineHeight:
-        22,
+    marginTop: 18,
+  },
 
-      textAlign:
-        'center',
+  logoutInfoIcon: {
+    width: 22,
 
-      color:
-        '#A00B0F',
+    height: 22,
 
-      backgroundColor:
-        '#F9E2E0',
+    lineHeight: 22,
 
-      borderRadius:
-        11,
+    textAlign: 'center',
 
-      fontSize:
-        11,
+    color: '#A00B0F',
 
-      fontWeight:
-        '900',
+    backgroundColor: '#F9E2E0',
 
-      marginRight:
-        8,
-    },
+    borderRadius: 11,
 
-    logoutInfoText: {
-      flex:
-        1,
+    fontSize: 11,
 
-      color:
-        '#796B67',
+    fontWeight: '900',
 
-      fontSize:
-        8.5,
+    marginRight: 8,
+  },
 
-      lineHeight:
-        13,
+  logoutInfoText: {
+    flex: 1,
 
-      fontWeight:
-        '600',
-    },
+    color: '#796B67',
 
-    logoutPopupButtons: {
-      width:
-        '100%',
+    fontSize: 8.5,
 
-      flexDirection:
-        'row',
+    lineHeight: 13,
 
-      alignItems:
-        'center',
+    fontWeight: '600',
+  },
 
-      marginTop:
-        20,
-    },
+  logoutPopupButtons: {
+    width: '100%',
 
-    logoutCancelButton: {
-      flex:
-        1,
+    flexDirection: 'row',
 
-      minHeight:
-        49,
+    alignItems: 'center',
 
-      alignItems:
-        'center',
+    marginTop: 20,
+  },
 
-      justifyContent:
-        'center',
+  logoutCancelButton: {
+    flex: 1,
 
-      backgroundColor:
-        '#F8F5F4',
+    minHeight: 49,
 
-      borderWidth:
-        1,
+    alignItems: 'center',
 
-      borderColor:
-        '#E8E0DD',
+    justifyContent: 'center',
 
-      borderRadius:
-        12,
+    backgroundColor: '#F8F5F4',
 
-      marginRight:
-        5,
-    },
+    borderWidth: 1,
 
-    logoutCancelText: {
-      color:
-        '#6E625E',
+    borderColor: '#E8E0DD',
 
-      fontSize:
-        10,
+    borderRadius: 12,
 
-      fontWeight:
-        '900',
-    },
+    marginRight: 5,
+  },
 
-    logoutConfirmButton: {
-      flex:
-        1,
+  logoutCancelText: {
+    color: '#6E625E',
 
-      minHeight:
-        49,
+    fontSize: 10,
 
-      flexDirection:
-        'row',
+    fontWeight: '900',
+  },
 
-      alignItems:
-        'center',
+  logoutConfirmButton: {
+    flex: 1,
 
-      justifyContent:
-        'center',
+    minHeight: 49,
 
-      backgroundColor:
-        '#A00B0F',
+    flexDirection: 'row',
 
-      borderRadius:
-        12,
+    alignItems: 'center',
 
-      marginLeft:
-        5,
+    justifyContent: 'center',
 
-      shadowColor:
-        '#A00B0F',
+    backgroundColor: '#A00B0F',
 
-      shadowOffset: {
-        width:
-          0,
+    borderRadius: 12,
 
-        height:
-          4,
-      },
+    marginLeft: 5,
 
-      shadowOpacity:
-        0.2,
+    shadowColor: '#A00B0F',
 
-      shadowRadius:
-        7,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        4,
+      height: 4,
     },
 
-    logoutConfirmButtonDisabled: {
-      opacity:
-        0.6,
-    },
+    shadowOpacity: 0.2,
 
-    logoutConfirmIcon: {
-      width:
-        17,
+    shadowRadius: 7,
 
-      height:
-        17,
+    elevation: 4,
+  },
 
-      tintColor:
-        '#FFFFFF',
+  logoutConfirmButtonDisabled: {
+    opacity: 0.6,
+  },
 
-      marginRight:
-        6,
-    },
+  logoutConfirmIcon: {
+    width: 17,
 
-    logoutConfirmText: {
-      color:
-        '#FFFFFF',
+    height: 17,
 
-      fontSize:
-        10,
+    tintColor: '#FFFFFF',
 
-      fontWeight:
-        '900',
-    },
-  });
+    marginRight: 6,
+  },
+
+  logoutConfirmText: {
+    color: '#FFFFFF',
+
+    fontSize: 10,
+
+    fontWeight: '900',
+  },
+});

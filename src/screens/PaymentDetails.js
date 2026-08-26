@@ -1,766 +1,2381 @@
-import React, {useMemo, useState} from 'react';
+import React, {
+  useMemo,
+  useState,
+} from 'react';
 
 import {
-  Alert,
+  ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
+  Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
-  Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
-const PaymentDetails = ({navigation}) => {
-  const {width} = useWindowDimensions();
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-  /*
-  |--------------------------------------------------------------------------
-  | States
-  |--------------------------------------------------------------------------
-  */
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
-  const [cardHolderName, setCardHolderName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
+import {
+  PlatformPay,
+  usePlatformPay,
+  useStripe,
+} from '@stripe/stripe-react-native';
 
-  const [saveAsDefault, setSaveAsDefault] = useState(true);
-  const [showCvv, setShowCvv] = useState(false);
+/* =========================================================
+ * CONFIGURATION
+ * ========================================================= */
 
-  const [errors, setErrors] = useState({});
+const UPI_MERCHANT_VPA =
+  'YOUR_UPI_ID@bank';
 
-  /*
-  |--------------------------------------------------------------------------
-  | Responsive
-  |--------------------------------------------------------------------------
-  */
+const UPI_MERCHANT_NAME =
+  'KP Cloud Kitchen';
 
-  const responsive = useMemo(() => {
-    const isTablet = width >= 768;
+const UPI_MERCHANT_CODE =
+  '5812';
 
-    return {
-      isTablet,
+const GOOGLE_PAY_MERCHANT_COUNTRY =
+  'US';
 
-      contentWidth: isTablet
-        ? Math.min(width - 80, 720)
-        : width,
+/* =========================================================
+ * STORAGE
+ * ========================================================= */
 
-      horizontalPadding: isTablet ? 28 : 14,
-    };
-  }, [width]);
+const CART_STORAGE_KEY =
+  'kp_customer_cart';
 
-  /*
-  |--------------------------------------------------------------------------
-  | Format Card Number
-  |--------------------------------------------------------------------------
-  */
+/* =========================================================
+ * APIs
+ * ========================================================= */
 
-  const formatCardNumber = value => {
-    const cleaned = value.replace(/\D/g, '').slice(0, 16);
+const getCreateOrderPaymentIntentApi =
+  orderId =>
+    `https://replete-software.com/projects/kp_admin/api/customer/orders/${orderId}/create-payment-intent`;
 
-    const formatted = cleaned
-      .replace(/(.{4})/g, '$1 ')
-      .trim();
+const getConfirmOrderApi =
+  orderId =>
+    `https://replete-software.com/projects/kp_admin/api/customer/orders/${orderId}/confirm`;
 
-    setCardNumber(formatted);
+const getCreateBillPaymentIntentApi =
+  billId =>
+    `https://replete-software.com/projects/kp_admin/api/customer/weekly-bills/${billId}/create-payment-intent`;
 
-    if (errors.cardNumber) {
-      setErrors(prev => ({
-        ...prev,
-        cardNumber: '',
-      }));
-    }
-  };
+const getConfirmBillPaymentApi =
+  billId =>
+    `https://replete-software.com/projects/kp_admin/api/customer/weekly-bills/${billId}/confirm-payment`;
 
-  /*
-  |--------------------------------------------------------------------------
-  | Format Expiry
-  |--------------------------------------------------------------------------
-  */
+/* =========================================================
+ * PAYMENT DETAILS
+ * ========================================================= */
 
-  const formatExpiryDate = value => {
-    let cleaned = value.replace(/\D/g, '').slice(0, 4);
+const PaymentDetails = ({
+  navigation,
+  route,
+}) => {
+  const {
+    width,
+  } =
+    useWindowDimensions();
 
-    if (cleaned.length >= 3) {
-      cleaned =
-        cleaned.slice(0, 2) +
-        '/' +
-        cleaned.slice(2);
-    }
+  /* =======================================================
+   * ROUTE PARAMS
+   * ======================================================= */
 
-    setExpiryDate(cleaned);
+  const orderId =
+    route?.params?.orderId ??
+    null;
 
-    if (errors.expiryDate) {
-      setErrors(prev => ({
-        ...prev,
-        expiryDate: '',
-      }));
-    }
-  };
+  const billId =
+    route?.params?.billId ??
+    null;
 
-  /*
-  |--------------------------------------------------------------------------
-  | CVV
-  |--------------------------------------------------------------------------
-  */
-
-  const handleCvvChange = value => {
-    const cleaned = value
-      .replace(/\D/g, '')
-      .slice(0, 4);
-
-    setCvv(cleaned);
-
-    if (errors.cvv) {
-      setErrors(prev => ({
-        ...prev,
-        cvv: '',
-      }));
-    }
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Validation
-  |--------------------------------------------------------------------------
-  */
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    const cleanedCardNumber =
-      cardNumber.replace(/\s/g, '');
-
-    if (!cardHolderName.trim()) {
-      newErrors.cardHolderName =
-        'Please enter the cardholder name';
-    }
-
-    if (cleanedCardNumber.length !== 16) {
-      newErrors.cardNumber =
-        'Please enter a valid 16-digit card number';
-    }
-
-    if (!expiryDate || expiryDate.length !== 5) {
-      newErrors.expiryDate =
-        'Please enter a valid expiry date';
-    } else {
-      const [month, year] =
-        expiryDate.split('/');
-
-      const numericMonth = Number(month);
-      const numericYear = Number(year);
-
-      if (
-        numericMonth < 1 ||
-        numericMonth > 12
-      ) {
-        newErrors.expiryDate =
-          'Please enter a valid expiry month';
-      } else {
-        const now = new Date();
-
-        const currentYear =
-          Number(
-            now
-              .getFullYear()
-              .toString()
-              .slice(-2),
-          );
-
-        const currentMonth =
-          now.getMonth() + 1;
-
-        if (
-          numericYear < currentYear ||
-          (numericYear === currentYear &&
-            numericMonth < currentMonth)
-        ) {
-          newErrors.expiryDate =
-            'This card has expired';
-        }
-      }
-    }
-
-    if (cvv.length < 3) {
-      newErrors.cvv =
-        'Please enter a valid CVV';
-    }
-
-    setErrors(newErrors);
-
-    return (
-      Object.keys(newErrors).length === 0
-    );
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | Save Card
-  |--------------------------------------------------------------------------
-  */
-
-  const handleSaveCard = () => {
-    if (!validateForm()) {
-      return;
-    }
-
-    const cleanedCardNumber =
-      cardNumber.replace(/\s/g, '');
-
-    const cardData = {
-      cardHolderName:
-        cardHolderName.trim(),
-
-      cardNumber:
-        cleanedCardNumber,
-
-      expiryDate,
-
-      cvv,
-
-      isDefault: saveAsDefault,
-    };
-
-    console.log(
-      'Card details:',
-      cardData,
+  const isWeeklyBill =
+    Boolean(
+      route?.params
+        ?.isWeeklyBill,
     );
 
-    Alert.alert(
-      'Card Added',
-      'Your payment card has been added successfully.',
+  const billNumber =
+    route?.params
+      ?.billNumber ??
+    null;
+
+  const totalAmount =
+    Number(
+      route?.params
+        ?.totalAmount ??
+        route?.params
+          ?.balanceAmount ??
+        0,
+    );
+
+  const subtotal =
+    Number(
+      route?.params
+        ?.subtotal ??
+        totalAmount,
+    );
+
+  const deliveryFee =
+    Number(
+      route?.params
+        ?.deliveryFee ??
+        0,
+    );
+
+  const currency =
+    String(
+      route?.params
+        ?.currency ??
+        'AUD',
+    ).toUpperCase();
+
+  /* =======================================================
+   * STRIPE
+   * ======================================================= */
+
+  const {
+    initPaymentSheet,
+    presentPaymentSheet,
+  } =
+    useStripe();
+
+  const {
+    isPlatformPaySupported,
+    confirmPlatformPayPayment,
+  } =
+    usePlatformPay();
+
+  /* =======================================================
+   * STATES
+   * ======================================================= */
+
+  const [
+    processingMethod,
+    setProcessingMethod,
+  ] =
+    useState(null);
+
+  const [
+    successVisible,
+    setSuccessVisible,
+  ] =
+    useState(false);
+
+  const [
+    successfulMethod,
+    setSuccessfulMethod,
+  ] =
+    useState('');
+
+  /* =======================================================
+   * CUSTOM POPUP
+   * ======================================================= */
+
+  const [
+    popupVisible,
+    setPopupVisible,
+  ] =
+    useState(false);
+
+  const [
+    popupData,
+    setPopupData,
+  ] =
+    useState({
+      type:
+        'info',
+
+      title:
+        '',
+
+      message:
+        '',
+
+      /*
+       * NEW
+       *
+       * If image exists,
+       * popup will show image
+       * instead of Ionicon.
+       */
+
+      image:
+        null,
+
+      primaryText:
+        'OK',
+
+      secondaryText:
+        null,
+
+      onPrimary:
+        null,
+
+      onSecondary:
+        null,
+    });
+
+  /* =======================================================
+   * RESPONSIVE
+   * ======================================================= */
+
+  const responsive =
+    useMemo(
+      () => {
+        const isTablet =
+          width >=
+          768;
+
+        return {
+          contentWidth:
+            isTablet
+              ? Math.min(
+                  width -
+                    80,
+                  720,
+                )
+              : width,
+
+          padding:
+            isTablet
+              ? 28
+              : 14,
+        };
+      },
       [
-        {
-          text: 'OK',
-
-          onPress: () => {
-            navigation.goBack();
-          },
-        },
+        width,
       ],
     );
-  };
 
-  /*
-  |--------------------------------------------------------------------------
-  | Display Card
-  |--------------------------------------------------------------------------
-  */
+  const isProcessing =
+    Boolean(
+      processingMethod,
+    );
 
-  const displayCardNumber =
-    cardNumber ||
-    '•••• •••• •••• ••••';
+  /* =======================================================
+   * CUSTOM POPUP HELPER
+   * ======================================================= */
 
-  const displayName =
-    cardHolderName ||
-    'CARD HOLDER';
+  const showPopup =
+    ({
+      type =
+        'info',
 
-  const displayExpiry =
-    expiryDate || 'MM/YY';
+      title,
 
-  /*
-  |--------------------------------------------------------------------------
-  | UI
-  |--------------------------------------------------------------------------
-  */
+      message,
+
+      image =
+        null,
+
+      primaryText =
+        'OK',
+
+      secondaryText =
+        null,
+
+      onPrimary =
+        null,
+
+      onSecondary =
+        null,
+    }) => {
+      setPopupData({
+        type,
+
+        title,
+
+        message,
+
+        image,
+
+        primaryText,
+
+        secondaryText,
+
+        onPrimary,
+
+        onSecondary,
+      });
+
+      setPopupVisible(
+        true,
+      );
+    };
+
+  const closePopup =
+    () => {
+      setPopupVisible(
+        false,
+      );
+    };
+
+  const handlePopupPrimary =
+    () => {
+      const callback =
+        popupData
+          ?.onPrimary;
+
+      setPopupVisible(
+        false,
+      );
+
+      if (
+        typeof callback ===
+        'function'
+      ) {
+        setTimeout(
+          () =>
+            callback(),
+          100,
+        );
+      }
+    };
+
+  const handlePopupSecondary =
+    () => {
+      const callback =
+        popupData
+          ?.onSecondary;
+
+      setPopupVisible(
+        false,
+      );
+
+      if (
+        typeof callback ===
+        'function'
+      ) {
+        setTimeout(
+          () =>
+            callback(),
+          100,
+        );
+      }
+    };
+
+  /* =======================================================
+   * VALIDATE PAYMENT DATA
+   * ======================================================= */
+
+  const validatePaymentData =
+    () => {
+      if (
+        !orderId &&
+        !billId
+      ) {
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'Payment Reference Missing',
+
+          message:
+            'The order or weekly bill reference was not supplied. Please return and try again.',
+
+          /*
+           * NEW IMAGE
+           */
+
+          image:
+            require('../assets/login-icons/wallet.png'),
+
+          primaryText:
+            'Go Back',
+
+          onPrimary:
+            () => {
+              navigation.goBack();
+            },
+        });
+
+        return false;
+      }
+
+      if (
+        !totalAmount ||
+        totalAmount <=
+          0
+      ) {
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'Invalid Amount',
+
+          message:
+            'There is no valid outstanding amount available for this payment.',
+        });
+
+        return false;
+      }
+
+      return true;
+    };
+
+  /* =======================================================
+   * CREATE STRIPE PAYMENT INTENT
+   * ======================================================= */
+
+  const createStripePaymentIntent =
+    async () => {
+      if (
+        !validatePaymentData()
+      ) {
+        throw new Error(
+          'Invalid payment data.',
+        );
+      }
+
+      const token =
+        await AsyncStorage.getItem(
+          'token',
+        );
+
+      if (
+        !token
+      ) {
+        throw new Error(
+          'Your login session has expired. Please login again.',
+        );
+      }
+
+      const api =
+        isWeeklyBill
+          ? getCreateBillPaymentIntentApi(
+              billId,
+            )
+          : getCreateOrderPaymentIntentApi(
+              orderId,
+            );
+
+      console.log(
+        '==============================================',
+      );
+
+      console.log(
+        'CREATE PAYMENT INTENT API:',
+        api,
+      );
+
+      console.log(
+        'PAYMENT TYPE:',
+        isWeeklyBill
+          ? 'WEEKLY BILL'
+          : 'ORDER',
+      );
+
+      console.log(
+        'AMOUNT:',
+        totalAmount,
+      );
+
+      console.log(
+        '==============================================',
+      );
+
+      const response =
+        await fetch(
+          api,
+          {
+            method:
+              'POST',
+
+            headers: {
+              Accept:
+                'application/json',
+
+              'Content-Type':
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+
+            body:
+              JSON.stringify({
+                order_id:
+                  orderId,
+
+                bill_id:
+                  billId,
+
+                payable_type:
+                  isWeeklyBill
+                    ? 'weekly_bill'
+                    : 'order',
+
+                amount:
+                  Number(
+                    totalAmount.toFixed(
+                      2,
+                    ),
+                  ),
+
+                currency:
+                  currency.toLowerCase(),
+              }),
+          },
+        );
+
+      const responseText =
+        await response.text();
+
+      let result =
+        {};
+
+      if (
+        responseText
+      ) {
+        try {
+          result =
+            JSON.parse(
+              responseText,
+            );
+        } catch (
+          error
+        ) {
+          console.log(
+            'RAW PAYMENT RESPONSE:',
+            responseText,
+          );
+
+          throw new Error(
+            'Invalid payment server response.',
+          );
+        }
+      }
+
+      console.log(
+        'PAYMENT INTENT STATUS:',
+        response.status,
+      );
+
+      console.log(
+        'PAYMENT INTENT RESULT:',
+        result,
+      );
+
+      if (
+        response.status ===
+        401
+      ) {
+        throw new Error(
+          'Your login session has expired.',
+        );
+      }
+
+      if (
+        response.status ===
+          422 &&
+        result?.errors
+      ) {
+        const errors =
+          Object.values(
+            result.errors,
+          ).flat();
+
+        throw new Error(
+          errors[0] ??
+            result?.message ??
+            'Unable to prepare payment.',
+        );
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result?.message ??
+            result?.error ??
+            'Unable to prepare payment.',
+        );
+      }
+
+      const clientSecret =
+        result
+          ?.stripe_client_secret ??
+        result
+          ?.client_secret ??
+        result?.data
+          ?.stripe_client_secret ??
+        result?.data
+          ?.client_secret ??
+        null;
+
+      const intentId =
+        result
+          ?.payment_intent_id ??
+        result?.data
+          ?.payment_intent_id ??
+        result
+          ?.payment_intent
+          ?.id ??
+        null;
+
+      if (
+        !clientSecret
+      ) {
+        throw new Error(
+          'Stripe client secret was not returned by the server.',
+        );
+      }
+
+      if (
+        typeof clientSecret !==
+        'string'
+      ) {
+        throw new Error(
+          'Invalid Stripe client secret.',
+        );
+      }
+
+      if (
+        !clientSecret.startsWith(
+          'pi_',
+        ) ||
+        !clientSecret.includes(
+          '_secret_',
+        )
+      ) {
+        throw new Error(
+          'Invalid Stripe PaymentIntent client secret.',
+        );
+      }
+
+      return {
+        clientSecret,
+
+        paymentIntentId:
+          intentId,
+      };
+    };
+
+  /* =======================================================
+   * CONFIRM PAYMENT
+   * ======================================================= */
+
+  const confirmPayment =
+    async ({
+      currentPaymentIntentId,
+
+      paymentMethod,
+    }) => {
+      const token =
+        await AsyncStorage.getItem(
+          'token',
+        );
+
+      if (
+        !token
+      ) {
+        throw new Error(
+          'Your session has expired. Please login again.',
+        );
+      }
+
+      const api =
+        isWeeklyBill
+          ? getConfirmBillPaymentApi(
+              billId,
+            )
+          : getConfirmOrderApi(
+              orderId,
+            );
+
+      console.log(
+        'CONFIRM PAYMENT API:',
+        api,
+      );
+
+      const response =
+        await fetch(
+          api,
+          {
+            method:
+              'POST',
+
+            headers: {
+              Accept:
+                'application/json',
+
+              'Content-Type':
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+
+            body:
+              JSON.stringify({
+                payment_intent_id:
+                  currentPaymentIntentId,
+
+                payment_method:
+                  paymentMethod,
+
+                bill_id:
+                  billId,
+
+                order_id:
+                  orderId,
+              }),
+          },
+        );
+
+      const responseText =
+        await response.text();
+
+      let result =
+        {};
+
+      if (
+        responseText
+      ) {
+        try {
+          result =
+            JSON.parse(
+              responseText,
+            );
+        } catch (
+          error
+        ) {
+          console.log(
+            'RAW CONFIRM RESPONSE:',
+            responseText,
+          );
+
+          throw new Error(
+            'Invalid payment confirmation response.',
+          );
+        }
+      }
+
+      if (
+        response.status ===
+        401
+      ) {
+        throw new Error(
+          'Your session has expired.',
+        );
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result?.message ??
+            result?.error ??
+            'Payment could not be verified.',
+        );
+      }
+
+      if (
+        result?.success ===
+        false
+      ) {
+        throw new Error(
+          result?.message ??
+            'Payment verification failed.',
+        );
+      }
+
+      return result;
+    };
+
+  /* =======================================================
+   * COMPLETE PAYMENT
+   * ======================================================= */
+
+  const completePayment =
+    async paymentMethod => {
+      if (
+        !isWeeklyBill
+      ) {
+        await AsyncStorage.removeItem(
+          CART_STORAGE_KEY,
+        );
+      }
+
+      setSuccessfulMethod(
+        paymentMethod,
+      );
+
+      setSuccessVisible(
+        true,
+      );
+    };
+
+  /* =======================================================
+   * CARD PAYMENT
+   * ======================================================= */
+
+  const handleCardPayment =
+    async () => {
+      if (
+        isProcessing
+      ) {
+        return;
+      }
+
+      if (
+        !validatePaymentData()
+      ) {
+        return;
+      }
+
+      try {
+        setProcessingMethod(
+          'card',
+        );
+
+        const paymentData =
+          await createStripePaymentIntent();
+
+        const {
+          error:
+            initError,
+        } =
+          await initPaymentSheet({
+            merchantDisplayName:
+              'KP Cloud Kitchen',
+
+            paymentIntentClientSecret:
+              paymentData
+                .clientSecret,
+
+            allowsDelayedPaymentMethods:
+              false,
+
+            appearance: {
+              shapes: {
+                borderRadius:
+                  12,
+              },
+            },
+          });
+
+        if (
+          initError
+        ) {
+          throw new Error(
+            initError?.message ??
+              'Unable to initialize card payment.',
+          );
+        }
+
+        const {
+          error:
+            paymentError,
+        } =
+          await presentPaymentSheet();
+
+        if (
+          paymentError
+        ) {
+          const code =
+            String(
+              paymentError
+                ?.code ??
+                '',
+            ).toLowerCase();
+
+          if (
+            code ===
+              'canceled' ||
+            code ===
+              'cancelled'
+          ) {
+            return;
+          }
+
+          throw new Error(
+            paymentError?.message ??
+              'Card payment failed.',
+          );
+        }
+
+        await confirmPayment({
+          currentPaymentIntentId:
+            paymentData
+              .paymentIntentId,
+
+          paymentMethod:
+            'stripe',
+        });
+
+        await completePayment(
+          'Card',
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'CARD PAYMENT ERROR:',
+          error,
+        );
+
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'Card Payment Failed',
+
+          message:
+            error?.message ??
+            'Unable to process your card payment.',
+        });
+      } finally {
+        setProcessingMethod(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * GOOGLE PAY
+   * ======================================================= */
+
+  const handleGooglePay =
+    async () => {
+      if (
+        isProcessing
+      ) {
+        return;
+      }
+
+      if (
+        !validatePaymentData()
+      ) {
+        return;
+      }
+
+      if (
+        Platform.OS !==
+        'android'
+      ) {
+        showPopup({
+          type:
+            'info',
+
+          title:
+            'Google Pay',
+
+          message:
+            'Google Pay is available from the Android version of this application.',
+        });
+
+        return;
+      }
+
+      try {
+        setProcessingMethod(
+          'google',
+        );
+
+        const supported =
+          await isPlatformPaySupported({
+            googlePay: {
+              testEnv:
+                __DEV__,
+            },
+          });
+
+        if (
+          !supported
+        ) {
+          throw new Error(
+            'Google Pay is not available on this device.',
+          );
+        }
+
+        const paymentData =
+          await createStripePaymentIntent();
+
+        const {
+          error,
+        } =
+          await confirmPlatformPayPayment(
+            paymentData
+              .clientSecret,
+
+            {
+              googlePay: {
+                testEnv:
+                  __DEV__,
+
+                merchantName:
+                  'KP Cloud Kitchen',
+
+                merchantCountryCode:
+                  GOOGLE_PAY_MERCHANT_COUNTRY,
+
+                currencyCode:
+                  currency,
+
+                billingAddressConfig:
+                  {
+                    format:
+                      PlatformPay
+                        .BillingAddressFormat
+                        .Full,
+
+                    isPhoneNumberRequired:
+                      false,
+
+                    isRequired:
+                      false,
+                  },
+              },
+            },
+          );
+
+        if (
+          error
+        ) {
+          const code =
+            String(
+              error?.code ??
+                '',
+            ).toLowerCase();
+
+          if (
+            code ===
+              'canceled' ||
+            code ===
+              'cancelled'
+          ) {
+            return;
+          }
+
+          throw new Error(
+            error?.message ??
+              'Google Pay payment failed.',
+          );
+        }
+
+        await confirmPayment({
+          currentPaymentIntentId:
+            paymentData
+              .paymentIntentId,
+
+          paymentMethod:
+            'google_pay',
+        });
+
+        await completePayment(
+          'Google Pay',
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'GOOGLE PAY ERROR:',
+          error,
+        );
+
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'Google Pay',
+
+          message:
+            error?.message ??
+            'Unable to process Google Pay.',
+        });
+      } finally {
+        setProcessingMethod(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * UPI VALIDATION
+   * ======================================================= */
+
+  const validateUpiPayment =
+    () => {
+      if (
+        !validatePaymentData()
+      ) {
+        return false;
+      }
+
+      if (
+        currency !==
+        'INR'
+      ) {
+        showPopup({
+          type:
+            'warning',
+
+          title:
+            'UPI Not Available',
+
+          message:
+            `PhonePe, CRED and UPI require an INR transaction. This bill is currently in ${currency}.`,
+        });
+
+        return false;
+      }
+
+      if (
+        UPI_MERCHANT_VPA.includes(
+          'YOUR_UPI_ID',
+        )
+      ) {
+        showPopup({
+          type:
+            'warning',
+
+          title:
+            'UPI Setup Required',
+
+          message:
+            'Please configure your verified merchant UPI ID before using PhonePe, CRED or other UPI applications.',
+        });
+
+        return false;
+      }
+
+      return true;
+    };
+
+  /* =======================================================
+   * BUILD UPI
+   * ======================================================= */
+
+  const buildUpiQuery =
+    () => {
+      const transactionRef =
+        `${
+          isWeeklyBill
+            ? `BILL-${billId}`
+            : `ORDER-${orderId}`
+        }-${Date.now()}`;
+
+      return [
+        `pa=${encodeURIComponent(
+          UPI_MERCHANT_VPA,
+        )}`,
+
+        `pn=${encodeURIComponent(
+          UPI_MERCHANT_NAME,
+        )}`,
+
+        `mc=${encodeURIComponent(
+          UPI_MERCHANT_CODE,
+        )}`,
+
+        `tr=${encodeURIComponent(
+          transactionRef,
+        )}`,
+
+        `tn=${encodeURIComponent(
+          isWeeklyBill
+            ? `Weekly bill ${
+                billNumber ??
+                billId
+              }`
+            : `Order ${orderId}`,
+        )}`,
+
+        `am=${encodeURIComponent(
+          totalAmount.toFixed(
+            2,
+          ),
+        )}`,
+
+        'cu=INR',
+      ].join(
+        '&',
+      );
+    };
+
+  /* =======================================================
+   * GENERIC UPI
+   * ======================================================= */
+
+  const openGenericUpi =
+    async () => {
+      const url =
+        `upi://pay?${buildUpiQuery()}`;
+
+      await Linking.openURL(
+        url,
+      );
+    };
+
+  /* =======================================================
+   * OPEN SPECIFIC UPI APP
+   * ======================================================= */
+
+  const openAndroidUpiApp =
+    async ({
+      packageName,
+    }) => {
+      const query =
+        buildUpiQuery();
+
+      const intentUrl =
+        `intent://pay?${query}` +
+        `#Intent;scheme=upi;package=${packageName};end`;
+
+      try {
+        await Linking.openURL(
+          intentUrl,
+        );
+
+        return true;
+      } catch (
+        error
+      ) {
+        console.log(
+          'DIRECT UPI ERROR:',
+          error,
+        );
+
+        return false;
+      }
+    };
+
+  /* =======================================================
+   * APPLE PAY BUTTON
+   *
+   * NOTE:
+   * Your current code is using
+   * the old PhonePe Android UPI handler here.
+   * ======================================================= */
+
+  const handleApplePay =
+    async () => {
+      if (
+        isProcessing ||
+        !validateUpiPayment()
+      ) {
+        return;
+      }
+
+      try {
+        setProcessingMethod(
+          'phonepe',
+        );
+
+        let opened =
+          false;
+
+        if (
+          Platform.OS ===
+          'android'
+        ) {
+          opened =
+            await openAndroidUpiApp({
+              packageName:
+                'com.phonepe.app',
+            });
+        }
+
+        if (
+          !opened
+        ) {
+          showPopup({
+            type:
+              'info',
+
+            title:
+              'Open UPI App',
+
+            message:
+              'PhonePe could not be opened directly. Would you like to choose another installed UPI application?',
+
+            primaryText:
+              'Continue',
+
+            secondaryText:
+              'Cancel',
+
+            onPrimary:
+              async () => {
+                try {
+                  await openGenericUpi();
+                } catch (
+                  error
+                ) {
+                  showPopup({
+                    type:
+                      'error',
+
+                    title:
+                      'PhonePe',
+
+                    message:
+                      'No compatible UPI application was found.',
+                  });
+                }
+              },
+          });
+
+          return;
+        }
+
+        showPopup({
+          type:
+            'info',
+
+          title:
+            'Complete Payment',
+
+          message:
+            'PhonePe has been opened. Complete the payment there. Your outstanding balance will remain until the server verifies the transaction.',
+        });
+      } catch (
+        error
+      ) {
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'PhonePe',
+
+          message:
+            error?.message ??
+            'Unable to open PhonePe.',
+        });
+      } finally {
+        setProcessingMethod(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * CRED
+   * ======================================================= */
+
+  const handleCred =
+    async () => {
+      if (
+        isProcessing ||
+        !validateUpiPayment()
+      ) {
+        return;
+      }
+
+      try {
+        setProcessingMethod(
+          'cred',
+        );
+
+        let opened =
+          false;
+
+        if (
+          Platform.OS ===
+          'android'
+        ) {
+          opened =
+            await openAndroidUpiApp({
+              packageName:
+                'com.dreamplug.androidapp',
+            });
+        }
+
+        if (
+          !opened
+        ) {
+          showPopup({
+            type:
+              'info',
+
+            title:
+              'Open UPI App',
+
+            message:
+              'CRED could not be opened directly. Would you like to choose another installed UPI application?',
+
+            primaryText:
+              'Continue',
+
+            secondaryText:
+              'Cancel',
+
+            onPrimary:
+              async () => {
+                try {
+                  await openGenericUpi();
+                } catch (
+                  error
+                ) {
+                  showPopup({
+                    type:
+                      'error',
+
+                    title:
+                      'CRED',
+
+                    message:
+                      'No compatible UPI application was found.',
+                  });
+                }
+              },
+          });
+
+          return;
+        }
+
+        showPopup({
+          type:
+            'info',
+
+          title:
+            'Complete Payment',
+
+          message:
+            'CRED has been opened. Complete the payment there. Your outstanding amount remains until payment is verified.',
+        });
+      } catch (
+        error
+      ) {
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'CRED',
+
+          message:
+            error?.message ??
+            'Unable to open CRED.',
+        });
+      } finally {
+        setProcessingMethod(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * OTHER UPI
+   * ======================================================= */
+
+  const handleOtherUpi =
+    async () => {
+      if (
+        isProcessing ||
+        !validateUpiPayment()
+      ) {
+        return;
+      }
+
+      try {
+        setProcessingMethod(
+          'upi',
+        );
+
+        await openGenericUpi();
+
+        showPopup({
+          type:
+            'info',
+
+          title:
+            'UPI App Opened',
+
+          message:
+            'Complete your payment in the selected UPI app. The outstanding balance remains until your backend verifies payment.',
+        });
+      } catch (
+        error
+      ) {
+        showPopup({
+          type:
+            'error',
+
+          title:
+            'UPI Payment',
+
+          message:
+            error?.message ??
+            'No compatible UPI application was found.',
+        });
+      } finally {
+        setProcessingMethod(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * PAYMENT METHODS
+   * ======================================================= */
+
+  const paymentMethods =
+    [
+      {
+        id:
+          'card',
+
+        title:
+          'Pay with Card',
+
+        subtitle:
+          'Visa, Mastercard and supported cards',
+
+        image:
+          require('../assets/login-icons/card-pay.png'),
+
+        onPress:
+          handleCardPayment,
+      },
+
+      {
+        id:
+          'google',
+
+        title:
+          'Google Pay',
+
+        subtitle:
+          'Pay securely using Google Pay',
+
+        image:
+          require('../assets/login-icons/google-pay.png'),
+
+        onPress:
+          handleGooglePay,
+      },
+
+      {
+        id:
+          'ApplePay',
+
+        title:
+          'Apple Pay',
+
+        subtitle:
+          'Pay securely through Apple Pay',
+
+        image:
+          require('../assets/login-icons/apple-pay.png'),
+
+        onPress:
+          handleApplePay,
+      },
+    ];
+
+  /* =======================================================
+   * DONE
+   * ======================================================= */
+
+  const handleDone =
+    () => {
+      setSuccessVisible(
+        false,
+      );
+
+      navigation.reset({
+        index:
+          0,
+
+        routes: [
+          {
+            name:
+              'MainTabs',
+          },
+        ],
+      });
+    };
+
+  /* =======================================================
+   * POPUP ICON
+   * ======================================================= */
+
+  const getPopupIcon =
+    () => {
+      switch (
+        popupData.type
+      ) {
+        case 'error':
+          return {
+            icon:
+              'close-circle-outline',
+
+            color:
+              '#C83D43',
+
+            background:
+              '#FDEBEC',
+          };
+
+        case 'warning':
+          return {
+            icon:
+              'warning-outline',
+
+            color:
+              '#B87300',
+
+            background:
+              '#FFF4DD',
+          };
+
+        case 'success':
+          return {
+            icon:
+              'checkmark-circle-outline',
+
+            color:
+              '#258A51',
+
+            background:
+              '#E8F6ED',
+          };
+
+        default:
+          return {
+            icon:
+              'information-circle-outline',
+
+            color:
+              '#A00B0F',
+
+            background:
+              '#FFF0F0',
+          };
+      }
+    };
+
+  const popupIcon =
+    getPopupIcon();
+
+  /* =======================================================
+   * UI
+   * ======================================================= */
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFF9F6"
-      />
-
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={
-          Platform.OS === 'ios'
-            ? 'padding'
-            : undefined
+    <>
+      <SafeAreaView
+        style={
+          styles.safeArea
         }>
+
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#FFF9F6"
+        />
 
         <View
           style={[
-            styles.screenContainer,
+            styles.screen,
+
             {
               width:
-                responsive.contentWidth,
+                responsive
+                  .contentWidth,
             },
           ]}>
+
+          {/* HEADER */}
+
+          <View
+            style={[
+              styles.header,
+
+              {
+                paddingHorizontal:
+                  responsive
+                    .padding,
+              },
+            ]}>
+
+            <Pressable
+              hitSlop={
+                10
+              }
+              style={
+                styles.backButton
+              }
+              onPress={() =>
+                navigation.goBack()
+              }>
+
+              <Image
+                source={require('../assets/login-icons/back.png')}
+                style={
+                  styles.backIcon
+                }
+                resizeMode="contain"
+              />
+
+            </Pressable>
+
+            <View
+              style={
+                styles.headerText
+              }>
+
+              <Text
+                style={
+                  styles.headerEyebrow
+                }>
+                {isWeeklyBill
+                  ? 'WEEKLY BILL'
+                  : 'PAYMENT'}
+              </Text>
+
+              <Text
+                style={
+                  styles.headerTitle
+                }>
+                {isWeeklyBill
+                  ? 'Pay Weekly Bill'
+                  : 'Payment Method'}
+              </Text>
+
+            </View>
+
+            <View
+              style={
+                styles.headerSpacer
+              }
+            />
+
+          </View>
 
           <ScrollView
             showsVerticalScrollIndicator={
               false
             }
-            keyboardShouldPersistTaps="handled"
             contentContainerStyle={[
               styles.scrollContent,
+
               {
                 paddingHorizontal:
-                  responsive.horizontalPadding,
+                  responsive
+                    .padding,
               },
             ]}>
 
-            {/* ================================================= */}
-            {/* HEADER */}
-            {/* ================================================= */}
+            {/* AMOUNT SUMMARY */}
 
-            <View style={styles.header}>
+            <View
+              style={
+                styles.orderSummary
+              }>
 
-              <Pressable
-                hitSlop={10}
-                style={styles.backButton}
-                onPress={() =>
-                  navigation.goBack()
+              <View
+                style={
+                  styles.orderSummaryTop
                 }>
 
-                <Image
-                  source={require('../assets/login-icons/back.png')}
-                  style={styles.backIcon}
-                  resizeMode="contain"
-                />
-
-              </Pressable>
-
-              <View style={styles.headerTextContainer}>
-                <Text style={styles.headerEyebrow}>
-                  PAYMENT METHOD
-                </Text>
-
-                <Text style={styles.headerTitle}>
-                  Add Card
-                </Text>
-              </View>
-
-              <View style={styles.headerSpacer} />
-
-            </View>
-
-            {/* ================================================= */}
-            {/* CARD PREVIEW */}
-            {/* ================================================= */}
-
-            <View style={styles.cardPreview}>
-
-              <View style={styles.cardTopRow}>
-
                 <View>
-                  <Text style={styles.cardLabel}>
-                    PAYMENT CARD
-                  </Text>
 
-                  <Text style={styles.cardType}>
-                    VISA
-                  </Text>
-                </View>
-
-                <View style={styles.cardChip}>
-                  <View style={styles.chipLine} />
-
-                  <View style={styles.chipLine} />
-
-                  <View style={styles.chipLine} />
-                </View>
-
-              </View>
-
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={styles.previewCardNumber}>
-                {displayCardNumber}
-              </Text>
-
-              <View style={styles.cardBottomRow}>
-
-                <View style={styles.cardHolderContainer}>
-                  <Text style={styles.previewSmallLabel}>
-                    CARD HOLDER
+                  <Text
+                    style={
+                      styles.summaryLabel
+                    }>
+                    {isWeeklyBill
+                      ? 'WEEKLY BILL'
+                      : 'ORDER'}
                   </Text>
 
                   <Text
-                    numberOfLines={1}
-                    style={styles.previewName}>
-                    {displayName.toUpperCase()}
+                    style={
+                      styles.orderNumber
+                    }>
+                    {isWeeklyBill
+                      ? billNumber ??
+                        `#${billId ?? 'N/A'}`
+                      : orderId ??
+                        'N/A'}
                   </Text>
+
                 </View>
 
-                <View>
-                  <Text style={styles.previewSmallLabel}>
-                    EXPIRES
+                <View
+                  style={
+                    styles.pendingBadge
+                  }>
+
+                  <View
+                    style={
+                      styles.pendingDot
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.pendingText
+                    }>
+                    Payment Pending
                   </Text>
 
-                  <Text style={styles.previewExpiry}>
-                    {displayExpiry}
-                  </Text>
                 </View>
 
               </View>
 
-              <View style={styles.cardDecorationOne} />
-              <View style={styles.cardDecorationTwo} />
+              <View
+                style={
+                  styles.summaryDivider
+                }
+              />
 
-            </View>
+              {!isWeeklyBill && (
+                <>
+                  <SummaryRow
+                    label="Subtotal"
+                    value={`${currency} ${subtotal.toFixed(
+                      2,
+                    )}`}
+                  />
 
-            {/* ================================================= */}
-            {/* CARD DETAILS */}
-            {/* ================================================= */}
-
-            <View style={styles.sectionCard}>
-
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>
-                  Card Details
-                </Text>
-
-                <Text style={styles.secureText}>
-                  Secure Payment
-                </Text>
-              </View>
-
-              {/* CARD HOLDER NAME */}
-
-              <InputContainer
-                label="Cardholder Name"
-                error={
-                  errors.cardHolderName
-                }>
-
-                <TextInput
-                  value={cardHolderName}
-                  onChangeText={value => {
-                    setCardHolderName(value);
-
-                    if (
-                      errors.cardHolderName
-                    ) {
-                      setErrors(prev => ({
-                        ...prev,
-                        cardHolderName: '',
-                      }));
+                  <SummaryRow
+                    label="Delivery Fee"
+                    value={
+                      deliveryFee ===
+                      0
+                        ? 'FREE'
+                        : `${currency} ${deliveryFee.toFixed(
+                            2,
+                          )}`
                     }
-                  }}
-                  placeholder="Name on card"
-                  placeholderTextColor="#B4A49E"
-                  style={styles.input}
-                  autoCapitalize="words"
-                />
-
-              </InputContainer>
-
-              {/* CARD NUMBER */}
-
-              <InputContainer
-                label="Card Number"
-                error={errors.cardNumber}>
-
-                <View style={styles.inputWithIcon}>
-
-                  <TextInput
-                    value={cardNumber}
-                    onChangeText={
-                      formatCardNumber
-                    }
-                    placeholder="0000 0000 0000 0000"
-                    placeholderTextColor="#B4A49E"
-                    style={[
-                      styles.input,
-                      styles.flexInput,
-                    ]}
-                    keyboardType="number-pad"
-                    maxLength={19}
                   />
 
                   <View
                     style={
-                      styles.inputCardIconContainer
+                      styles.summaryDivider
+                    }
+                  />
+                </>
+              )}
+
+              <View
+                style={
+                  styles.totalRow
+                }>
+
+                <View>
+
+                  <Text
+                    style={
+                      styles.totalLabel
                     }>
+                    {isWeeklyBill
+                      ? 'Outstanding Balance'
+                      : 'Amount to Pay'}
+                  </Text>
 
-                    <Image
-                      source={require('../assets/login-icons/payment-credit-card.png')}
+                  {isWeeklyBill && (
+                    <Text
                       style={
-                        styles.inputCardIcon
-                      }
-                      resizeMode="contain"
-                    />
-
-                  </View>
+                        styles.balanceNote
+                      }>
+                      Balance remains until payment is verified
+                    </Text>
+                  )}
 
                 </View>
 
-              </InputContainer>
+                <Text
+                  style={
+                    styles.totalAmount
+                  }>
+                  {currency}{' '}
+                  {totalAmount.toFixed(
+                    2,
+                  )}
+                </Text>
 
-              {/* EXPIRY & CVV */}
+              </View>
 
-              <View style={styles.doubleInputRow}>
+            </View>
 
-                <View style={styles.halfInput}>
+            {/* HEADING */}
 
-                  <InputContainer
-                    label="Expiry Date"
-                    error={
-                      errors.expiryDate
-                    }>
+            <View
+              style={
+                styles.methodHeading
+              }>
 
-                    <TextInput
-                      value={expiryDate}
-                      onChangeText={
-                        formatExpiryDate
+              <Text
+                style={
+                  styles.methodTitle
+                }>
+                Choose Payment Method
+              </Text>
+
+              <Text
+                style={
+                  styles.methodSubtitle
+                }>
+                Select how you would like
+                to pay the outstanding amount.
+              </Text>
+
+            </View>
+
+            {/* PAYMENT METHODS */}
+
+            <View
+              style={
+                styles.methodContainer
+              }>
+
+              {paymentMethods.map(
+                method => {
+                  const loading =
+                    processingMethod ===
+                    method.id;
+
+                  return (
+                    <TouchableOpacity
+                      key={
+                        method.id
                       }
-                      placeholder="MM/YY"
-                      placeholderTextColor="#B4A49E"
-                      style={styles.input}
-                      keyboardType="number-pad"
-                      maxLength={5}
-                    />
+                      disabled={
+                        isProcessing
+                      }
+                      activeOpacity={
+                        0.85
+                      }
+                      style={[
+                        styles.paymentMethod,
 
-                  </InputContainer>
-
-                </View>
-
-                <View style={styles.inputGap} />
-
-                <View style={styles.halfInput}>
-
-                  <InputContainer
-                    label="CVV"
-                    error={errors.cvv}>
-
-                    <View
-                      style={
-                        styles.inputWithIcon
+                        isProcessing &&
+                          !loading &&
+                          styles.disabledMethod,
+                      ]}
+                      onPress={
+                        method.onPress
                       }>
 
-                      <TextInput
-                        value={cvv}
-                        onChangeText={
-                          handleCvvChange
-                        }
-                        placeholder="•••"
-                        placeholderTextColor="#B4A49E"
-                        style={[
-                          styles.input,
-                          styles.flexInput,
-                        ]}
-                        keyboardType="number-pad"
-                        secureTextEntry={
-                          !showCvv
-                        }
-                        maxLength={4}
-                      />
-
-                      <Pressable
-                        hitSlop={8}
-                        onPress={() =>
-                          setShowCvv(
-                            previous =>
-                              !previous,
-                          )
-                        }
+                      <View
                         style={
-                          styles.cvvButton
+                          styles.methodIcon
+                        }>
+
+                        {loading ? (
+                          <ActivityIndicator
+                            size="small"
+                            color="#A00B0F"
+                          />
+                        ) : (
+                          <Image
+                            source={
+                              method.image
+                            }
+                            style={
+                              styles.paymentLogo
+                            }
+                            resizeMode="contain"
+                          />
+                        )}
+
+                      </View>
+
+                      <View
+                        style={
+                          styles.methodContent
                         }>
 
                         <Text
                           style={
-                            styles.cvvButtonText
+                            styles.methodName
                           }>
-                          {showCvv
-                            ? 'Hide'
-                            : 'Show'}
+                          {
+                            method.title
+                          }
                         </Text>
 
-                      </Pressable>
+                        <Text
+                          style={
+                            styles.methodDescription
+                          }>
+                          {
+                            method.subtitle
+                          }
+                        </Text>
 
-                    </View>
+                      </View>
 
-                  </InputContainer>
+                      <Image
+                        source={require('../assets/login-icons/next.png')}
+                        style={
+                          styles.quantityIcon
+                        }
+                        resizeMode="contain"
+                      />
+
+                    </TouchableOpacity>
+                  );
+                },
+              )}
+
+            </View>
+
+            {/* WEEKLY BILL */}
+
+            {isWeeklyBill && (
+              <View
+                style={
+                  styles.billInfoBox
+                }>
+
+                <Ionicons
+                  name="calendar-outline"
+                  size={
+                    19
+                  }
+                  color="#A00B0F"
+                />
+
+                <View
+                  style={
+                    styles.billInfoContent
+                  }>
+
+                  <Text
+                    style={
+                      styles.billInfoTitle
+                    }>
+                    Weekly Billing
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.billInfoText
+                    }>
+                    Weekly bills are generated every Saturday.
+                    Outstanding bills must be cleared by Monday
+                    to continue placing new tiffin orders.
+                  </Text>
 
                 </View>
 
               </View>
+            )}
 
-            </View>
-
-            {/* ================================================= */}
-            {/* SAVE DEFAULT */}
-            {/* ================================================= */}
-
-            <View style={styles.preferenceCard}>
-
-              <View
-                style={
-                  styles.preferenceIconContainer
-                }>
-
-                <Image
-                  source={require('../assets/login-icons/payment-credit-card.png')}
-                  style={styles.preferenceIcon}
-                  resizeMode="contain"
-                />
-
-              </View>
-
-              <View
-                style={
-                  styles.preferenceDetails
-                }>
-
-                <Text
-                  style={
-                    styles.preferenceTitle
-                  }>
-                  Set as Default Card
-                </Text>
-
-                <Text
-                  style={
-                    styles.preferenceSubtitle
-                  }>
-                  Use this card automatically for future payments
-                </Text>
-
-              </View>
-
-              <Switch
-                value={saveAsDefault}
-                onValueChange={
-                  setSaveAsDefault
-                }
-                trackColor={{
-                  false: '#DDD7D2',
-                  true: '#E6A27E',
-                }}
-                thumbColor={
-                  saveAsDefault
-                    ? '#B64D19'
-                    : '#FFFFFF'
-                }
-              />
-
-            </View>
-
-            {/* ================================================= */}
-            {/* SECURITY MESSAGE */}
-            {/* ================================================= */}
-
-            <View style={styles.securityBox}>
-
-              <View
-                style={styles.securityIcon}>
-
-                <Text
-                  style={
-                    styles.securityIconText
-                  }>
-                  ✓
-                </Text>
-
-              </View>
-
-              <View style={styles.securityContent}>
-
-                <Text
-                  style={
-                    styles.securityTitle
-                  }>
-                  Your payment is secure
-                </Text>
-
-                <Text
-                  style={
-                    styles.securityDescription
-                  }>
-                  Your card information is encrypted and securely processed.
-                </Text>
-
-              </View>
-
-            </View>
-
-            {/* ================================================= */}
-            {/* SAVE BUTTON */}
-            {/* ================================================= */}
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.saveButton}
-              onPress={handleSaveCard}>
-
-              <Text style={styles.saveButtonText}>
-                Save Card
-              </Text>
-
-            </TouchableOpacity>
-
-            {/* CANCEL */}
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.cancelButton}
-              onPress={() =>
-                navigation.goBack()
-              }>
-
-              <Text style={styles.cancelText}>
-                Cancel
-              </Text>
-
-            </TouchableOpacity>
+            <View
+              style={{
+                height:
+                  40,
+              }}
+            />
 
           </ScrollView>
 
         </View>
 
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+
+      {/* ===================================================== */}
+      {/* CUSTOM POPUP */}
+      {/* ===================================================== */}
+
+      <Modal
+        visible={
+          popupVisible
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={
+          closePopup
+        }>
+
+        <View
+          style={
+            styles.popupOverlay
+          }>
+
+          <View
+            style={
+              styles.popupCard
+            }>
+
+            {/* ============================================= */}
+            {/* IMAGE OR ICON */}
+            {/* ============================================= */}
+
+            {popupData.image ? (
+              <View
+                style={
+                  styles.popupImageOuter
+                }>
+
+                <Image
+                  source={
+                    popupData.image
+                  }
+                  style={
+                    styles.popupImage
+                  }
+                  resizeMode="contain"
+                />
+
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.popupIconOuter,
+
+                  {
+                    backgroundColor:
+                      popupIcon
+                        .background,
+                  },
+                ]}>
+
+                <Ionicons
+                  name={
+                    popupIcon.icon
+                  }
+                  size={
+                    36
+                  }
+                  color={
+                    popupIcon.color
+                  }
+                />
+
+              </View>
+            )}
+
+            <Text
+              style={
+                styles.popupTitle
+              }>
+              {popupData.title}
+            </Text>
+
+            <Text
+              style={
+                styles.popupMessage
+              }>
+              {popupData.message}
+            </Text>
+
+            <View
+              style={
+                styles.popupButtonRow
+              }>
+
+              {!!popupData
+                .secondaryText && (
+                <TouchableOpacity
+                  activeOpacity={
+                    0.8
+                  }
+                  style={
+                    styles.popupSecondaryButton
+                  }
+                  onPress={
+                    handlePopupSecondary
+                  }>
+
+                  <Text
+                    style={
+                      styles.popupSecondaryText
+                    }>
+                    {
+                      popupData
+                        .secondaryText
+                    }
+                  </Text>
+
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                activeOpacity={
+                  0.85
+                }
+                style={[
+                  styles.popupPrimaryButton,
+
+                  !popupData
+                    .secondaryText && {
+                    marginLeft:
+                      0,
+                  },
+                ]}
+                onPress={
+                  handlePopupPrimary
+                }>
+
+                <Text
+                  style={
+                    styles.popupPrimaryText
+                  }>
+                  {
+                    popupData
+                      .primaryText
+                  }
+                </Text>
+
+              </TouchableOpacity>
+
+            </View>
+
+          </View>
+
+        </View>
+
+      </Modal>
+
+      {/* ===================================================== */}
+      {/* SUCCESS MODAL */}
+      {/* ===================================================== */}
+
+      <Modal
+        visible={
+          successVisible
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent>
+
+        <View
+          style={
+            styles.overlay
+          }>
+
+          <View
+            style={
+              styles.successCard
+            }>
+
+            <View
+              style={
+                styles.successCircle
+              }>
+
+              <Ionicons
+                name="checkmark"
+                size={
+                  42
+                }
+                color="#FFFFFF"
+              />
+
+            </View>
+
+            <Text
+              style={
+                styles.successTitle
+              }>
+              Payment Successful!
+            </Text>
+
+            <Text
+              style={
+                styles.successText
+              }>
+              {isWeeklyBill
+                ? 'Your weekly outstanding bill has been paid successfully. You can continue ordering tiffins.'
+                : 'Your payment has been verified successfully.'}
+            </Text>
+
+            <View
+              style={
+                styles.successBadge
+              }>
+
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={
+                  16
+                }
+                color="#278850"
+              />
+
+              <Text
+                style={
+                  styles.successBadgeText
+                }>
+                Paid with{' '}
+                {successfulMethod}
+              </Text>
+
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={
+                0.85
+              }
+              style={
+                styles.doneButton
+              }
+              onPress={
+                handleDone
+              }>
+
+              <Text
+                style={
+                  styles.doneText
+                }>
+                Done
+              </Text>
+
+            </TouchableOpacity>
+
+          </View>
+
+        </View>
+
+      </Modal>
+
+    </>
   );
 };
 
-/*
-|--------------------------------------------------------------------------
-| Input Container
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * SUMMARY ROW
+ * ========================================================= */
 
-const InputContainer = ({
+const SummaryRow = ({
   label,
-  children,
-  error,
+  value,
 }) => {
   return (
-    <View style={styles.fieldContainer}>
+    <View
+      style={
+        styles.summaryRow
+      }>
 
-      <Text style={styles.inputLabel}>
+      <Text
+        style={
+          styles.summaryRowLabel
+        }>
         {label}
       </Text>
 
-      <View
-        style={[
-          styles.inputContainer,
-
-          error
-            ? styles.inputContainerError
-            : null,
-        ]}>
-        {children}
-      </View>
-
-      {error ? (
-        <Text style={styles.errorText}>
-          {error}
-        </Text>
-      ) : null}
+      <Text
+        style={
+          styles.summaryRowValue
+        }>
+        {value}
+      </Text>
 
     </View>
   );
@@ -768,678 +2383,933 @@ const InputContainer = ({
 
 export default PaymentDetails;
 
-/*
-|--------------------------------------------------------------------------
-| Styles
-|--------------------------------------------------------------------------
-*/
+/* =========================================================
+ * STYLES
+ * ========================================================= */
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F5F0ED',
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex:
+        1,
 
-  keyboardView: {
-    flex: 1,
-  },
-
-  screenContainer: {
-    flex: 1,
-    alignSelf: 'center',
-    backgroundColor: '#FFF9F6',
-  },
-
-  scrollContent: {
-    paddingTop: 10,
-    paddingBottom: 60,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Header
-  |--------------------------------------------------------------------------
-  */
-
-  header: {
-    minHeight: 65,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginBottom: 14,
-  },
-
-  backButton: {
-    width: 42,
-    height: 42,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 14,
-  },
-
-  backIcon: {
-    width: 19,
-    height: 19,
-  },
-
-  headerTextContainer: {
-    flex: 1,
-
-    paddingHorizontal: 12,
-  },
-
-  headerEyebrow: {
-    color: '#A84B20',
-
-    fontSize: 9,
-
-    fontWeight: '800',
-
-    letterSpacing: 1,
-  },
-
-  headerTitle: {
-    color: '#231815',
-
-    fontSize: 24,
-
-    fontWeight: '900',
-
-    marginTop: 2,
-  },
-
-  headerSpacer: {
-    width: 42,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Card Preview
-  |--------------------------------------------------------------------------
-  */
-
-  cardPreview: {
-    minHeight: 200,
-
-    overflow: 'hidden',
-
-    backgroundColor: '#2D211D',
-
-    borderRadius: 21,
-
-    padding: 20,
-
-    marginBottom: 14,
-
-    shadowColor: '#39241B',
-
-    shadowOffset: {
-      width: 0,
-      height: 7,
+      backgroundColor:
+        '#F5F0ED',
     },
 
-    shadowOpacity: 0.16,
-
-    shadowRadius: 14,
-
-    elevation: 5,
-  },
-
-  cardTopRow: {
-    zIndex: 2,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-  },
-
-  cardLabel: {
-    color: '#C9B8B0',
-
-    fontSize: 7,
-
-    fontWeight: '700',
-
-    letterSpacing: 1.2,
-  },
-
-  cardType: {
-    color: '#FFFFFF',
-
-    fontSize: 18,
-
-    fontWeight: '900',
-
-    fontStyle: 'italic',
-
-    marginTop: 3,
-  },
-
-  cardChip: {
-    width: 43,
-    height: 31,
-
-    justifyContent: 'center',
-
-    backgroundColor: '#E8C89A',
-
-    borderRadius: 7,
-
-    paddingHorizontal: 5,
-  },
-
-  chipLine: {
-    width: '100%',
-    height: 1,
-
-    backgroundColor: '#A9875C',
-
-    marginVertical: 3,
-  },
-
-  previewCardNumber: {
-    zIndex: 2,
-
-    color: '#FFFFFF',
-
-    fontSize: 21,
-
-    fontWeight: '700',
-
-    letterSpacing: 2,
-
-    marginTop: 34,
-  },
-
-  cardBottomRow: {
-    zIndex: 2,
-
-    flexDirection: 'row',
-
-    justifyContent: 'space-between',
-
-    alignItems: 'flex-end',
-
-    marginTop: 28,
-  },
-
-  cardHolderContainer: {
-    flex: 1,
-
-    paddingRight: 20,
-  },
-
-  previewSmallLabel: {
-    color: '#AD9D96',
-
-    fontSize: 6.5,
-
-    fontWeight: '700',
-
-    letterSpacing: 0.8,
-  },
-
-  previewName: {
-    color: '#FFFFFF',
-
-    fontSize: 10,
-
-    fontWeight: '800',
-
-    marginTop: 4,
-  },
-
-  previewExpiry: {
-    color: '#FFFFFF',
-
-    fontSize: 10,
-
-    fontWeight: '800',
-
-    marginTop: 4,
-  },
-
-  cardDecorationOne: {
-    position: 'absolute',
-
-    width: 170,
-    height: 170,
-
-    borderRadius: 100,
-
-    backgroundColor: '#A84B20',
-
-    opacity: 0.19,
-
-    right: -65,
-
-    top: -45,
-  },
-
-  cardDecorationTwo: {
-    position: 'absolute',
-
-    width: 130,
-    height: 130,
-
-    borderRadius: 100,
-
-    borderWidth: 25,
-
-    borderColor: '#D87D50',
-
-    opacity: 0.09,
-
-    left: -48,
-
-    bottom: -64,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Section Card
-  |--------------------------------------------------------------------------
-  */
-
-  sectionCard: {
-    width: '100%',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 17,
-
-    padding: 14,
-
-    marginBottom: 13,
-
-    shadowColor: '#503328',
-
-    shadowOffset: {
-      width: 0,
-      height: 3,
+    screen: {
+      flex:
+        1,
+
+      alignSelf:
+        'center',
+
+      backgroundColor:
+        '#FFF9F6',
     },
 
-    shadowOpacity: 0.04,
-
-    shadowRadius: 8,
-
-    elevation: 2,
-  },
-
-  sectionHeader: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-
-    marginBottom: 17,
-  },
-
-  sectionTitle: {
-    color: '#2B1D18',
-
-    fontSize: 20,
-
-    fontWeight: '800',
-  },
-
-  secureText: {
-    color: '#A84B20',
-
-    fontSize: 8,
-
-    fontWeight: '700',
-
-    backgroundColor: '#FFF0E8',
-
-    paddingHorizontal: 9,
-
-    paddingVertical: 5,
-
-    borderRadius: 10,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Inputs
-  |--------------------------------------------------------------------------
-  */
-
-  fieldContainer: {
-    marginBottom: 15,
-  },
-
-  inputLabel: {
-    color: '#4A3831',
-
-    fontSize: 10,
-
-    fontWeight: '700',
-
-    marginBottom: 7,
-  },
-
-  inputContainer: {
-    minHeight: 52,
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF9F6',
-
-    borderWidth: 1,
-
-    borderColor: '#EDE2DC',
-
-    borderRadius: 13,
-  },
-
-  inputContainerError: {
-    borderColor: '#A00B0F',
-  },
-
-  input: {
-    minHeight: 50,
-
-    color: '#2C201B',
-
-    fontSize: 11,
-
-    fontWeight: '600',
-
-    paddingHorizontal: 13,
-
-    paddingVertical: 0,
-  },
-
-  flexInput: {
-    flex: 1,
-  },
-
-  inputWithIcon: {
-    minHeight: 50,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  inputCardIconContainer: {
-    width: 36,
-    height: 36,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 10,
-
-    marginRight: 7,
-  },
-
-  inputCardIcon: {
-    width: 18,
-    height: 18,
-  },
-
-  doubleInputRow: {
-    flexDirection: 'row',
-  },
-
-  halfInput: {
-    flex: 1,
-  },
-
-  inputGap: {
-    width: 10,
-  },
-
-  cvvButton: {
-    height: 40,
-
-    justifyContent: 'center',
-
-    paddingHorizontal: 12,
-  },
-
-  cvvButtonText: {
-    color: '#A84B20',
-
-    fontSize: 9,
-
-    fontWeight: '800',
-  },
-
-  errorText: {
-    color: '#A00B0F',
-
-    fontSize: 8,
-
-    fontWeight: '600',
-
-    marginTop: 5,
-
-    marginLeft: 3,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Default Card
-  |--------------------------------------------------------------------------
-  */
-
-  preferenceCard: {
-    minHeight: 74,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 16,
-
-    paddingHorizontal: 12,
-
-    paddingVertical: 11,
-
-    marginBottom: 13,
-  },
-
-  preferenceIconContainer: {
-    width: 43,
-
-    height: 43,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 12,
-
-    marginRight: 11,
-  },
-
-  preferenceIcon: {
-    width: 21,
-    height: 21,
-  },
-
-  preferenceDetails: {
-    flex: 1,
-
-    paddingRight: 8,
-  },
-
-  preferenceTitle: {
-    color: '#30231E',
-
-    fontSize: 11,
-
-    fontWeight: '800',
-  },
-
-  preferenceSubtitle: {
-    color: '#908079',
-
-    fontSize: 8,
-
-    lineHeight: 12,
-
-    marginTop: 4,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Security
-  |--------------------------------------------------------------------------
-  */
-
-  securityBox: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFF4EE',
-
-    borderWidth: 1,
-
-    borderColor: '#F2DDD2',
-
-    borderRadius: 14,
-
-    padding: 11,
-
-    marginBottom: 14,
-  },
-
-  securityIcon: {
-    width: 32,
-
-    height: 32,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#A84B20',
-
-    borderRadius: 10,
-
-    marginRight: 10,
-  },
-
-  securityIconText: {
-    color: '#FFFFFF',
-
-    fontSize: 15,
-
-    fontWeight: '900',
-  },
-
-  securityContent: {
-    flex: 1,
-  },
-
-  securityTitle: {
-    color: '#382720',
-
-    fontSize: 10,
-
-    fontWeight: '800',
-  },
-
-  securityDescription: {
-    color: '#8C7770',
-
-    fontSize: 8,
-
-    lineHeight: 12,
-
-    marginTop: 3,
-  },
-
-  /*
-  |--------------------------------------------------------------------------
-  | Buttons
-  |--------------------------------------------------------------------------
-  */
-
-  saveButton: {
-    minHeight: 54,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#A00B0F',
-
-    borderRadius: 14,
-
-    marginTop: 3,
-
-    shadowColor: '#A00B0F',
-
-    shadowOffset: {
-      width: 0,
-      height: 4,
+    scrollContent: {
+      paddingTop:
+        8,
+
+      paddingBottom:
+        40,
     },
 
-    shadowOpacity: 0.15,
+    /* =====================================================
+     * HEADER
+     * ===================================================== */
 
-    shadowRadius: 8,
+    header: {
+      minHeight:
+        72,
 
-    elevation: 3,
-  },
+      flexDirection:
+        'row',
 
-  saveButtonText: {
-    color: '#FFFFFF',
+      alignItems:
+        'center',
 
-    fontSize: 15,
+      backgroundColor:
+        '#FFF9F6',
+    },
 
-    fontWeight: '800',
-  },
+    backButton: {
+      width:
+        42,
 
-  cancelButton: {
-    minHeight: 48,
+      height:
+        42,
 
-    alignItems: 'center',
+      alignItems:
+        'center',
 
-    justifyContent: 'center',
+      justifyContent:
+        'center',
 
-    marginTop: 6,
-  },
+      backgroundColor:
+        '#FFFFFF',
 
-  cancelText: {
-    color: '#8E7770',
+      borderWidth:
+        1,
 
-    fontSize: 11,
+      borderColor:
+        '#EFE5E0',
 
-    fontWeight: '700',
-  },
-});
+      borderRadius:
+        14,
+    },
+
+    backIcon: {
+      width:
+        19,
+
+      height:
+        19,
+    },
+
+    headerText: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        12,
+    },
+
+    headerEyebrow: {
+      color:
+        '#A84B20',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '800',
+
+      letterSpacing:
+        1,
+    },
+
+    headerTitle: {
+      color:
+        '#231815',
+
+      fontSize:
+        22,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        2,
+    },
+
+    headerSpacer: {
+      width:
+        42,
+    },
+
+    /* =====================================================
+     * SUMMARY
+     * ===================================================== */
+
+    orderSummary: {
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        20,
+
+      padding:
+        18,
+
+      marginBottom:
+        20,
+
+      overflow:
+        'hidden',
+    },
+
+    orderSummaryTop: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    summaryLabel: {
+      color:
+        '#B9A9A1',
+
+      fontSize:
+        7,
+
+      fontWeight:
+        '800',
+
+      letterSpacing:
+        1,
+    },
+
+    orderNumber: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        13,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        4,
+    },
+
+    pendingBadge: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        'rgba(255,255,255,.1)',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        9,
+
+      paddingVertical:
+        6,
+    },
+
+    pendingDot: {
+      width:
+        7,
+
+      height:
+        7,
+
+      borderRadius:
+        4,
+
+      backgroundColor:
+        '#F2B85B',
+
+      marginRight:
+        5,
+    },
+
+    pendingText: {
+      color:
+        '#F9D79F',
+
+      fontSize:
+        7.5,
+
+      fontWeight:
+        '800',
+    },
+
+    summaryDivider: {
+      height:
+        1,
+
+      backgroundColor:
+        'rgba(255,255,255,.12)',
+
+      marginVertical:
+        14,
+    },
+
+    summaryRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems:
+        'center',
+
+      marginBottom:
+        8,
+    },
+
+    summaryRowLabel: {
+      color:
+        '#C8B9B2',
+
+      fontSize:
+        8,
+    },
+
+    summaryRowValue: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        8.5,
+
+      fontWeight:
+        '800',
+    },
+
+    totalRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-end',
+
+      justifyContent:
+        'space-between',
+    },
+
+    totalLabel: {
+      color:
+        '#D6C9C3',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '800',
+    },
+
+    balanceNote: {
+      color:
+        '#A89991',
+
+      fontSize:
+        6.8,
+
+      marginTop:
+        4,
+    },
+
+    totalAmount: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        21,
+
+      fontWeight:
+        '900',
+    },
+
+    /* =====================================================
+     * PAYMENT HEADING
+     * ===================================================== */
+
+    methodHeading: {
+      marginBottom:
+        12,
+    },
+
+    methodTitle: {
+      color:
+        '#2A1F1B',
+
+      fontSize:
+        17,
+
+      fontWeight:
+        '900',
+    },
+
+    methodSubtitle: {
+      color:
+        '#91817A',
+
+      fontSize:
+        8.5,
+
+      lineHeight:
+        13,
+
+      marginTop:
+        4,
+    },
+
+    /* =====================================================
+     * PAYMENT METHODS
+     * ===================================================== */
+
+    methodContainer: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EFE5E0',
+
+      borderRadius:
+        18,
+
+      overflow:
+        'hidden',
+    },
+
+    paymentMethod: {
+      minHeight:
+        76,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingHorizontal:
+        12,
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        '#F2EAE6',
+    },
+
+    disabledMethod: {
+      opacity:
+        0.45,
+    },
+
+    methodIcon: {
+      width:
+        48,
+
+      height:
+        48,
+
+      borderRadius:
+        14,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FAF8F8',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F1EBE8',
+
+      marginRight:
+        12,
+    },
+
+    paymentLogo: {
+      width:
+        35,
+
+      height:
+        35,
+    },
+
+    methodContent: {
+      flex:
+        1,
+
+      paddingRight:
+        10,
+    },
+
+    methodName: {
+      color:
+        '#30231E',
+
+      fontSize:
+        11,
+
+      fontWeight:
+        '900',
+    },
+
+    methodDescription: {
+      color:
+        '#94847D',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        12,
+
+      marginTop:
+        3,
+    },
+
+    quantityIcon: {
+      width:
+        16,
+
+      height:
+        16,
+    },
+
+    /* =====================================================
+     * WEEKLY BILL
+     * ===================================================== */
+
+    billInfoBox: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      backgroundColor:
+        '#FFF2F2',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F3DADB',
+
+      borderRadius:
+        14,
+
+      padding:
+        12,
+
+      marginTop:
+        12,
+    },
+
+    billInfoContent: {
+      flex:
+        1,
+
+      marginLeft:
+        9,
+    },
+
+    billInfoTitle: {
+      color:
+        '#6D2528',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '900',
+    },
+
+    billInfoText: {
+      color:
+        '#86696B',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        12,
+
+      marginTop:
+        3,
+    },
+
+    /* =====================================================
+     * CUSTOM POPUP
+     * ===================================================== */
+
+    popupOverlay: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(20,15,18,0.64)',
+
+      paddingHorizontal:
+        22,
+    },
+
+    popupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        380,
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        24,
+
+      paddingHorizontal:
+        22,
+
+      paddingTop:
+        26,
+
+      paddingBottom:
+        20,
+    },
+
+    /* DEFAULT POPUP ICON */
+
+    popupIconOuter: {
+      width:
+        78,
+
+      height:
+        78,
+
+      borderRadius:
+        39,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    /* NEW CUSTOM POPUP IMAGE */
+
+    popupImageOuter: {
+      width:
+        110,
+
+      height:
+        110,
+
+      borderRadius:
+        55,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF3F3',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F5DDDE',
+    },
+
+    popupImage: {
+      width:
+        78,
+
+      height:
+        78,
+    },
+
+    popupTitle: {
+      color:
+        '#2A2027',
+
+      fontSize:
+        19,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+
+      marginTop:
+        14,
+    },
+
+    popupMessage: {
+      color:
+        '#776D72',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        17,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        7,
+    },
+
+    popupButtonRow: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+
+      marginTop:
+        20,
+    },
+
+    popupSecondaryButton: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderRadius:
+        12,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E7DEE1',
+
+      backgroundColor:
+        '#F8F5F6',
+
+      marginRight:
+        5,
+    },
+
+    popupSecondaryText: {
+      color:
+        '#71666C',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    popupPrimaryButton: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        12,
+
+      marginLeft:
+        5,
+    },
+
+    popupPrimaryText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    /* =====================================================
+     * SUCCESS
+     * ===================================================== */
+
+    overlay: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(0,0,0,.55)',
+
+      paddingHorizontal:
+        25,
+    },
+
+    successCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        370,
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        24,
+
+      padding:
+        25,
+    },
+
+    successCircle: {
+      width:
+        78,
+
+      height:
+        78,
+
+      borderRadius:
+        39,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#26975B',
+    },
+
+    successTitle: {
+      color:
+        '#241D2B',
+
+      fontSize:
+        19,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+
+      marginTop:
+        17,
+    },
+
+    successText: {
+      color:
+        '#7B727F',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        16,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        7,
+    },
+
+    successBadge: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#EFF9F2',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        11,
+
+      paddingVertical:
+        7,
+
+      marginTop:
+        14,
+    },
+
+    successBadgeText: {
+      color:
+        '#36704B',
+
+      fontSize:
+        8.5,
+
+      fontWeight:
+        '800',
+
+      marginLeft:
+        5,
+    },
+
+    doneButton: {
+      width:
+        '100%',
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        12,
+
+      marginTop:
+        20,
+    },
+
+    doneText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        11,
+
+      fontWeight:
+        '900',
+    },
+  });
