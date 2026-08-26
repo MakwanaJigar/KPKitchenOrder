@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 
 const FORGOT_PASSWORD_API_URL =
-  'https://replete-software.com/projects/kp_kitchen/api/driver/forgot-password';
+  'https://replete-software.com/projects/kp_admin/api/customer/forget-password';
 
 const ForgotPassword = ({ navigation }) => {
   const { width, height } = useWindowDimensions();
@@ -53,9 +53,7 @@ const ForgotPassword = ({ navigation }) => {
     const responseData = error.response.data;
 
     if (responseData?.errors) {
-      const validationMessages = Object.values(
-        responseData.errors,
-      )
+      const validationMessages = Object.values(responseData.errors)
         .flat()
         .filter(Boolean);
 
@@ -105,10 +103,7 @@ const ForgotPassword = ({ navigation }) => {
     }
 
     if (!validateEmail(cleanEmail)) {
-      Alert.alert(
-        'Invalid Email',
-        'Please enter a valid email address.',
-      );
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
 
       return;
     }
@@ -130,14 +125,10 @@ const ForgotPassword = ({ navigation }) => {
         },
       );
 
-      if (
-        response.data?.status === false ||
-        response.data?.success === false
-      ) {
+      if (response.data?.status === false || response.data?.success === false) {
         Alert.alert(
           'Request Failed',
-          response.data?.message ||
-            'Unable to send the verification code.',
+          response.data?.message || 'Unable to send the verification code.',
         );
 
         return;
@@ -155,7 +146,7 @@ const ForgotPassword = ({ navigation }) => {
               return;
             }
 
-            navigation.navigate('VerifyOtp', {
+            navigation.navigate('Otp', {
               email: cleanEmail,
             });
           },
@@ -186,10 +177,7 @@ const ForgotPassword = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFF8F4"
-      />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF8F4" />
 
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
@@ -247,24 +235,15 @@ const ForgotPassword = ({ navigation }) => {
               />
             </View>
 
-            <Text
-              style={[
-                styles.title,
-                isSmallScreen && styles.titleSmall,
-              ]}
-            >
+            <Text style={[styles.title, isSmallScreen && styles.titleSmall]}>
               Forgot Password?
             </Text>
 
             <Text
-              style={[
-                styles.subtitle,
-                isSmallScreen && styles.subtitleSmall,
-              ]}
+              style={[styles.subtitle, isSmallScreen && styles.subtitleSmall]}
             >
-              Enter your registered email address and we will
-              send you a verification code to reset your
-              password.
+              Enter your registered email address and we will send you a
+              verification code to reset your password.
             </Text>
 
             <View style={styles.fieldGroup}>
@@ -307,19 +286,13 @@ const ForgotPassword = ({ navigation }) => {
                 styles.submitButton,
                 loading && styles.submitButtonDisabled,
               ]}
-            onPress={() => navigation.replace('Otp')}
-            //   onPress={handleSendCode}
+              onPress={handleSendCode}
             >
               {loading ? (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
 
-                  <Text style={styles.loadingText}>
-                    Sending Code...
-                  </Text>
+                  <Text style={styles.loadingText}>Sending Code...</Text>
                 </View>
               ) : (
                 <>
@@ -333,18 +306,14 @@ const ForgotPassword = ({ navigation }) => {
             </TouchableOpacity>
 
             <View style={styles.loginContainer}>
-              <Text style={styles.loginQuestion}>
-                Remember your password?{' '}
-              </Text>
+              <Text style={styles.loginQuestion}>Remember your password? </Text>
 
               <Pressable
                 disabled={loading}
                 hitSlop={8}
                 onPress={handleBackToLogin}
               >
-                <Text style={styles.loginText}>
-                  Sign In
-                </Text>
+                <Text style={styles.loginText}>Sign In</Text>
               </Pressable>
             </View>
 
@@ -354,25 +323,20 @@ const ForgotPassword = ({ navigation }) => {
               </View>
 
               <Text style={styles.helpText}>
-                Check your spam or junk folder if you do not
-                receive the verification email within a few
-                minutes.
+                Check your spam or junk folder if you do not receive the
+                verification email within a few minutes.
               </Text>
             </View>
 
             <View style={styles.footerContainer}>
               <Pressable disabled={loading}>
-                <Text style={styles.footerText}>
-                  Privacy Policy
-                </Text>
+                <Text style={styles.footerText}>Privacy Policy</Text>
               </Pressable>
 
               <View style={styles.footerSeparator} />
 
               <Pressable disabled={loading}>
-                <Text style={styles.footerText}>
-                  Terms of Service
-                </Text>
+                <Text style={styles.footerText}>Terms of Service</Text>
               </Pressable>
             </View>
           </View>

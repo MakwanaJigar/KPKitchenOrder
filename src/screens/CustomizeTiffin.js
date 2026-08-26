@@ -1,5 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useMemo,
+  useState,
+} from 'react';
+
 import {
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -10,585 +15,2037 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const initialDishes = [
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const BASE_URL =
+  'https://replete-software.com/projects/kp_admin';
+
+const CART_STORAGE_KEY =
+  'kp_customer_cart';
+
+const FREE_SHIPPING_MINIMUM =
+  11;
+
+const SHIPPING_CHARGE =
+  2;
+
+/* =========================================================
+ * Customization Options
+ * ========================================================= */
+
+const TIFFIN_GROUPS = [
   {
-    id: '1',
-    name: 'Signature Dal Makhani',
-    description: '24-hour slow cooked black lentils',
-    icon: 'restaurant-outline',
+    key:
+      'bread',
+
+    title:
+      'Bread',
+
+    options: [
+      {
+        id:
+          'roti',
+
+        name:
+          'Roti',
+
+        price:
+          0,
+      },
+
+      {
+        id:
+          'plain-thepla',
+
+        name:
+          'Plain Thepla',
+
+        price:
+          0.25,
+      },
+
+      {
+        id:
+          'methi-thepla',
+
+        name:
+          'Methi Thepla',
+
+        price:
+          0.5,
+      },
+
+      {
+        id:
+          'plain-paratha',
+
+        name:
+          'Plain Paratha',
+
+        price:
+          0.75,
+      },
+
+      {
+        id:
+          'aloo-paratha',
+
+        name:
+          'Aloo Paratha',
+
+        price:
+          1.5,
+      },
+
+      {
+        id:
+          'no-bread',
+
+        name:
+          'Remove Bread',
+
+        price:
+          0,
+
+        removed:
+          true,
+      },
+    ],
   },
+
   {
-    id: '2',
-    name: 'Heritage Mix Veg',
-    description: 'Seasonal farm-fresh vegetables',
-    icon: 'leaf-outline',
+    key:
+      'dal',
+
+    title:
+      'Dal',
+
+    options: [
+      {
+        id:
+          'dal-fry',
+
+        name:
+          'Dal Fry',
+
+        price:
+          0,
+      },
+
+      {
+        id:
+          'dal-tadka',
+
+        name:
+          'Dal Tadka',
+
+        price:
+          0.25,
+      },
+
+      {
+        id:
+          'dal-makhani',
+
+        name:
+          'Dal Makhani',
+
+        price:
+          0.75,
+      },
+
+      {
+        id:
+          'no-dal',
+
+        name:
+          'Remove Dal',
+
+        price:
+          0,
+
+        removed:
+          true,
+      },
+    ],
+  },
+
+  {
+    key:
+      'rice',
+
+    title:
+      'Rice',
+
+    options: [
+      {
+        id:
+          'plain-rice',
+
+        name:
+          'Steamed Rice',
+
+        price:
+          0,
+      },
+
+      {
+        id:
+          'jeera-rice',
+
+        name:
+          'Jeera Rice',
+
+        price:
+          0.5,
+      },
+
+      {
+        id:
+          'veg-pulao',
+
+        name:
+          'Veg Pulao',
+
+        price:
+          1,
+      },
+
+      {
+        id:
+          'veg-biryani',
+
+        name:
+          'Veg Biryani',
+
+        price:
+          1.5,
+      },
+
+      {
+        id:
+          'no-rice',
+
+        name:
+          'Remove Rice',
+
+        price:
+          0,
+
+        removed:
+          true,
+      },
+    ],
+  },
+
+  {
+    key:
+      'salad',
+
+    title:
+      'Salad',
+
+    options: [
+      {
+        id:
+          'garden-salad',
+
+        name:
+          'Garden Salad',
+
+        price:
+          0,
+      },
+
+      {
+        id:
+          'kachumber',
+
+        name:
+          'Kachumber Salad',
+
+        price:
+          0.25,
+      },
+
+      {
+        id:
+          'no-salad',
+
+        name:
+          'Remove Salad',
+
+        price:
+          0,
+
+        removed:
+          true,
+      },
+    ],
+  },
+
+  {
+    key:
+      'papad',
+
+    title:
+      'Papad',
+
+    options: [
+      {
+        id:
+          'roasted-papad',
+
+        name:
+          'Roasted Papad',
+
+        price:
+          0,
+      },
+
+      {
+        id:
+          'fried-papad',
+
+        name:
+          'Fried Papad',
+
+        price:
+          0.25,
+      },
+
+      {
+        id:
+          'masala-papad',
+
+        name:
+          'Masala Papad',
+
+        price:
+          0.75,
+      },
+
+      {
+        id:
+          'no-papad',
+
+        name:
+          'Remove Papad',
+
+        price:
+          0,
+
+        removed:
+          true,
+      },
+    ],
   },
 ];
 
-const CustomizeTiffin = ({ navigation }) => {
-  const { width } = useWindowDimensions();
+const EXTRA_ITEMS = [
+  {
+    id:
+      'extra-roti',
 
-  const [dishes, setDishes] = useState(initialDishes);
+    name:
+      'Extra Roti',
 
-  const responsive = useMemo(() => {
-    const isTablet = width >= 768;
+    price:
+      1,
+  },
 
-    return {
-      isTablet,
-      contentWidth: isTablet ? Math.min(width - 80, 700) : width,
-      horizontalPadding: isTablet ? 28 : 16,
-      heroHeight: isTablet ? 330 : undefined,
+  {
+    id:
+      'extra-thepla',
+
+    name:
+      'Extra Thepla',
+
+    price:
+      1.25,
+  },
+
+  {
+    id:
+      'extra-dal',
+
+    name:
+      'Extra Dal',
+
+    price:
+      2.5,
+  },
+
+  {
+    id:
+      'extra-rice',
+
+    name:
+      'Extra Rice',
+
+    price:
+      1.5,
+  },
+
+  {
+    id:
+      'extra-salad',
+
+    name:
+      'Extra Salad',
+
+    price:
+      0.75,
+  },
+
+  {
+    id:
+      'extra-papad',
+
+    name:
+      'Extra Papad',
+
+    price:
+      0.5,
+  },
+];
+
+const INITIAL_SELECTIONS = {
+  bread:
+    'roti',
+
+  dal:
+    'dal-fry',
+
+  rice:
+    'plain-rice',
+
+  salad:
+    'garden-salad',
+
+  papad:
+    'roasted-papad',
+};
+
+/* =========================================================
+ * Component
+ * ========================================================= */
+
+const CustomizeTiffin = ({
+  navigation,
+  route,
+}) => {
+  const {
+    width,
+  } = useWindowDimensions();
+
+  const tiffin =
+    route?.params?.tiffin ??
+    {};
+
+  const [
+    selections,
+    setSelections,
+  ] = useState(
+    INITIAL_SELECTIONS,
+  );
+
+  const [
+    extras,
+    setExtras,
+  ] = useState({});
+
+  const [
+    adding,
+    setAdding,
+  ] = useState(false);
+
+  /* =======================================================
+   * API Tiffin Data
+   * ======================================================= */
+
+  const tiffinId =
+    tiffin?.id ??
+    tiffin?.tiffin_id;
+
+  const tiffinName =
+    tiffin?.name ??
+    tiffin?.tiffin_name ??
+    'Tiffin';
+
+  const description =
+    tiffin?.description ??
+    '';
+
+  const preparationTime =
+    tiffin
+      ?.preparationTime ??
+    tiffin
+      ?.prep_time ??
+    '20 min';
+
+  const basePrice =
+    Number(
+      tiffin?.rawPrice ??
+        String(
+          tiffin?.price ??
+            '0',
+        ).replace(
+          '$',
+          '',
+        ),
+    ) || 0;
+
+  /* =======================================================
+   * Image
+   * ======================================================= */
+
+  const getImageUrl =
+    value => {
+      if (!value) {
+        return null;
+      }
+
+      const image =
+        String(
+          value,
+        ).trim();
+
+      if (
+        image.startsWith(
+          'http://',
+        ) ||
+        image.startsWith(
+          'https://',
+        )
+      ) {
+        return image;
+      }
+
+      if (
+        image.startsWith(
+          '/',
+        )
+      ) {
+        return `${BASE_URL}${image}`;
+      }
+
+      return `${BASE_URL}/${image}`;
     };
-  }, [width]);
 
-  const removeDish = dishId => {
-    setDishes(currentDishes =>
-      currentDishes.filter(dish => dish.id !== dishId),
+  const image =
+    getImageUrl(
+      tiffin?.image ??
+        tiffin?.image_url,
     );
-  };
 
-  const handleAddToCart = () => {
-    const cartItem = {
-      id: 'executive-thali',
-      name: 'The Executive Thali',
-      plan: 'Premium Plan',
-      price: 18.5,
-      dishes,
+  /* =======================================================
+   * Responsive
+   * ======================================================= */
+
+  const responsive =
+    useMemo(() => {
+      const isTablet =
+        width >= 768;
+
+      return {
+        width:
+          isTablet
+            ? Math.min(
+                width - 80,
+                720,
+              )
+            : width,
+
+        padding:
+          isTablet
+            ? 28
+            : 16,
+      };
+    }, [
+      width,
+    ]);
+
+  /* =======================================================
+   * Selected Options
+   * ======================================================= */
+
+  const selectedItems =
+    useMemo(() => {
+      return TIFFIN_GROUPS.map(
+        group => {
+          const option =
+            group.options.find(
+              item =>
+                item.id ===
+                selections[
+                  group.key
+                ],
+            );
+
+          return option
+            ? {
+                category:
+                  group.title,
+
+                ...option,
+              }
+            : null;
+        },
+      ).filter(
+        Boolean,
+      );
+    }, [
+      selections,
+    ]);
+
+  /* =======================================================
+   * Customization Price
+   * ======================================================= */
+
+  const customizationPrice =
+    useMemo(() => {
+      return selectedItems.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          Number(
+            item.price ??
+              0,
+          ),
+        0,
+      );
+    }, [
+      selectedItems,
+    ]);
+
+  /* =======================================================
+   * Extras
+   * ======================================================= */
+
+  const selectedExtras =
+    useMemo(() => {
+      return EXTRA_ITEMS.filter(
+        item =>
+          Number(
+            extras[
+              item.id
+            ] ??
+              0,
+          ) > 0,
+      ).map(
+        item => ({
+          ...item,
+
+          quantity:
+            Number(
+              extras[
+                item.id
+              ],
+            ),
+
+          lineTotal:
+            Number(
+              extras[
+                item.id
+              ],
+            ) *
+            Number(
+              item.price,
+            ),
+        }),
+      );
+    }, [
+      extras,
+    ]);
+
+  const extrasPrice =
+    useMemo(() => {
+      return selectedExtras.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          Number(
+            item.lineTotal ??
+              0,
+          ),
+        0,
+      );
+    }, [
+      selectedExtras,
+    ]);
+
+  /* =======================================================
+   * Totals
+   * ======================================================= */
+
+  const subtotal =
+    basePrice +
+    customizationPrice +
+    extrasPrice;
+
+  const shippingCharge =
+    subtotal <
+    FREE_SHIPPING_MINIMUM
+      ? SHIPPING_CHARGE
+      : 0;
+
+  const total =
+    subtotal +
+    shippingCharge;
+
+  /* =======================================================
+   * Update Selection
+   * ======================================================= */
+
+  const updateSelection =
+    (
+      group,
+      option,
+    ) => {
+      setSelections(
+        current => ({
+          ...current,
+
+          [group]:
+            option,
+        }),
+      );
     };
 
-    console.log('Added to cart:', cartItem);
+  /* =======================================================
+   * Extra Quantity
+   * ======================================================= */
 
-    // Navigate to your cart screen when required:
-    // navigation.navigate('Cart');
-  };
+  const changeExtra =
+    (
+      id,
+      change,
+    ) => {
+      setExtras(
+        current => {
+          const existing =
+            Number(
+              current[id] ??
+                0,
+            );
+
+          return {
+            ...current,
+
+            [id]:
+              Math.max(
+                0,
+
+                existing +
+                  change,
+              ),
+          };
+        },
+      );
+    };
+
+  /* =======================================================
+   * Add Customized Tiffin To Cart
+   * ======================================================= */
+
+  const handleAddToCart =
+    async () => {
+      if (
+        !tiffinId
+      ) {
+        Alert.alert(
+          'Unable to Add',
+          'Tiffin information is missing.',
+        );
+
+        return;
+      }
+
+      try {
+        setAdding(
+          true,
+        );
+
+        const cartItem = {
+          cartId:
+            `${tiffinId}-${Date.now()}`,
+
+          tiffinId:
+            Number(
+              tiffinId,
+            ),
+
+          productId:
+            Number(
+              tiffinId,
+            ),
+
+          id:
+            Number(
+              tiffinId,
+            ),
+
+          name:
+            tiffinName,
+
+          description,
+
+          image,
+
+          preparationTime,
+
+          currency:
+            'USD',
+
+          quantity:
+            1,
+
+          basePrice,
+
+          rawPrice:
+            basePrice,
+
+          customizationPrice,
+
+          extrasPrice,
+
+          subtotal,
+
+          shippingCharge,
+
+          totalPrice:
+            total,
+
+          selections:
+            selectedItems,
+
+          extras:
+            selectedExtras,
+
+          originalTiffin:
+            tiffin,
+
+          addedAt:
+            new Date()
+              .toISOString(),
+        };
+
+        const stored =
+          await AsyncStorage.getItem(
+            CART_STORAGE_KEY,
+          );
+
+        let cart = [];
+
+        if (stored) {
+          try {
+            const parsed =
+              JSON.parse(
+                stored,
+              );
+
+            if (
+              Array.isArray(
+                parsed,
+              )
+            ) {
+              cart =
+                parsed;
+            }
+          } catch (
+            parseError
+          ) {
+            cart = [];
+          }
+        }
+
+        const updatedCart = [
+          ...cart,
+          cartItem,
+        ];
+
+        await AsyncStorage.setItem(
+          CART_STORAGE_KEY,
+
+          JSON.stringify(
+            updatedCart,
+          ),
+        );
+
+        navigation.navigate(
+          'Order',
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'ADD CART ERROR:',
+          error,
+        );
+
+        Alert.alert(
+          'Unable to Add',
+          'Something went wrong while adding the tiffin.',
+        );
+      } finally {
+        setAdding(
+          false,
+        );
+      }
+    };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFDFB" />
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }>
+
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFFDFB"
+      />
 
       <View
         style={[
-          styles.screenContainer,
+          styles.screen,
+
           {
-            width: responsive.contentWidth,
+            width:
+              responsive.width,
           },
-        ]}
-      >
+        ]}>
+
         {/* Header */}
 
         <View
           style={[
             styles.header,
-            {
-              paddingHorizontal: responsive.horizontalPadding,
-            },
-          ]}
-        >
-          <Pressable
-            hitSlop={12}
-            style={styles.headerIconButton}
-            onPress={() => navigation.replace('MainTabs')}
 
-          >
+            {
+              paddingHorizontal:
+                responsive.padding,
+            },
+          ]}>
+
+          <Pressable
+            style={
+              styles.headerButton
+            }
+
+            onPress={() =>
+              navigation.goBack()
+            }>
+
             <Image
-                source={require('../assets/login-icons/back.png')}
-                style={styles.passwordEyes}
-              />
+              source={require('../assets/login-icons/back.png')}
+
+              style={
+                styles.headerIcon
+              }
+            />
+
           </Pressable>
 
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Customize Tiffin</Text>
+          <View
+            style={{
+              flex:
+                1,
 
-            {/* <View style={styles.locationRow}>
-              
-              <Image
-                source={require('../assets/login-icons/location.png')}
-                style={styles.passwordEyes}
-              />
+              marginLeft:
+                10,
+            }}>
 
-              <Text numberOfLines={1} style={styles.locationText}>
-                Melbourne, VIC
-              </Text>
-            </View> */}
+            <Text
+              style={
+                styles.headerTitle
+              }>
+              Customize Tiffin
+            </Text>
+
+            <Text
+              style={
+                styles.headerSubtitle
+              }>
+              {tiffinName}
+            </Text>
+
           </View>
 
-          <Pressable
-            hitSlop={12}
-            style={styles.headerIconButton}
-            onPress={() => console.log('Notification pressed')}
-          >
-            {/* <Ionicons name="notifications-outline" size={20} color="#B94B10" /> */}
-            <Image
-                source={require('../assets/login-icons/notification.png')}
-                style={styles.passwordEyes}
-              />
-
-            <View style={styles.notificationDot} />
-          </Pressable>
         </View>
 
         <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {/* Hero image */}
+          showsVerticalScrollIndicator={
+            false
+          }
+
+          contentContainerStyle={{
+            paddingBottom:
+              125,
+          }}>
+
+          {/* Image */}
 
           <View
-            style={[
-              styles.heroContainer,
-              responsive.heroHeight && {
-                height: responsive.heroHeight,
-              },
-            ]}
-          >
-            <Image
-              source={require('../assets/tiffin-2.png')}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
+            style={
+              styles.hero
+            }>
 
-            <View style={styles.heroOverlay} />
+            {image ? (
+              <Image
+                source={{
+                  uri:
+                    image,
+                }}
 
-            <View style={styles.planBadge}>
-              <Ionicons name="star" size={12} color="#FFFFFF" />
+                style={
+                  styles.heroImage
+                }
 
-              <Text style={styles.planBadgeText}>Premium Plan</Text>
-            </View>
+                resizeMode="cover"
+              />
+            ) : (
+              <Image
+                source={require('../assets/tiffin-2.png')}
+
+                style={
+                  styles.heroImage
+                }
+
+                resizeMode="cover"
+              />
+            )}
+
           </View>
 
           <View
-            style={[
-              styles.content,
-              {
-                paddingHorizontal: responsive.horizontalPadding,
-              },
-            ]}
-          >
-            {/* Product introduction */}
+            style={{
+              paddingHorizontal:
+                responsive.padding,
 
-            <View style={styles.introductionSection}>
-              <Text style={styles.title}>The Executive Thali</Text>
+              paddingTop:
+                18,
+            }}>
 
-              <Text style={styles.description}>
-                A curator-selected journey through regional flavours, designed
-                for the modern professional.
+            <View
+              style={
+                styles.titleRow
+              }>
+
+              <View
+                style={{
+                  flex:
+                    1,
+                }}>
+
+                <Text
+                  style={
+                    styles.title
+                  }>
+                  {
+                    tiffinName
+                  }
+                </Text>
+
+                {!!description && (
+                  <Text
+                    style={
+                      styles.description
+                    }>
+                    {
+                      description
+                    }
+                  </Text>
+                )}
+
+              </View>
+
+              <Text
+                style={
+                  styles.basePrice
+                }>
+                $
+                {
+                  basePrice.toFixed(
+                    2,
+                  )
+                }
               </Text>
+
             </View>
 
-            {/* Included dishes */}
+            {/* Options */}
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Included Dishes</Text>
+            {TIFFIN_GROUPS.map(
+              group => (
+                <View
+                  key={
+                    group.key
+                  }
 
-              <Text style={styles.sectionHelper}>Default Selection</Text>
-            </View>
+                  style={
+                    styles.group
+                  }>
 
-            <View style={styles.dishesContainer}>
-              {dishes.length > 0 ? (
-                dishes.map(dish => (
-                  <View key={dish.id} style={styles.dishCard}>
-                    <View style={styles.dishIconContainer}>
-                      <Ionicons name={dish.icon} size={19} color="#B95B22" />
-                    </View>
+                  <Text
+                    style={
+                      styles.groupTitle
+                    }>
+                    {
+                      group.title
+                    }
+                  </Text>
 
-                    <View style={styles.dishTextContainer}>
-                      <Text numberOfLines={1} style={styles.dishName}>
-                        {dish.name}
-                      </Text>
+                  {group.options.map(
+                    option => {
+                      const selected =
+                        selections[
+                          group.key
+                        ] ===
+                        option.id;
 
-                      <Text numberOfLines={2} style={styles.dishDescription}>
-                        {dish.description}
-                      </Text>
-                    </View>
+                      return (
+                        <Pressable
+                          key={
+                            option.id
+                          }
 
-                    <Pressable
-                      hitSlop={10}
-                      style={styles.removeButton}
-                      onPress={() => removeDish(dish.id)}
-                    >
-                      {/* <Ionicons
-                        name="close-circle-outline"
-                        size={15}
-                        color="#E04D46"
-                      /> */}
+                          onPress={() =>
+                            updateSelection(
+                              group.key,
 
-                      <Text style={styles.removeText}>Remove</Text>
-                    </Pressable>
-                  </View>
-                ))
-              ) : (
-                <View style={styles.emptyDishesContainer}>
-                  <Ionicons
-                    name="restaurant-outline"
-                    size={25}
-                    color="#A49A95"
-                  />
+                              option.id,
+                            )
+                          }
 
-                  <Text style={styles.emptyDishesText}>No dishes selected</Text>
+                          style={[
+                            styles.option,
+
+                            selected &&
+                              styles.selectedOption,
+                          ]}>
+
+                          <View
+                            style={[
+                              styles.radio,
+
+                              selected &&
+                                styles.selectedRadio,
+                            ]}>
+
+                            {selected && (
+                              <View
+                                style={
+                                  styles.radioInner
+                                }
+                              />
+                            )}
+
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.optionName,
+
+                              selected &&
+                                styles.selectedOptionName,
+                            ]}>
+
+                            {
+                              option.name
+                            }
+
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.optionPrice
+                            }>
+
+                            {option.price >
+                            0
+                              ? `+$${option.price.toFixed(
+                                  2,
+                                )}`
+                              : ''}
+
+                          </Text>
+
+                        </Pressable>
+                      );
+                    },
+                  )}
+
                 </View>
-              )}
+              ),
+            )}
+
+            {/* Extras */}
+
+            <Text
+              style={
+                styles.sectionHeading
+              }>
+              Add Extras
+            </Text>
+
+            {EXTRA_ITEMS.map(
+              item => {
+                const quantity =
+                  Number(
+                    extras[
+                      item.id
+                    ] ??
+                      0,
+                  );
+
+                return (
+                  <View
+                    key={
+                      item.id
+                    }
+
+                    style={
+                      styles.extra
+                    }>
+
+                    <View
+                      style={{
+                        flex:
+                          1,
+                      }}>
+
+                      <Text
+                        style={
+                          styles.extraName
+                        }>
+                        {
+                          item.name
+                        }
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.extraPrice
+                        }>
+                        $
+                        {
+                          item.price.toFixed(
+                            2,
+                          )
+                        }
+                      </Text>
+
+                    </View>
+
+                    <View
+                      style={
+                        styles.quantity
+                      }>
+
+                      <Pressable
+                        style={
+                          styles.quantityButton
+                        }
+
+                        onPress={() =>
+                          changeExtra(
+                            item.id,
+                            -1,
+                          )
+                        }>
+
+                        <Text>
+                          −
+                        </Text>
+
+                      </Pressable>
+
+                      <Text
+                        style={
+                          styles.quantityValue
+                        }>
+                        {
+                          quantity
+                        }
+                      </Text>
+
+                      <Pressable
+                        style={
+                          styles.quantityButton
+                        }
+
+                        onPress={() =>
+                          changeExtra(
+                            item.id,
+                            1,
+                          )
+                        }>
+
+                        <Text>
+                          +
+                        </Text>
+
+                      </Pressable>
+
+                    </View>
+
+                  </View>
+                );
+              },
+            )}
+
+            {/* Summary */}
+
+            <View
+              style={
+                styles.summary
+              }>
+
+              <SummaryRow
+                label="Base Tiffin"
+                value={basePrice}
+              />
+
+              <SummaryRow
+                label="Customization"
+                value={customizationPrice}
+              />
+
+              <SummaryRow
+                label="Extras"
+                value={extrasPrice}
+              />
+
+              <SummaryRow
+                label="Shipping"
+                value={shippingCharge}
+              />
+
+              <View
+                style={
+                  styles.divider
+                }
+              />
+
+              <View
+                style={
+                  styles.totalRow
+                }>
+
+                <Text
+                  style={
+                    styles.totalLabel
+                  }>
+                  Total
+                </Text>
+
+                <Text
+                  style={
+                    styles.totalValue
+                  }>
+                  $
+                  {
+                    total.toFixed(
+                      2,
+                    )
+                  }
+                </Text>
+
+              </View>
+
             </View>
+
           </View>
+
         </ScrollView>
 
-        {/* Fixed bottom section */}
+        {/* Bottom */}
 
         <View
           style={[
-            styles.bottomBar,
-            {
-              paddingHorizontal: responsive.horizontalPadding,
-            },
-          ]}
-        >
-          <View style={styles.priceContainer}>
-            <Text style={styles.totalLabel}>TOTAL</Text>
+            styles.bottom,
 
-            <Text style={styles.totalPrice}>$18.50</Text>
+            {
+              paddingHorizontal:
+                responsive.padding,
+            },
+          ]}>
+
+          <View
+            style={{
+              marginRight:
+                14,
+            }}>
+
+            <Text
+              style={
+                styles.bottomLabel
+              }>
+              Total
+            </Text>
+
+            <Text
+              style={
+                styles.bottomTotal
+              }>
+              $
+              {
+                total.toFixed(
+                  2,
+                )
+              }
+            </Text>
+
           </View>
 
           <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.addToCartButton}
-            // onPress={handleAddToCart}
-            onPress={() => navigation.replace('Order')}
-          >
-            {/* <Ionicons name="cart" size={19} color="#FFFFFF" /> */}
-            <Image
-                source={require('../assets/login-icons/shopping-cart.png')}
-                style={styles.passwordEyes}
-              />
+            activeOpacity={
+              0.85
+            }
 
-            <Text style={styles.addToCartText}>Add to Cart</Text>
+            disabled={
+              adding
+            }
+
+            onPress={
+              handleAddToCart
+            }
+
+            style={
+              styles.addButton
+            }>
+
+            <Ionicons
+              name="cart-outline"
+              size={20}
+              color="#FFFFFF"
+            />
+
+            <Text
+              style={
+                styles.addText
+              }>
+              {adding
+                ? 'Adding...'
+                : 'Add to Cart'}
+            </Text>
+
           </TouchableOpacity>
+
         </View>
+
       </View>
+
     </SafeAreaView>
   );
 };
 
+const SummaryRow = ({
+  label,
+  value,
+}) => (
+  <View
+    style={
+      styles.summaryRow
+    }>
+
+    <Text
+      style={
+        styles.summaryLabel
+      }>
+      {
+        label
+      }
+    </Text>
+
+    <Text
+      style={
+        styles.summaryValue
+      }>
+      {value >
+      0
+        ? `$${Number(
+            value,
+          ).toFixed(2)}`
+        : 'FREE'}
+    </Text>
+
+  </View>
+);
+
 export default CustomizeTiffin;
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F6F2EE',
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex:
+        1,
 
-  screenContainer: {
-    flex: 1,
-    alignSelf: 'center',
-    backgroundColor: '#FFFDFB',
-  },
-
-  header: {
-    minHeight: 66,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFDFB',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE8E3',
-  },
-
-  headerIconButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF8F2',
-    borderRadius: 19,
-  },
-
-  notificationDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 5,
-    height: 5,
-    backgroundColor: '#E14F29',
-    borderRadius: 3,
-  },
-
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 12,
-  },
-
-  headerTitle: {
-    color: '#A00B0F',
-    fontSize: 18,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-
-  locationText: {
-    maxWidth: 180,
-    color: '#82756F',
-    fontSize: 10,
-    marginLeft: 2,
-  },
-
-  scrollContent: {
-    paddingBottom: 104,
-  },
-
-  heroContainer: {
-    width: '100%',
-    aspectRatio: 1.42,
-    position: 'relative',
-    backgroundColor: '#E5DCD4',
-    overflow: 'hidden',
-  },
-
-  heroImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(30, 18, 10, 0.08)',
-  },
-
-  planBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#A00B0F',
-    borderRadius: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-
-    shadowColor: '#54220A',
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      backgroundColor:
+        '#FFFDFB',
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
 
-    elevation: 4,
-  },
+    screen: {
+      flex:
+        1,
 
-  planBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    marginLeft: 5,
-  },
+      alignSelf:
+        'center',
 
-  content: {
-    paddingTop: 20,
-    paddingBottom: 24,
-  },
-
-  introductionSection: {
-    marginBottom: 23,
-  },
-
-  title: {
-    color: '#15100D',
-    fontSize: 21,
-    fontWeight: '800',
-    lineHeight: 27,
-  },
-
-  description: {
-    color: '#755F55',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 6,
-    maxWidth: 560,
-  },
-
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 11,
-  },
-
-  sectionTitle: {
-    color: '#A00B0F',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-
-  sectionHelper: {
-    color: '#6F5A51',
-    fontSize: 9,
-    fontWeight: '600',
-  },
-
-  dishesContainer: {
-    width: '100%',
-  },
-
-  dishCard: {
-    width: '100%',
-    minHeight: 72,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F0E9E4',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-
-    shadowColor: '#5B3A2A',
-    shadowOffset: {
-      width: 0,
-      height: 3,
+      backgroundColor:
+        '#FFFDFB',
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
 
-    elevation: 2,
-  },
+    header: {
+      minHeight:
+        65,
 
-  dishIconContainer: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFF5EA',
-    borderRadius: 12,
-    marginRight: 11,
-  },
+      flexDirection:
+        'row',
 
-  dishTextContainer: {
-    flex: 1,
-    paddingRight: 8,
-  },
+      alignItems:
+        'center',
 
-  dishName: {
-    color: '#211914',
-    fontSize: 12,
-    fontWeight: '800',
-  },
+      borderBottomWidth:
+        1,
 
-  dishDescription: {
-    color: '#8A746A',
-    fontSize: 9,
-    lineHeight: 13,
-    marginTop: 3,
-  },
-
-  removeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-
-  removeText: {
-    color: '#A00B0F',
-    fontSize: 9,
-    fontWeight: '600',
-    marginLeft: 3,
-  },
-
-  emptyDishesContainer: {
-    minHeight: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FAF7F4',
-    borderWidth: 1,
-    borderColor: '#EEE7E1',
-    borderRadius: 16,
-  },
-
-  emptyDishesText: {
-    color: '#8D817B',
-    fontSize: 11,
-    marginTop: 6,
-  },
-
-  bottomBar: {
-    position: 'absolute',
-    right: 0,
-    bottom: 0,
-    left: 0,
-    minHeight: 82,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 253, 251, 0.98)',
-    borderTopWidth: 1,
-    borderTopColor: '#ECE4DE',
-    paddingVertical: 12,
-
-    shadowColor: '#4C3022',
-    shadowOffset: {
-      width: 0,
-      height: -4,
+      borderBottomColor:
+        '#EEE6E1',
     },
-    shadowOpacity: 0.09,
-    shadowRadius: 10,
 
-    elevation: 12,
-  },
+    headerButton: {
+      width:
+        38,
 
-  priceContainer: {
-    minWidth: 74,
-    marginRight: 14,
-  },
+      height:
+        38,
 
-  totalLabel: {
-    color: '#8D7E77',
-    fontSize: 9,
-    fontWeight: '700',
-  },
+      backgroundColor:
+        '#FFF3E8',
 
-  totalPrice: {
-    color: '#A00B0F',
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 1,
-  },
+      borderRadius:
+        20,
 
-  addToCartButton: {
-    flex: 1,
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#A00B0F',
-    borderRadius: 13,
+      alignItems:
+        'center',
 
-    shadowColor: '#A00B0F',
-    shadowOffset: {
-      width: 0,
-      height: 5,
+      justifyContent:
+        'center',
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
 
-    elevation: 5,
-  },
+    headerIcon: {
+      width:
+        19,
 
-  addToCartText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-    marginLeft: 8,
-  },
-  passwordEyes: {
-    width: 20,
-    height: 20,
-  },
-});
+      height:
+        19,
+    },
+
+    headerTitle: {
+      color:
+        '#251A15',
+
+      fontSize:
+        16,
+
+      fontWeight:
+        '900',
+    },
+
+    headerSubtitle: {
+      color:
+        '#89766D',
+
+      fontSize:
+        9,
+
+      marginTop:
+        2,
+    },
+
+    hero: {
+      height:
+        240,
+    },
+
+    heroImage: {
+      width:
+        '100%',
+
+      height:
+        '100%',
+    },
+
+    titleRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+    },
+
+    title: {
+      color:
+        '#251A15',
+
+      fontSize:
+        20,
+
+      fontWeight:
+        '900',
+    },
+
+    description: {
+      color:
+        '#87756D',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        16,
+
+      marginTop:
+        6,
+
+      paddingRight:
+        15,
+    },
+
+    basePrice: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        17,
+
+      fontWeight:
+        '900',
+    },
+
+    group: {
+      marginTop:
+        22,
+    },
+
+    groupTitle: {
+      color:
+        '#251A15',
+
+      fontSize:
+        14,
+
+      fontWeight:
+        '900',
+
+      marginBottom:
+        9,
+    },
+
+    option: {
+      minHeight:
+        52,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE4DE',
+
+      borderRadius:
+        13,
+
+      paddingHorizontal:
+        12,
+
+      marginBottom:
+        7,
+
+      backgroundColor:
+        '#FFFFFF',
+    },
+
+    selectedOption: {
+      backgroundColor:
+        '#FFF5F5',
+
+      borderColor:
+        '#A00B0F',
+    },
+
+    radio: {
+      width:
+        18,
+
+      height:
+        18,
+
+      borderRadius:
+        9,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#BDAFA7',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginRight:
+        10,
+    },
+
+    selectedRadio: {
+      borderColor:
+        '#A00B0F',
+    },
+
+    radioInner: {
+      width:
+        9,
+
+      height:
+        9,
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        5,
+    },
+
+    optionName: {
+      flex:
+        1,
+
+      color:
+        '#322621',
+
+      fontSize:
+        11,
+
+      fontWeight:
+        '700',
+    },
+
+    selectedOptionName: {
+      color:
+        '#A00B0F',
+    },
+
+    optionPrice: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '800',
+    },
+
+    sectionHeading: {
+      color:
+        '#251A15',
+
+      fontSize:
+        14,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        22,
+
+      marginBottom:
+        9,
+    },
+
+    extra: {
+      minHeight:
+        60,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE4DE',
+
+      borderRadius:
+        13,
+
+      paddingHorizontal:
+        12,
+
+      marginBottom:
+        8,
+    },
+
+    extraName: {
+      color:
+        '#2B211C',
+
+      fontSize:
+        11,
+
+      fontWeight:
+        '800',
+    },
+
+    extraPrice: {
+      color:
+        '#8B7770',
+
+      fontSize:
+        9,
+
+      marginTop:
+        3,
+    },
+
+    quantity: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    quantityButton: {
+      width:
+        30,
+
+      height:
+        30,
+
+      backgroundColor:
+        '#FFF3E8',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderRadius:
+        9,
+    },
+
+    quantityValue: {
+      minWidth:
+        30,
+
+      textAlign:
+        'center',
+
+      fontWeight:
+        '900',
+    },
+
+    summary: {
+      backgroundColor:
+        '#FAF5F2',
+
+      borderRadius:
+        16,
+
+      padding:
+        14,
+
+      marginTop:
+        20,
+    },
+
+    summaryRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      marginBottom:
+        9,
+    },
+
+    summaryLabel: {
+      color:
+        '#75655D',
+
+      fontSize:
+        10,
+    },
+
+    summaryValue: {
+      color:
+        '#2C211C',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '800',
+    },
+
+    divider: {
+      height:
+        1,
+
+      backgroundColor:
+        '#E4DAD5',
+
+      marginVertical:
+        7,
+    },
+
+    totalRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+    },
+
+    totalLabel: {
+      color:
+        '#251A15',
+
+      fontSize:
+        13,
+
+      fontWeight:
+        '900',
+    },
+
+    totalValue: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        17,
+
+      fontWeight:
+        '900',
+    },
+
+    bottom: {
+      position:
+        'absolute',
+
+      bottom:
+        0,
+
+      left:
+        0,
+
+      right:
+        0,
+
+      minHeight:
+        88,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderTopWidth:
+        1,
+
+      borderTopColor:
+        '#EEE4DE',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingVertical:
+        12,
+    },
+
+    bottomLabel: {
+      color:
+        '#82746D',
+
+      fontSize:
+        9,
+    },
+
+    bottomTotal: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        18,
+
+      fontWeight:
+        '900',
+    },
+
+    addButton: {
+      flex:
+        1,
+
+      minHeight:
+        52,
+
+      borderRadius:
+        13,
+
+      backgroundColor:
+        '#A00B0F',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    addText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        13,
+
+      fontWeight:
+        '900',
+
+      marginLeft:
+        7,
+    },
+  });

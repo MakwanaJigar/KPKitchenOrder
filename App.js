@@ -1,6 +1,29 @@
-import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import React, {
+  useEffect,
+  useState,
+} from 'react';
+
+import {
+  NavigationContainer,
+} from '@react-navigation/native';
+
+import {
+  createNativeStackNavigator,
+} from '@react-navigation/native-stack';
+
+import {
+  Provider,
+} from 'react-redux';
+
+import {
+  StripeProvider,
+} from '@stripe/stripe-react-native';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import axios from 'axios';
+
+import store from './src/redux/Store';
 
 import SplashScreen from './src/screens/Spalsh';
 import LoginScreen from './src/screens/Login';
@@ -12,79 +35,358 @@ import MainTabNavigator from './src/navigation/MainTabNavigator';
 import ForgotPassword from './src/screens/ForgotPassword';
 import Otp from './src/screens/Otp';
 import ResetPassword from './src/screens/ResetPassword';
+import PreviousOrder from './src/screens/PreviousOrder';
+import PaymentDetails from './src/screens/PaymentDetails';
+import AddressList from './src/screens/AddressList';
+import AddAddress from './src/screens/AddAddress';
+import Welcome from './src/screens/Welcome';
+import Notification from './src/screens/Notifications';
+import WeeklyInvoice from './src/screens/WeeklyInvoice';
 
+/* =========================================================
+ * STRIPE
+ * =========================================================
+ *
+ * IMPORTANT:
+ *
+ * Put your PUBLISHABLE key here:
+ *
+ * pk_test_...
+ *
+ * DO NOT put:
+ *
+ * sk_test_...
+ * sk_live_...
+ *
+ * Stripe secret key must remain on Laravel only.
+ * ========================================================= */
 
-const Stack = createNativeStackNavigator();
+const STRIPE_PUBLISHABLE_KEY =
+  'pk_test_51U6SdyANg7fMOeypPugvZNrDN2FVjt1a6dMdKCvW0iw5se0u3CDdVqsX40eivgN7iBdGCHFFuIkg31uH7SaayEk000vpaKlvhL';
 
-const AppNavigator = () => {
+/* =========================================================
+ * Stack
+ * ========================================================= */
+
+const Stack =
+  createNativeStackNavigator();
+
+/* =========================================================
+ * Navigation
+ * ========================================================= */
+
+const AppNavigator = ({
+  initialRoute,
+}) => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Login"
+        initialRouteName={
+          initialRoute
+        }
         screenOptions={{
           headerShown: false,
           animation: 'fade',
         }}
       >
-        <Stack.Screen name="Login" component={LoginScreen} />
+        {/* ================================================= */}
+        {/* Welcome */}
+        {/* ================================================= */}
 
-        <Stack.Screen name="Register" component={RegisterScreen} />
-        <Stack.Screen name="Order" component={Order} />
-        <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen
+          name="Welcome"
+          component={Welcome}
+          options={{
+            gestureEnabled:
+              false,
+          }}
+        />
 
-        <Stack.Screen name="CustomizeTiffin" component={CustomizeTiffin} />
+        {/* ================================================= */}
+        {/* Main Tabs */}
+        {/* ================================================= */}
 
         <Stack.Screen
           name="MainTabs"
-          component={MainTabNavigator}
+          component={
+            MainTabNavigator
+          }
           options={{
-            gestureEnabled: false,
+            gestureEnabled:
+              false,
           }}
         />
+
+        {/* ================================================= */}
+        {/* Authentication */}
+        {/* ================================================= */}
+
+        <Stack.Screen
+          name="Login"
+          component={
+            LoginScreen
+          }
+        />
+
+        <Stack.Screen
+          name="Register"
+          component={
+            RegisterScreen
+          }
+        />
+
         <Stack.Screen
           name="ForgotPassword"
-          component={ForgotPassword}
-          options={{
-            headerShown: false,
-          }}
+          component={
+            ForgotPassword
+          }
         />
+
         <Stack.Screen
           name="Otp"
-          component={Otp}
-          options={{
-            headerShown: false,
-          }}
+          component={
+            Otp
+          }
         />
+
         <Stack.Screen
           name="ResetPassword"
-          component={ResetPassword}
-          options={{
-            headerShown: false,
-          }}
+          component={
+            ResetPassword
+          }
+        />
+
+        {/* ================================================= */}
+        {/* Ordering */}
+        {/* ================================================= */}
+
+        <Stack.Screen
+          name="CustomizeTiffin"
+          component={
+            CustomizeTiffin
+          }
+        />
+
+        <Stack.Screen
+          name="Order"
+          component={Order}
+        />
+
+        {/* ================================================= */}
+        {/* Profile / Account */}
+        {/* ================================================= */}
+
+        <Stack.Screen
+          name="Profile"
+          component={
+            Profile
+          }
+        />
+
+        <Stack.Screen
+          name="PreviousOrder"
+          component={
+            PreviousOrder
+          }
+        />
+
+        <Stack.Screen
+          name="PaymentDetails"
+          component={
+            PaymentDetails
+          }
+        />
+
+        <Stack.Screen
+          name="AddressList"
+          component={
+            AddressList
+          }
+        />
+
+        <Stack.Screen
+          name="AddAddress"
+          component={
+            AddAddress
+          }
+        />
+
+        <Stack.Screen
+          name="Notification"
+          component={
+            Notification
+          }
+        />
+        <Stack.Screen
+          name="WeeklyInvoice"
+          component={
+            WeeklyInvoice
+          }
         />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
+/* =========================================================
+ * App
+ * ========================================================= */
+
 const App = () => {
-  const [showSplash, setShowSplash] = useState(true);
+  const [
+    showSplash,
+    setShowSplash,
+  ] = useState(true);
+
+  const [
+    initialRoute,
+    setInitialRoute,
+  ] = useState(null);
+
+  /* =======================================================
+   * App Initialization
+   * ======================================================= */
 
   useEffect(() => {
-    const splashTimer = setTimeout(() => {
-      setShowSplash(false);
-    }, 3000);
+    const initializeApp =
+      async () => {
+        try {
+          /* =============================================
+           * Splash
+           * ============================================= */
 
-    return () => {
-      clearTimeout(splashTimer);
-    };
+          await new Promise(
+            resolve => {
+              setTimeout(
+                resolve,
+                3000,
+              );
+            },
+          );
+
+          /* =============================================
+           * Authentication
+           * ============================================= */
+
+          const token =
+            await AsyncStorage.getItem(
+              'token',
+            );
+
+          const isLoggedIn =
+            await AsyncStorage.getItem(
+              'isLoggedIn',
+            );
+
+          console.log(
+            '======================================',
+          );
+
+          console.log(
+            'APP START AUTH CHECK',
+          );
+
+          console.log(
+            'TOKEN:',
+            token,
+          );
+
+          console.log(
+            'IS LOGGED IN:',
+            isLoggedIn,
+          );
+
+          console.log(
+            '======================================',
+          );
+
+          if (
+            token &&
+            isLoggedIn ===
+              'true'
+          ) {
+            axios.defaults.headers.common.Authorization =
+              `Bearer ${token}`;
+
+            console.log(
+              'USER LOGGED IN -> MAIN TABS',
+            );
+
+            setInitialRoute(
+              'MainTabs',
+            );
+          } else {
+            /*
+             * Guest browsing.
+             */
+
+            console.log(
+              'USER NOT LOGGED IN -> MAIN TABS',
+            );
+
+            setInitialRoute(
+              'MainTabs',
+            );
+          }
+        } catch (
+          error
+        ) {
+          console.log(
+            'APP INITIALIZATION ERROR:',
+            error,
+          );
+
+          setInitialRoute(
+            'Welcome',
+          );
+        } finally {
+          setShowSplash(
+            false,
+          );
+        }
+      };
+
+    initializeApp();
   }, []);
 
-  if (showSplash) {
-    return <SplashScreen />;
+  /* =======================================================
+   * Splash
+   * ======================================================= */
+
+  if (
+    showSplash ||
+    !initialRoute
+  ) {
+    return (
+      <Provider
+        store={store}
+      >
+        <SplashScreen />
+      </Provider>
+    );
   }
 
-  return <AppNavigator />;
+  /* =======================================================
+   * Application
+   * ======================================================= */
+
+  return (
+    <Provider
+      store={store}
+    >
+      <StripeProvider
+        publishableKey={
+          STRIPE_PUBLISHABLE_KEY
+        }
+      >
+        <AppNavigator
+          initialRoute={
+            initialRoute
+          }
+        />
+      </StripeProvider>
+    </Provider>
+  );
 };
 
 export default App;

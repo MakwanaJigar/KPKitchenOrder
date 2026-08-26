@@ -1,8 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
 import {
+  ActivityIndicator,
+  Alert,
   FlatList,
   Image,
+  Modal,
   Pressable,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
@@ -10,904 +20,3744 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 
-const dateOptions = [
-  {
-    id: '1',
-    label: 'TODAY',
-    day: '24',
-    month: 'JUL',
-  },
-  {
-    id: '2',
-    label: 'MON',
-    day: '25',
-    month: 'JUL',
-  },
-  {
-    id: '3',
-    label: 'TUE',
-    day: '26',
-    month: 'JUL',
-  },
-  {
-    id: '4',
-    label: 'WED',
-    day: '27',
-    month: 'JUL',
-  },
-  {
-    id: '5',
-    label: 'THU',
-    day: '28',
-    month: 'JUL',
-  },
-];
+import {
+  useFocusEffect,
+} from '@react-navigation/native';
 
-const mealData = [
-  {
-    id: '1',
-    name: 'Zesty Quinoa Power Bowl',
-    price: '$14.50',
-    description:
-      'Nutritious seasonal vegetables, protein-rich quinoa and fresh greens.',
-    image: require('../assets/tiffin-1.png'),
-    foodType: 'VEGETARIAN',
-    category: 'Lunch',
-    calories: '420 kcal',
-    preparationTime: '15 min',
-    available: true,
-    // favourite: false,
-  },
-  {
-    id: '2',
-    name: 'Smoked Brisket Brioche',
-    price: '$18.90',
-    description:
-      'Slow-cooked smoked premium beef, pickled red onion and house-made sauce.',
-    image: require('../assets/tiffin-2.png'),
-    foodType: 'NON-VEG',
-    category: 'Lunch',
-    calories: '650 kcal',
-    preparationTime: '20 min',
-    available: true,
-    // favourite: true,
-  },
-  {
-    id: '3',
-    name: 'Atlantic Pan-Seared Salmon',
-    price: '$22.00',
-    description:
-      'Pan-seared salmon served with seasonal vegetables and creamy sauce.',
-    image: require('../assets/tiffin-3.png'),
-    foodType: 'NON-VEG',
-    category: 'Dinner',
-    calories: '570 kcal',
-    preparationTime: '25 min',
-    available: true,
-    // favourite: false,
-  },
-  {
-    id: '3',
-    name: 'Atlantic Pan-Seared Salmon',
-    price: '$22.00',
-    description:
-      'Pan-seared salmon served with seasonal vegetables and creamy sauce.',
-    image: require('../assets/tiffin-3.png'),
-    foodType: 'NON-VEG',
-    category: 'Dinner',
-    calories: '570 kcal',
-    preparationTime: '25 min',
-    available: true,
-    // favourite: false,
-  },
-];
+import {
+  useDispatch,
+  useSelector,
+} from 'react-redux';
 
-const Home = ({ navigation }) => {
-  const { width } = useWindowDimensions();
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-  // const [selectedDate, setSelectedDate] = useState('1');
-  const [meals, setMeals] = useState(mealData);
+import {
+  getTiffins,
+} from '../redux/Action';
 
-  const layout = useMemo(() => {
-    const isTablet = width >= 768;
+/* =========================================================
+ * API
+ * ========================================================= */
 
-    return {
-      isTablet,
-      pageWidth: isTablet ? Math.min(width - 64, 900) : width,
-      horizontalPadding: isTablet ? 28 : 16,
-      cardColumns: isTablet ? 2 : 1,
-    };
-  }, [width]);
+const BASE_URL =
+  'https://replete-software.com/projects/kp_admin';
 
-  // const toggleFavourite = mealId => {
-  //   setMeals(currentMeals =>
-  //     currentMeals.map(meal =>
-  //       meal.id === mealId
-  //         ? {
-  //             ...meal,
-  //             favourite: !meal.favourite,
-  //           }
-  //         : meal,
-  //     ),
-  //   );
-  // };
+const PROFILE_API =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile';
 
-  const handleOrder = meal => {
-    if (!meal.available) {
-      return;
-    }
+const NOTIFICATION_API =
+  'https://replete-software.com/projects/kp_admin/api/customer/notifications';
 
-    console.log('Order selected:', meal);
-  };
+/* =========================================================
+ * Local Storage
+ * ========================================================= */
 
-  // const renderDateItem = ({item}) => {
-  //   const isSelected = selectedDate === item.id;
+const CART_STORAGE_KEY =
+  'kp_customer_cart';
 
-  //   return (
-  //     <Pressable
-  //       onPress={() => setSelectedDate(item.id)}
-  //       style={[
-  //         styles.dateCard,
-  //         isSelected && styles.selectedDateCard,
-  //       ]}>
-  //       <Text
-  //         style={[
-  //           styles.dateLabel,
-  //           isSelected && styles.selectedDateText,
-  //         ]}>
-  //         {item.label}
-  //       </Text>
+/* =========================================================
+ * Home
+ * ========================================================= */
 
-  //       <Text
-  //         style={[
-  //           styles.dateNumber,
-  //           isSelected && styles.selectedDateText,
-  //         ]}>
-  //         {item.day}
-  //       </Text>
+const Home = ({
+  navigation,
+}) => {
+  const {
+    width,
+  } = useWindowDimensions();
 
-  //       <Text
-  //         style={[
-  //           styles.dateMonth,
-  //           isSelected && styles.selectedDateText,
-  //         ]}>
-  //         {item.month}
-  //       </Text>
-  //     </Pressable>
-  //   );
-  // };
+  const dispatch =
+    useDispatch();
 
-  const renderMealCard = ({ item }) => {
-    const isVegetarian = item.foodType === 'VEGETARIAN';
-
-    return (
-      <View
-        style={[
-          styles.mealCard,
-          layout.cardColumns === 2 && styles.tabletMealCard,
-        ]}
-      >
-        <View style={styles.imageContainer}>
-          <Image
-            source={item.image}
-            style={styles.mealImage}
-            resizeMode="cover"
-          />
-
-          <View
-            style={[
-              styles.foodTypeBadge,
-              isVegetarian ? styles.vegetarianBadge : styles.nonVegetarianBadge,
-            ]}
-          >
-            <View
-              style={[
-                styles.foodTypeDot,
-                isVegetarian ? styles.vegetarianDot : styles.nonVegetarianDot,
-              ]}
-            />
-
-            <Text
-              style={[
-                styles.foodTypeText,
-                isVegetarian ? styles.vegetarianText : styles.nonVegetarianText,
-              ]}
-            >
-              {item.foodType}
-            </Text>
-          </View>
-
-          {/* <Pressable
-            hitSlop={10}
-            onPress={() => toggleFavourite(item.id)}
-            style={styles.favouriteButton}
-          >
-            <Ionicons
-              name={item.favourite ? 'heart' : 'heart-outline'}
-              size={19}
-              color={item.favourite ? '#F15A29' : '#FFFFFF'}
-            />
-          </Pressable> */}
-
-          {!item.available && (
-            <View style={styles.soldOutImageOverlay}>
-              <View style={styles.soldOutBadge}>
-                <Text style={styles.soldOutBadgeText}>SOLD OUT</Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.mealContent}>
-          <View style={styles.mealTitleRow}>
-            <Text numberOfLines={2} style={styles.mealName}>
-              {item.name}
-            </Text>
-
-            <Text style={styles.mealPrice}>{item.price}</Text>
-          </View>
-
-          <Text numberOfLines={2} style={styles.mealDescription}>
-            {item.description}
-          </Text>
-
-          <View style={styles.mealMetaRow}>
-            <View style={styles.metaItem}>
-              {/* <Ionicons
-                name="restaurant-outline"
-                size={12}
-                color="#7456A7"
-              /> */}
-              <Image
-                source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
-                style={styles.TimeIcons}
-              />
-
-              <Text style={styles.metaText}>{item.category}</Text>
-            </View>
-
-            {/* <View style={styles.metaItem}>
-              <Ionicons
-                name="flame-outline"
-                size={12}
-                color="#7456A7"
-              />
-
-              <Text style={styles.metaText}>
-                {item.calories}
-              </Text>
-            </View> */}
-
-            <View style={styles.metaItem}>
-              {/* <Ionicons
-                name="time-outline"
-                size={12}
-                color="#7456A7"
-              /> */}
-              <Image
-                source={require('../assets/login-icons/time-left.png')}
-                style={styles.TimeIcons}
-              />
-
-              <Text style={styles.metaText}>{item.preparationTime}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={!item.available}
-            onPress={() => navigation.replace('CustomizeTiffin')}
-            // onPress={() => handleOrder(item)}
-            style={[
-              styles.orderButton,
-              !item.available && styles.disabledOrderButton,
-            ]}
-          >
-            <Text
-              style={[
-                styles.orderButtonText,
-                !item.available && styles.disabledOrderButtonText,
-              ]}
-            >
-              {item.available ? 'ORDER NOW' : 'SOLD OUT'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const ListHeader = () => (
-    <>
-      <View style={styles.header}>
-        <Pressable style={styles.locationContainer}>
-          <View style={styles.locationIconContainer}>
-            {/* <Ionicons
-              name="location"
-              size={15}
-              color="#7354A4"
-            /> */}
-            <Image
-              source={require('../assets/login-icons/location.png')}
-              style={styles.passwordEyes}
-            />
-          </View>
-
-          <View style={styles.locationTextContainer}>
-            <Text style={styles.locationLabel}>Delivering to</Text>
-
-            <View style={styles.locationValueRow}>
-              <Text numberOfLines={1} style={styles.locationValue}>
-                Melbourne, VIC
-              </Text>
-
-              {/* <Ionicons
-                name="chevron-down"
-                size={13}
-                color="#1B1724"
-              /> */}
-            </View>
-          </View>
-        </Pressable>
-
-        <Pressable hitSlop={10} style={styles.notificationButton}>
-          {/* <Ionicons
-            name="notifications-outline"
-            size={20}
-            color="#7354A4"
-          /> */}
-          <Image
-            source={require('../assets/login-icons/notification.png')}
-            style={styles.passwordnotification}
-          />
-
-          <View style={styles.notificationDot} />
-        </Pressable>
-      </View>
-
-      {/* <View style={styles.sectionTitleRow}>
-        <Text style={styles.sectionTitle}>
-          Select Date
-        </Text>
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.viewMenuButton}>
-          <Text style={styles.viewMenuText}>
-            View Menu
-          </Text>
-
-          <Ionicons
-            name="arrow-forward"
-            size={13}
-            color="#7354A4"
-          />
-        </TouchableOpacity>
-      </View> */}
-
-      {/* <FlatList
-        horizontal
-        data={dateOptions}
-        keyExtractor={item => item.id}
-        renderItem={renderDateItem}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.dateList}
-      /> */}
-
-      {/* <View style={styles.cutoffNotice}>
-        <View style={styles.cutoffIconContainer}>
-          <Ionicons
-            name="alarm-outline"
-            size={18}
-            color="#E66A22"
-          />
-        </View>
-
-        <Text style={styles.cutoffText}>
-          Order cutoff for today is{' '}
-          <Text style={styles.cutoffHighlight}>
-            11:30 AM
-          </Text>
-          . Order soon!
-        </Text>
-      </View> */}
-
-      <View style={styles.menuHeadingRow}>
-        <View>
-          <Text style={styles.menuEyebrow}>TODAY&apos;S MENU</Text>
-
-          <Text style={styles.menuHeading}>Freshly prepared for you</Text>
-        </View>
-
-        <View style={styles.itemCountBadge}>
-          <Text style={styles.itemCountText}>{meals.length} meals</Text>
-        </View>
-      </View>
-    </>
+  const {
+    tiffins,
+    loading,
+    error,
+  } = useSelector(
+    state =>
+      state.tiffin,
   );
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FAF8FD" />
+  /* =======================================================
+   * Cart Count
+   * ======================================================= */
 
-      <View
-        style={[
-          styles.pageContainer,
-          {
-            width: layout.pageWidth,
-            paddingHorizontal: layout.horizontalPadding,
-          },
-        ]}
-      >
-        <FlatList
-          key={`meal-columns-${layout.cardColumns}`}
-          data={meals}
-          keyExtractor={item => item.id}
-          renderItem={renderMealCard}
-          numColumns={layout.cardColumns}
-          columnWrapperStyle={
-            layout.cardColumns === 2 ? styles.cardColumnWrapper : undefined
+  const [
+    cartCount,
+    setCartCount,
+  ] = useState(0);
+
+  /* =======================================================
+   * Notification Count
+   * ======================================================= */
+
+  const [
+    unreadNotificationCount,
+    setUnreadNotificationCount,
+  ] = useState(0);
+
+  /* =======================================================
+   * Add To Cart Loader
+   * ======================================================= */
+
+  const [
+    addingItemId,
+    setAddingItemId,
+  ] = useState(null);
+
+  /* =======================================================
+   * Custom Cart Popup
+   * ======================================================= */
+
+  const [
+    cartPopupVisible,
+    setCartPopupVisible,
+  ] = useState(false);
+
+  const [
+    addedTiffin,
+    setAddedTiffin,
+  ] = useState(null);
+
+  /* =======================================================
+   * Location
+   * ======================================================= */
+
+  const [
+    userLocation,
+    setUserLocation,
+  ] = useState(
+    'Set delivery location',
+  );
+
+  /* =======================================================
+   * Responsive Layout
+   * ======================================================= */
+
+  const layout =
+    useMemo(() => {
+      const isTablet =
+        width >= 768;
+
+      return {
+        pageWidth:
+          isTablet
+            ? Math.min(
+                width - 64,
+                900,
+              )
+            : width,
+
+        horizontalPadding:
+          isTablet
+            ? 28
+            : 16,
+
+        cardColumns:
+          isTablet
+            ? 2
+            : 1,
+      };
+    }, [
+      width,
+    ]);
+
+  /* =======================================================
+   * Fetch Tiffin API
+   * ======================================================= */
+
+  useEffect(() => {
+    dispatch(
+      getTiffins(),
+    );
+  }, [
+    dispatch,
+  ]);
+
+  /* =======================================================
+   * Image URL Helper
+   * ======================================================= */
+
+  const getImageUrl =
+    image => {
+      if (!image) {
+        return null;
+      }
+
+      const value =
+        String(
+          image,
+        ).trim();
+
+      if (
+        value.startsWith(
+          'http://',
+        ) ||
+        value.startsWith(
+          'https://',
+        )
+      ) {
+        return value;
+      }
+
+      if (
+        value.startsWith(
+          '/',
+        )
+      ) {
+        return `${BASE_URL}${value}`;
+      }
+
+      return `${BASE_URL}/${value}`;
+    };
+
+  /* =======================================================
+   * Normalize Tiffin API
+   * ======================================================= */
+
+  const meals =
+    useMemo(() => {
+      if (
+        !Array.isArray(
+          tiffins,
+        )
+      ) {
+        return [];
+      }
+
+      return tiffins.map(
+        (
+          item,
+          index,
+        ) => {
+          /* =============================================
+           * Price
+           * ============================================= */
+
+          const rawPrice =
+            Number(
+              item?.price ??
+                item?.tiffin_price ??
+                0,
+            );
+
+          /* =============================================
+           * Image
+           * ============================================= */
+
+          const image =
+            getImageUrl(
+              item?.image_url ??
+                item?.image ??
+                item?.tiffin_image,
+            );
+
+          /* =============================================
+           * Availability
+           * ============================================= */
+
+          let available =
+            true;
+
+          if (
+            item?.status !==
+              undefined &&
+            item?.status !==
+              null
+          ) {
+            const status =
+              String(
+                item.status,
+              )
+                .trim()
+                .toLowerCase();
+
+            available =
+              status ===
+                'active' ||
+              status ===
+                'available' ||
+              status ===
+                '1' ||
+              status ===
+                'true';
+          } else if (
+            item?.is_active !==
+              undefined &&
+            item?.is_active !==
+              null
+          ) {
+            available =
+              item.is_active ===
+                true ||
+              item.is_active ===
+                1 ||
+              item.is_active ===
+                '1';
+          } else if (
+            item?.available !==
+              undefined &&
+            item?.available !==
+              null
+          ) {
+            available =
+              item.available ===
+                true ||
+              item.available ===
+                1 ||
+              item.available ===
+                '1';
           }
-          ListHeaderComponent={ListHeader}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
+
+          /* =============================================
+           * Category
+           * ============================================= */
+
+          let category =
+            'Tiffin';
+
+          if (
+            item?.category &&
+            typeof item.category ===
+              'object'
+          ) {
+            category =
+              item.category?.name ??
+              item.category?.title ??
+              'Tiffin';
+          } else if (
+            item?.category_name
+          ) {
+            category =
+              item.category_name;
+          } else if (
+            typeof item?.category ===
+            'string'
+          ) {
+            category =
+              item.category;
+          }
+
+          /* =============================================
+           * Preparation Time
+           * ============================================= */
+
+          let preparationTime =
+            item?.prep_time ??
+            item?.preparation_time ??
+            item?.preparationTime ??
+            '20 min';
+
+          if (
+            preparationTime &&
+            !String(
+              preparationTime,
+            )
+              .toLowerCase()
+              .includes(
+                'min',
+              )
+          ) {
+            preparationTime =
+              `${preparationTime} min`;
+          }
+
+          /* =============================================
+           * Food Type
+           * ============================================= */
+
+          const foodType =
+            String(
+              item?.food_type ??
+                item?.foodType ??
+                'VEGETARIAN',
+            ).toUpperCase();
+
+          return {
+            ...item,
+
+            id:
+              String(
+                item?.id ??
+                  index,
+              ),
+
+            name:
+              item?.name ??
+              item?.tiffin_name ??
+              'Tiffin',
+
+            rawPrice,
+
+            price:
+              `$${rawPrice.toFixed(
+                2,
+              )}`,
+
+            image,
+
+            description:
+              item?.description ??
+              item?.tiffin_description ??
+              '',
+
+            category,
+
+            preparationTime,
+
+            foodType,
+
+            available,
+          };
+        },
+      );
+    }, [
+      tiffins,
+    ]);
+
+  /* =======================================================
+   * Get Stored Cart
+   * ======================================================= */
+
+  const getStoredCart =
+    async () => {
+      try {
+        const stored =
+          await AsyncStorage.getItem(
+            CART_STORAGE_KEY,
+          );
+
+        if (!stored) {
+          return [];
+        }
+
+        const parsed =
+          JSON.parse(
+            stored,
+          );
+
+        return Array.isArray(
+          parsed,
+        )
+          ? parsed
+          : [];
+      } catch (
+        error
+      ) {
+        console.log(
+          'GET CART ERROR:',
+          error,
+        );
+
+        return [];
+      }
+    };
+
+  /* =======================================================
+   * Update Cart Count
+   * ======================================================= */
+
+  const updateCartCount =
+    async () => {
+      try {
+        const cart =
+          await getStoredCart();
+
+        const count =
+          cart.reduce(
+            (
+              total,
+              item,
+            ) => {
+              return (
+                total +
+                Number(
+                  item?.quantity ??
+                    1,
+                )
+              );
+            },
+            0,
+          );
+
+        setCartCount(
+          count,
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'CART COUNT ERROR:',
+          error,
+        );
+      }
+    };
+
+  /* =======================================================
+   * Fetch Unread Notification Count
+   * ======================================================= */
+
+  const fetchUnreadNotificationCount =
+    async () => {
+      try {
+        /* =============================================
+         * Token
+         * ============================================= */
+
+        const token =
+          await AsyncStorage.getItem(
+            'token',
+          );
+
+        /* =============================================
+         * Guest
+         * ============================================= */
+
+        if (!token) {
+          setUnreadNotificationCount(
+            0,
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * Notification API
+         * ============================================= */
+
+        const response =
+          await fetch(
+            NOTIFICATION_API,
+            {
+              method:
+                'GET',
+
+              headers: {
+                Accept:
+                  'application/json',
+
+                'Content-Type':
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            },
+          );
+
+        const responseText =
+          await response.text();
+
+        let result;
+
+        try {
+          result =
+            JSON.parse(
+              responseText,
+            );
+        } catch (
+          parseError
+        ) {
+          console.log(
+            'NOTIFICATION JSON ERROR:',
+            parseError,
+          );
+
+          setUnreadNotificationCount(
+            0,
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * API Error
+         * ============================================= */
+
+        if (
+          !response.ok
+        ) {
+          console.log(
+            'NOTIFICATION API ERROR:',
+            result,
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * Backend Direct Count
+         *
+         * If Laravel already gives unread_count,
+         * use that first.
+         * ============================================= */
+
+        const directUnreadCount =
+          result?.unread_count ??
+          result?.unreadCount ??
+          result?.data
+            ?.unread_count ??
+          result?.data
+            ?.unreadCount ??
+          null;
+
+        if (
+          directUnreadCount !==
+            null &&
+          directUnreadCount !==
+            undefined
+        ) {
+          setUnreadNotificationCount(
+            Number(
+              directUnreadCount,
+            ) || 0,
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * Extract Notification Array
+         * ============================================= */
+
+        let notificationData =
+          [];
+
+        if (
+          Array.isArray(
+            result,
+          )
+        ) {
+          notificationData =
+            result;
+        } else if (
+          Array.isArray(
+            result?.data,
+          )
+        ) {
+          notificationData =
+            result.data;
+        } else if (
+          Array.isArray(
+            result?.notifications,
+          )
+        ) {
+          notificationData =
+            result.notifications;
+        } else if (
+          Array.isArray(
+            result?.data
+              ?.notifications,
+          )
+        ) {
+          notificationData =
+            result.data.notifications;
+        } else if (
+          Array.isArray(
+            result?.data
+              ?.data,
+          )
+        ) {
+          /*
+           * Laravel pagination example:
+           *
+           * {
+           *   data: {
+           *     data: [...]
+           *   }
+           * }
+           */
+
+          notificationData =
+            result.data.data;
+        } else if (
+          Array.isArray(
+            result?.notifications
+              ?.data,
+          )
+        ) {
+          notificationData =
+            result.notifications.data;
+        } else if (
+          Array.isArray(
+            result?.data
+              ?.notifications
+              ?.data,
+          )
+        ) {
+          notificationData =
+            result.data
+              .notifications
+              .data;
+        }
+
+        /* =============================================
+         * Count Unread Notifications
+         * ============================================= */
+
+        const unreadCount =
+          notificationData.filter(
+            notification => {
+              const rawData =
+                notification?.data &&
+                typeof notification.data ===
+                  'object'
+                  ? notification.data
+                  : {};
+
+              const readAt =
+                notification?.read_at ??
+                notification?.readAt ??
+                rawData?.read_at ??
+                rawData?.readAt ??
+                null;
+
+              const isRead =
+                Boolean(
+                  readAt ||
+                    notification?.is_read ===
+                      true ||
+                    notification?.is_read ===
+                      1 ||
+                    notification?.is_read ===
+                      '1' ||
+                    rawData?.is_read ===
+                      true ||
+                    rawData?.is_read ===
+                      1 ||
+                    rawData?.is_read ===
+                      '1',
+                );
+
+              return !isRead;
+            },
+          ).length;
+
+        setUnreadNotificationCount(
+          unreadCount,
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'FETCH UNREAD NOTIFICATION ERROR:',
+          error,
+        );
+      }
+    };
+
+  /* =======================================================
+   * Fetch Profile Location
+   * ======================================================= */
+
+  const fetchLocation =
+    async () => {
+      try {
+        const token =
+          await AsyncStorage.getItem(
+            'token',
+          );
+
+        /* =============================================
+         * Guest
+         * ============================================= */
+
+        if (!token) {
+          setUserLocation(
+            'Set delivery location',
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * Profile API
+         * ============================================= */
+
+        const response =
+          await fetch(
+            PROFILE_API,
+            {
+              method:
+                'GET',
+
+              headers: {
+                Accept:
+                  'application/json',
+
+                'Content-Type':
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            },
+          );
+
+        const responseText =
+          await response.text();
+
+        let result;
+
+        try {
+          result =
+            JSON.parse(
+              responseText,
+            );
+        } catch (
+          parseError
+        ) {
+          console.log(
+            'PROFILE JSON ERROR:',
+            parseError,
+          );
+
+          return;
+        }
+
+        if (
+          !response.ok
+        ) {
+          console.log(
+            'PROFILE API ERROR:',
+            result,
+          );
+
+          return;
+        }
+
+        /* =============================================
+         * Profile Object
+         * ============================================= */
+
+        const profile =
+          result?.data
+            ?.customer ??
+          result?.data
+            ?.user ??
+          result?.data
+            ?.profile ??
+          result?.data ??
+          result?.customer ??
+          result?.user ??
+          result?.profile ??
+          result;
+
+        /* =============================================
+         * Location
+         * ============================================= */
+
+        let location =
+          profile
+            ?.delivery_address ??
+          profile
+            ?.delivery_location ??
+          profile
+            ?.full_address ??
+          null;
+
+        if (
+          !location &&
+          typeof profile?.address ===
+            'string'
+        ) {
+          location =
+            profile.address;
+        }
+
+        if (
+          !location &&
+          profile?.address &&
+          typeof profile.address ===
+            'object'
+        ) {
+          location = [
+            profile.address
+              ?.address_line_1,
+
+            profile.address
+              ?.address_line_2,
+
+            profile.address
+              ?.street,
+
+            profile.address
+              ?.suburb,
+
+            profile.address
+              ?.city,
+
+            profile.address
+              ?.state,
+
+            profile.address
+              ?.postcode ??
+              profile.address
+                ?.pincode,
+          ]
+            .filter(
+              Boolean,
+            )
+            .join(', ');
+        }
+
+        if (!location) {
+          location = [
+            profile?.address_line_1,
+
+            profile?.address_line_2,
+
+            profile?.street,
+
+            profile?.suburb,
+
+            profile?.city,
+
+            profile?.state,
+
+            profile?.postcode ??
+              profile?.pincode,
+          ]
+            .filter(
+              Boolean,
+            )
+            .join(', ');
+        }
+
+        setUserLocation(
+          location ||
+            'Set delivery location',
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'LOCATION ERROR:',
+          error,
+        );
+      }
+    };
+
+  /* =======================================================
+   * Refresh Data Whenever Home Gets Focus
+   * ======================================================= */
+
+  useFocusEffect(
+    useCallback(() => {
+      updateCartCount();
+
+      fetchLocation();
+
+      fetchUnreadNotificationCount();
+    }, []),
+  );
+
+  /* =======================================================
+   * Open Customize Tiffin
+   * ======================================================= */
+
+  const handleTiffinPress =
+    meal => {
+      if (
+        !meal.available
+      ) {
+        return;
+      }
+
+      navigation.navigate(
+        'CustomizeTiffin',
+        {
+          tiffin:
+            meal,
+
+          mode:
+            'customize',
+        },
+      );
+    };
+
+  /* =======================================================
+   * Add To Cart
+   * ======================================================= */
+
+  const handleAddToCart =
+    async meal => {
+      if (
+        !meal.available
+      ) {
+        return;
+      }
+
+      try {
+        setAddingItemId(
+          meal.id,
+        );
+
+        const cart =
+          await getStoredCart();
+
+        /* ===============================================
+         * Existing Normal Tiffin
+         * =============================================== */
+
+        const existingIndex =
+          cart.findIndex(
+            cartItem =>
+              String(
+                cartItem?.tiffinId ??
+                  cartItem?.id,
+              ) ===
+                String(
+                  meal.id,
+                ) &&
+              cartItem
+                ?.isCustomized !==
+                true,
+          );
+
+        let updatedCart;
+
+        /* ===============================================
+         * Increment Existing
+         * =============================================== */
+
+        if (
+          existingIndex !==
+          -1
+        ) {
+          updatedCart = [
+            ...cart,
+          ];
+
+          const currentQuantity =
+            Number(
+              updatedCart[
+                existingIndex
+              ]?.quantity ??
+                1,
+            );
+
+          updatedCart[
+            existingIndex
+          ] = {
+            ...updatedCart[
+              existingIndex
+            ],
+
+            quantity:
+              currentQuantity +
+              1,
+          };
+        }
+
+        /* ===============================================
+         * New Tiffin
+         * =============================================== */
+
+        else {
+          const price =
+            Number(
+              meal.rawPrice ??
+                0,
+            );
+
+          const shippingCharge =
+            price < 11
+              ? 2
+              : 0;
+
+          const cartItem = {
+            cartId:
+              `normal-${meal.id}-${Date.now()}`,
+
+            id:
+              meal.id,
+
+            tiffinId:
+              meal.id,
+
+            productId:
+              meal.id,
+
+            name:
+              meal.name,
+
+            description:
+              meal.description,
+
+            image:
+              meal.image,
+
+            preparationTime:
+              meal.preparationTime,
+
+            category:
+              meal.category,
+
+            foodType:
+              meal.foodType,
+
+            quantity:
+              1,
+
+            basePrice:
+              price,
+
+            rawPrice:
+              price,
+
+            subtotal:
+              price,
+
+            customizationPrice:
+              0,
+
+            extrasPrice:
+              0,
+
+            shippingCharge,
+
+            totalPrice:
+              price +
+              shippingCharge,
+
+            selections:
+              [],
+
+            extras:
+              [],
+
+            isCustomized:
+              false,
+
+            originalTiffin:
+              meal,
+
+            addedAt:
+              new Date()
+                .toISOString(),
+          };
+
+          updatedCart = [
+            ...cart,
+            cartItem,
+          ];
+        }
+
+        /* ===============================================
+         * Save Cart
+         * =============================================== */
+
+        await AsyncStorage.setItem(
+          CART_STORAGE_KEY,
+
+          JSON.stringify(
+            updatedCart,
+          ),
+        );
+
+        /* ===============================================
+         * Refresh Badge
+         * =============================================== */
+
+        await updateCartCount();
+
+        /* ===============================================
+         * Custom Popup
+         * =============================================== */
+
+        setAddedTiffin(
+          meal,
+        );
+
+        setCartPopupVisible(
+          true,
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'ADD TO CART ERROR:',
+          error,
+        );
+
+        Alert.alert(
+          'Unable to Add',
+          'Unable to add this tiffin to your cart. Please try again.',
+        );
+      } finally {
+        setAddingItemId(
+          null,
+        );
+      }
+    };
+
+  /* =======================================================
+   * Close Cart Popup
+   * ======================================================= */
+
+  const closeCartPopup =
+    () => {
+      setCartPopupVisible(
+        false,
+      );
+
+      setAddedTiffin(
+        null,
+      );
+    };
+
+  /* =======================================================
+   * View Cart
+   * ======================================================= */
+
+  const handleViewCart =
+    () => {
+      closeCartPopup();
+
+      navigation.navigate(
+        'Order',
+      );
+    };
+
+  /* =======================================================
+   * Location Press
+   * ======================================================= */
+
+  const handleLocationPress =
+    async () => {
+      try {
+        const token =
+          await AsyncStorage.getItem(
+            'token',
+          );
+
+        if (token) {
+          navigation.navigate(
+            'AddressList',
+          );
+
+          return;
+        }
+
+        Alert.alert(
+          'Login Required',
+
+          'Please sign in to manage your delivery address.',
+
+          [
+            {
+              text:
+                'Cancel',
+
+              style:
+                'cancel',
+            },
+
+            {
+              text:
+                'Sign In',
+
+              onPress:
+                () => {
+                  navigation.navigate(
+                    'Login',
+                    {
+                      redirectTo:
+                        'AddressList',
+                    },
+                  );
+                },
+            },
+          ],
+        );
+      } catch (
+        error
+      ) {
+        console.log(
+          'LOCATION LOGIN CHECK ERROR:',
+          error,
+        );
+      }
+    };
+
+  /* =======================================================
+   * Notification Press
+   * ======================================================= */
+
+  const handleNotificationPress =
+    () => {
+      navigation.navigate(
+        'Notification',
+      );
+    };
+
+  /* =======================================================
+   * Render Tiffin
+   * ======================================================= */
+
+  const renderMeal =
+    ({
+      item,
+    }) => {
+      const isAdding =
+        addingItemId ===
+        item.id;
+
+      const isVegetarian =
+        item.foodType ===
+          'VEGETARIAN' ||
+        item.foodType ===
+          'VEG';
+
+      return (
+        <Pressable
+          disabled={
+            !item.available
+          }
+
+          onPress={() =>
+            handleTiffinPress(
+              item,
+            )
+          }
+
+          style={({
+            pressed,
+          }) => [
+            styles.card,
+
+            layout.cardColumns ===
+              2 &&
+              styles.tabletCard,
+
+            pressed &&
+              item.available &&
+              styles.pressedCard,
+          ]}>
+
+          {/* =========================================== */}
+          {/* Image */}
+          {/* =========================================== */}
+
+          <View
+            style={
+              styles.imageContainer
+            }>
+
+            {item.image ? (
+              <Image
+                source={{
+                  uri:
+                    item.image,
+                }}
+
+                style={
+                  styles.image
+                }
+
+                resizeMode="cover"
+              />
+            ) : (
+              <View
+                style={[
+                  styles.image,
+
+                  styles.noImage,
+                ]}>
+
+                <Image
+                  source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+
+                  style={
+                    styles.noImageIcon
+                  }
+
+                  resizeMode="contain"
+                />
+
+                <Text
+                  style={
+                    styles.noImageText
+                  }>
+                  No Image
+                </Text>
+
+              </View>
+            )}
+
+            {/* ========================================= */}
+            {/* Food Type */}
+            {/* ========================================= */}
+
+            <View
+              style={[
+                styles.foodBadge,
+
+                !isVegetarian &&
+                  styles.nonVegBadge,
+              ]}>
+
+              <View
+                style={[
+                  styles.foodDot,
+
+                  !isVegetarian &&
+                    styles.nonVegDot,
+                ]}
+              />
+
+              <Text
+                style={[
+                  styles.foodBadgeText,
+
+                  !isVegetarian &&
+                    styles.nonVegText,
+                ]}>
+
+                {
+                  item.foodType
+                }
+
+              </Text>
+
+            </View>
+
+            {/* ========================================= */}
+            {/* Sold Out */}
+            {/* ========================================= */}
+
+            {!item.available && (
+              <View
+                style={
+                  styles.soldOutOverlay
+                }>
+
+                <View
+                  style={
+                    styles.soldOutBadge
+                  }>
+
+                  <Text
+                    style={
+                      styles.soldOutText
+                    }>
+                    SOLD OUT
+                  </Text>
+
+                </View>
+
+              </View>
+            )}
+
+          </View>
+
+          {/* =========================================== */}
+          {/* Content */}
+          {/* =========================================== */}
+
+          <View
+            style={
+              styles.cardContent
+            }>
+
+            <View
+              style={
+                styles.titleRow
+              }>
+
+              <Text
+                numberOfLines={
+                  2
+                }
+
+                style={
+                  styles.name
+                }>
+
+                {
+                  item.name
+                }
+
+              </Text>
+
+              <Text
+                style={
+                  styles.price
+                }>
+
+                {
+                  item.price
+                }
+
+              </Text>
+
+            </View>
+
+            {!!item.description && (
+              <Text
+                numberOfLines={
+                  3
+                }
+
+                style={
+                  styles.description
+                }>
+
+                {
+                  item.description
+                }
+
+              </Text>
+            )}
+
+            {/* ========================================= */}
+            {/* Meta */}
+            {/* ========================================= */}
+
+            <View
+              style={
+                styles.metaRow
+              }>
+
+              {!!item.category && (
+                <View
+                  style={
+                    styles.meta
+                  }>
+
+                  <Image
+                    source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+
+                    style={
+                      styles.metaIcon
+                    }
+
+                    resizeMode="contain"
+                  />
+
+                  <Text
+                    style={
+                      styles.metaText
+                    }>
+
+                    {
+                      item.category
+                    }
+
+                  </Text>
+
+                </View>
+              )}
+
+              {!!item.preparationTime && (
+                <View
+                  style={
+                    styles.meta
+                  }>
+
+                  <Image
+                    source={require('../assets/login-icons/time-left.png')}
+
+                    style={
+                      styles.metaIcon
+                    }
+
+                    resizeMode="contain"
+                  />
+
+                  <Text
+                    style={
+                      styles.metaText
+                    }>
+
+                    {
+                      item.preparationTime
+                    }
+
+                  </Text>
+
+                </View>
+              )}
+
+            </View>
+
+            {/* ========================================= */}
+            {/* Add To Cart */}
+            {/* ========================================= */}
+
+            <TouchableOpacity
+              activeOpacity={
+                0.85
+              }
+
+              disabled={
+                !item.available ||
+                isAdding
+              }
+
+              onPress={
+                event => {
+                  event
+                    ?.stopPropagation
+                    ?.();
+
+                  handleAddToCart(
+                    item,
+                  );
+                }
+              }
+
+              style={[
+                styles.addCartButton,
+
+                (!item.available ||
+                  isAdding) &&
+                  styles.addCartButtonDisabled,
+              ]}>
+
+              {isAdding ? (
+                <ActivityIndicator
+                  size="small"
+
+                  color="#A00B0F"
+                />
+              ) : (
+                <>
+                  <Image
+                    source={require('../assets/login-icons/add-cart.png')}
+
+                    style={
+                      styles.addCartIcon
+                    }
+
+                    resizeMode="contain"
+                  />
+
+                  <Text
+                    style={
+                      styles.addCartText
+                    }>
+                    ADD TO CART
+                  </Text>
+                </>
+              )}
+
+            </TouchableOpacity>
+
+            {/* ========================================= */}
+            {/* Customize */}
+            {/* ========================================= */}
+
+            {item.available && (
+              <Text
+                style={
+                  styles.tapText
+                }>
+                Tap card to customize
+              </Text>
+            )}
+
+          </View>
+
+        </Pressable>
+      );
+    };
+
+  /* =======================================================
+   * Loading
+   * ======================================================= */
+
+  if (
+    loading &&
+    meals.length ===
+      0
+  ) {
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }>
+
+        <StatusBar
+          barStyle="dark-content"
+
+          backgroundColor="#FAF8FD"
         />
-      </View>
-    </SafeAreaView>
+
+        <View
+          style={
+            styles.loadingContainer
+          }>
+
+          <ActivityIndicator
+            size="large"
+
+            color="#A00B0F"
+          />
+
+          <Text
+            style={
+              styles.loadingTitle
+            }>
+            Loading Today&apos;s Menu
+          </Text>
+
+          <Text
+            style={
+              styles.loadingText
+            }>
+            Fresh meals are being prepared for you...
+          </Text>
+
+        </View>
+
+      </SafeAreaView>
+    );
+  }
+
+  /* =======================================================
+   * Main
+   * ======================================================= */
+
+  return (
+    <>
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }>
+
+        <StatusBar
+          barStyle="dark-content"
+
+          backgroundColor="#FAF8FD"
+        />
+
+        <View
+          style={[
+            styles.page,
+
+            {
+              width:
+                layout.pageWidth,
+
+              paddingHorizontal:
+                layout.horizontalPadding,
+            },
+          ]}>
+
+          <FlatList
+            key={
+              layout.cardColumns
+            }
+
+            data={
+              meals
+            }
+
+            numColumns={
+              layout.cardColumns
+            }
+
+            keyExtractor={
+              item =>
+                String(
+                  item.id,
+                )
+            }
+
+            renderItem={
+              renderMeal
+            }
+
+            showsVerticalScrollIndicator={
+              false
+            }
+
+            contentContainerStyle={
+              styles.listContent
+            }
+
+            columnWrapperStyle={
+              layout.cardColumns ===
+              2
+                ? styles.column
+                : undefined
+            }
+
+            refreshControl={
+              <RefreshControl
+                refreshing={
+                  loading
+                }
+
+                onRefresh={() => {
+                  dispatch(
+                    getTiffins(),
+                  );
+
+                  fetchLocation();
+
+                  fetchUnreadNotificationCount();
+
+                  updateCartCount();
+                }}
+
+                colors={[
+                  '#A00B0F',
+                ]}
+
+                tintColor="#A00B0F"
+              />
+            }
+
+            ListHeaderComponent={
+              <>
+                {/* ======================================= */}
+                {/* Header */}
+                {/* ======================================= */}
+
+                <View
+                  style={
+                    styles.header
+                  }>
+
+                  {/* ===================================== */}
+                  {/* Location */}
+                  {/* ===================================== */}
+
+                  <Pressable
+                    style={
+                      styles.locationArea
+                    }
+
+                    onPress={
+                      handleLocationPress
+                    }>
+
+                    <View
+                      style={
+                        styles.locationIconContainer
+                      }>
+
+                      <Image
+                        source={require('../assets/login-icons/location.png')}
+
+                        style={
+                          styles.locationIcon
+                        }
+
+                        resizeMode="contain"
+                      />
+
+                    </View>
+
+                    <View
+                      style={
+                        styles.locationContent
+                      }>
+
+                      <Text
+                        style={
+                          styles.locationLabel
+                        }>
+                        Delivering to
+                      </Text>
+
+                      <Text
+                        numberOfLines={
+                          1
+                        }
+
+                        ellipsizeMode="tail"
+
+                        style={
+                          styles.location
+                        }>
+
+                        {
+                          userLocation
+                        }
+
+                      </Text>
+
+                    </View>
+
+                  </Pressable>
+
+                  {/* ===================================== */}
+                  {/* Header Actions */}
+                  {/* ===================================== */}
+
+                  <View
+                    style={
+                      styles.actions
+                    }>
+
+                    {/* =================================== */}
+                    {/* Notification Bell */}
+                    {/* =================================== */}
+
+                    <Pressable
+                      hitSlop={
+                        10
+                      }
+
+                      style={
+                        styles.iconButton
+                      }
+
+                      onPress={
+                        handleNotificationPress
+                      }>
+
+                      <Image
+                        source={require('../assets/login-icons/notification.png')}
+
+                        style={
+                          styles.headerIcon
+                        }
+
+                        resizeMode="contain"
+                      />
+
+                      {/* =================================
+                       * UNREAD NOTIFICATION NUMBER
+                       * ================================= */}
+
+                      {unreadNotificationCount >
+                        0 && (
+                        <View
+                          style={
+                            styles.notificationCountBadge
+                          }>
+
+                          <Text
+                            style={
+                              styles.notificationCountText
+                            }>
+
+                            {unreadNotificationCount >
+                            99
+                              ? '99+'
+                              : unreadNotificationCount}
+
+                          </Text>
+
+                        </View>
+                      )}
+
+                    </Pressable>
+
+                    {/* =================================== */}
+                    {/* Cart */}
+                    {/* =================================== */}
+
+                    <Pressable
+                      hitSlop={
+                        10
+                      }
+
+                      style={
+                        styles.iconButton
+                      }
+
+                      onPress={() =>
+                        navigation.navigate(
+                          'Order',
+                        )
+                      }>
+
+                      <Image
+                        source={require('../assets/login-icons/add-cart.png')}
+
+                        style={
+                          styles.headerIcon
+                        }
+
+                        resizeMode="contain"
+                      />
+
+                      {cartCount >
+                        0 && (
+                        <View
+                          style={
+                            styles.cartCountBadge
+                          }>
+
+                          <Text
+                            style={
+                              styles.cartCountText
+                            }>
+
+                            {cartCount >
+                            99
+                              ? '99+'
+                              : cartCount}
+
+                          </Text>
+
+                        </View>
+                      )}
+
+                    </Pressable>
+
+                  </View>
+
+                </View>
+
+                {/* ======================================= */}
+                {/* Menu Heading */}
+                {/* ======================================= */}
+
+                <View
+                  style={
+                    styles.heading
+                  }>
+
+                  <View>
+                    <Text
+                      style={
+                        styles.eyebrow
+                      }>
+                      TODAY&apos;S MENU
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.headingText
+                      }>
+                      Freshly prepared for you
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.mealCountBadge
+                    }>
+
+                    <Text
+                      style={
+                        styles.mealCountText
+                      }>
+
+                      {meals.length}{' '}
+
+                      {meals.length ===
+                      1
+                        ? 'meal'
+                        : 'meals'}
+
+                    </Text>
+
+                  </View>
+
+                </View>
+              </>
+            }
+
+            ListEmptyComponent={
+              !loading ? (
+                <View
+                  style={
+                    styles.emptyContainer
+                  }>
+
+                  <Image
+                    source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+
+                    style={
+                      styles.emptyIcon
+                    }
+
+                    resizeMode="contain"
+                  />
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }>
+                    No tiffins available
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyDescription
+                    }>
+
+                    {error
+                      ? String(
+                          error,
+                        )
+                      : 'There are currently no tiffins available.'}
+
+                  </Text>
+
+                </View>
+              ) : null
+            }
+          />
+
+        </View>
+
+      </SafeAreaView>
+
+      {/* ================================================= */}
+      {/* CUSTOM ADD TO CART POPUP */}
+      {/* ================================================= */}
+
+      <Modal
+        visible={
+          cartPopupVisible
+        }
+
+        transparent
+
+        animationType="fade"
+
+        statusBarTranslucent
+
+        onRequestClose={
+          closeCartPopup
+        }>
+
+        <Pressable
+          style={
+            styles.cartPopupOverlay
+          }
+
+          onPress={
+            closeCartPopup
+          }>
+
+          <Pressable
+            style={
+              styles.cartPopupCard
+            }
+
+            onPress={() => {}}>
+
+            {/* =========================================== */}
+            {/* Success Icon */}
+            {/* =========================================== */}
+
+            <View
+              style={
+                styles.cartPopupIconOuter
+              }>
+
+              <View
+                style={
+                  styles.cartPopupIconInner
+                }>
+
+                <Text
+                  style={
+                    styles.cartPopupCheck
+                  }>
+                  ✓
+                </Text>
+
+              </View>
+
+            </View>
+
+            {/* =========================================== */}
+            {/* Heading */}
+            {/* =========================================== */}
+
+            <Text
+              style={
+                styles.cartPopupTitle
+              }>
+              Added to Cart!
+            </Text>
+
+            <Text
+              style={
+                styles.cartPopupDescription
+              }>
+              Your tiffin has been added successfully to your cart.
+            </Text>
+
+            {/* =========================================== */}
+            {/* Product */}
+            {/* =========================================== */}
+
+            {!!addedTiffin && (
+              <View
+                style={
+                  styles.cartPopupProduct
+                }>
+
+                {addedTiffin?.image ? (
+                  <Image
+                    source={{
+                      uri:
+                        addedTiffin.image,
+                    }}
+
+                    style={
+                      styles.cartPopupProductImage
+                    }
+
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.cartPopupProductImage,
+
+                      styles.cartPopupNoImage,
+                    ]}>
+
+                    <Image
+                      source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+
+                      style={
+                        styles.cartPopupNoImageIcon
+                      }
+
+                      resizeMode="contain"
+                    />
+
+                  </View>
+                )}
+
+                <View
+                  style={
+                    styles.cartPopupProductDetails
+                  }>
+
+                  <Text
+                    numberOfLines={
+                      2
+                    }
+
+                    style={
+                      styles.cartPopupItemName
+                    }>
+
+                    {
+                      addedTiffin?.name
+                    }
+
+                  </Text>
+
+                  {!!addedTiffin
+                    ?.category && (
+                    <Text
+                      numberOfLines={
+                        1
+                      }
+
+                      style={
+                        styles.cartPopupCategory
+                      }>
+
+                      {
+                        addedTiffin.category
+                      }
+
+                    </Text>
+                  )}
+
+                  <Text
+                    style={
+                      styles.cartPopupPrice
+                    }>
+
+                    {
+                      addedTiffin?.price ??
+                      `$${Number(
+                        addedTiffin?.rawPrice ??
+                          0,
+                      ).toFixed(
+                        2,
+                      )}`
+                    }
+
+                  </Text>
+
+                </View>
+
+                <View
+                  style={
+                    styles.cartPopupAddedBadge
+                  }>
+
+                  <Text
+                    style={
+                      styles.cartPopupAddedText
+                    }>
+                    Added
+                  </Text>
+
+                </View>
+
+              </View>
+            )}
+
+            {/* =========================================== */}
+            {/* Buttons */}
+            {/* =========================================== */}
+
+            <View
+              style={
+                styles.cartPopupButtons
+              }>
+
+              <TouchableOpacity
+                activeOpacity={
+                  0.8
+                }
+
+                onPress={
+                  closeCartPopup
+                }
+
+                style={
+                  styles.continueShoppingButton
+                }>
+
+                <Text
+                  style={
+                    styles.continueShoppingText
+                  }>
+                  Continue Shopping
+                </Text>
+
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={
+                  0.85
+                }
+
+                onPress={
+                  handleViewCart
+                }
+
+                style={
+                  styles.viewCartButton
+                }>
+
+                <Image
+                  source={require('../assets/login-icons/add-cart.png')}
+
+                  style={
+                    styles.viewCartIcon
+                  }
+
+                  resizeMode="contain"
+                />
+
+                <Text
+                  style={
+                    styles.viewCartText
+                  }>
+                  View Cart
+                </Text>
+
+              </TouchableOpacity>
+
+            </View>
+
+          </Pressable>
+
+        </Pressable>
+
+      </Modal>
+    </>
   );
 };
 
 export default Home;
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FAF8FD',
-  },
+/* =========================================================
+ * Styles
+ * ========================================================= */
 
-  pageContainer: {
-    flex: 1,
-    alignSelf: 'center',
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex:
+        1,
 
-  listContent: {
-    paddingTop: 8,
-    paddingBottom: 120,
-  },
-
-  header: {
-    minHeight: 55,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  locationContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  locationIconContainer: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0EAF8',
-    borderRadius: 9,
-    marginRight: 8,
-  },
-
-  locationTextContainer: {
-    flex: 1,
-  },
-
-  locationLabel: {
-    color: '#97909E',
-    fontSize: 10,
-    marginBottom: 2,
-  },
-
-  locationValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  locationValue: {
-    maxWidth: 180,
-    color: '#1B1724',
-    fontSize: 13,
-    fontWeight: '700',
-    marginRight: 4,
-  },
-
-  notificationButton: {
-    width: 38,
-    height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EEE9F2',
-    borderRadius: 12,
-  },
-
-  notificationDot: {
-    position: 'absolute',
-    top: 8,
-    right: 9,
-    width: 6,
-    height: 6,
-    backgroundColor: '#F15A29',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-    borderRadius: 3,
-  },
-
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    marginBottom: 12,
-  },
-
-  sectionTitle: {
-    color: '#17121E',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-
-  viewMenuButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  viewMenuText: {
-    color: '#7354A4',
-    fontSize: 11,
-    fontWeight: '600',
-    marginRight: 3,
-  },
-
-  dateList: {
-    paddingBottom: 4,
-  },
-
-  dateCard: {
-    width: 58,
-    minHeight: 69,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#ECE7F0',
-    borderRadius: 13,
-    marginRight: 9,
-  },
-
-  selectedDateCard: {
-    backgroundColor: '#7655A8',
-    borderColor: '#7655A8',
-    shadowColor: '#7655A8',
-    shadowOffset: {
-      width: 0,
-      height: 4,
+      backgroundColor:
+        '#FAF8FD',
     },
-    shadowOpacity: 0.24,
-    shadowRadius: 7,
-    elevation: 4,
-  },
 
-  dateLabel: {
-    color: '#8D8592',
-    fontSize: 8,
-    fontWeight: '700',
-  },
+    page: {
+      flex:
+        1,
 
-  dateNumber: {
-    color: '#211A28',
-    fontSize: 18,
-    fontWeight: '800',
-    marginVertical: 2,
-  },
-
-  dateMonth: {
-    color: '#8D8592',
-    fontSize: 8,
-    fontWeight: '600',
-  },
-
-  selectedDateText: {
-    color: '#FFFFFF',
-  },
-
-  cutoffNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF5E9',
-    borderWidth: 1,
-    borderColor: '#FFE6CA',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    marginTop: 15,
-  },
-
-  cutoffIconContainer: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 9,
-    marginRight: 9,
-  },
-
-  cutoffText: {
-    flex: 1,
-    color: '#735F53',
-    fontSize: 11,
-    lineHeight: 16,
-  },
-
-  cutoffHighlight: {
-    color: '#E15D1B',
-    fontWeight: '800',
-  },
-
-  menuHeadingRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: 22,
-    marginBottom: 12,
-  },
-
-  menuEyebrow: {
-    color: '#A00B0F',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-
-  menuHeading: {
-    color: '#17121E',
-    fontSize: 16,
-    fontWeight: '800',
-    marginTop: 3,
-  },
-
-  itemCountBadge: {
-    backgroundColor: '#F0EAF8',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-
-  itemCountText: {
-    color: '#A00B0F',
-    fontSize: 9,
-    fontWeight: '700',
-  },
-
-  cardColumnWrapper: {
-    justifyContent: 'space-between',
-  },
-
-  mealCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EDE8F0',
-    borderRadius: 17,
-    marginBottom: 16,
-    overflow: 'hidden',
-
-    shadowColor: '#4A3B53',
-    shadowOffset: {
-      width: 0,
-      height: 5,
+      alignSelf:
+        'center',
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
 
-    elevation: 3,
-  },
+    listContent: {
+      paddingBottom:
+        120,
+    },
 
-  tabletMealCard: {
-    width: '48.8%',
-  },
+    /* =====================================================
+     * Header
+     * ===================================================== */
 
-  imageContainer: {
-    width: '100%',
-    height: 190,
-    backgroundColor: '#E9E5EC',
-  },
+    header: {
+      minHeight:
+        65,
 
-  mealImage: {
-    width: '100%',
-    height: '100%',
-  },
+      flexDirection:
+        'row',
 
-  foodTypeBadge: {
-    position: 'absolute',
-    top: 11,
-    left: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
+      alignItems:
+        'center',
 
-  vegetarianBadge: {
-    borderWidth: 1,
-    borderColor: '#CFEBD6',
-  },
+      justifyContent:
+        'space-between',
+    },
 
-  nonVegetarianBadge: {
-    borderWidth: 1,
-    borderColor: '#F5CFC7',
-  },
+    locationArea: {
+      flex:
+        1,
 
-  foodTypeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
+      flexDirection:
+        'row',
 
-  vegetarianDot: {
-    backgroundColor: '#3AA65A',
-  },
+      alignItems:
+        'center',
 
-  nonVegetarianDot: {
-    backgroundColor: '#E45B45',
-  },
+      marginRight:
+        10,
+    },
 
-  foodTypeText: {
-    fontSize: 8,
-    fontWeight: '800',
-  },
+    locationContent: {
+      flex:
+        1,
+    },
 
-  vegetarianText: {
-    color: '#318C4C',
-  },
+    locationIconContainer: {
+      width:
+        32,
 
-  nonVegetarianText: {
-    color: '#CC4E3B',
-  },
+      height:
+        32,
 
-  favouriteButton: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(22, 18, 28, 0.55)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 16,
-  },
+      alignItems:
+        'center',
 
-  soldOutImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(28, 25, 30, 0.33)',
-  },
+      justifyContent:
+        'center',
 
-  soldOutBadge: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 7,
-  },
+      backgroundColor:
+        '#F6EDEE',
 
-  soldOutBadgeText: {
-    color: '#4C4650',
-    fontSize: 10,
-    fontWeight: '800',
-  },
+      borderRadius:
+        10,
 
-  mealContent: {
-    padding: 14,
-  },
+      marginRight:
+        8,
+    },
 
-  mealTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
+    locationIcon: {
+      width:
+        17,
 
-  mealName: {
-    flex: 1,
-    color: '#17121E',
-    fontSize: 15,
-    fontWeight: '800',
-    lineHeight: 20,
-    paddingRight: 12,
-  },
+      height:
+        17,
 
-  mealPrice: {
-    color: '#17121E',
-    fontSize: 13,
-    fontWeight: '800',
-  },
+      tintColor:
+        '#A00B0F',
+    },
 
-  mealDescription: {
-    color: '#000',
-    fontSize: 10,
-    lineHeight: 15,
-    marginTop: 6,
-  },
+    locationLabel: {
+      color:
+        '#99909D',
 
-  mealMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 11,
-    marginBottom: 14,
-  },
+      fontSize:
+        9,
+    },
 
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#edaaac6a',
-    borderRadius: 50,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    marginRight: 6,
-    marginBottom: 4,
-  },
+    location: {
+      color:
+        '#211A25',
 
-  metaText: {
-    color: '#A00B0F',
-    fontSize: 8,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
+      fontSize:
+        12,
 
-  orderButton: {
-    width: '100%',
-    minHeight: 43,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#A00B0F',
-    borderRadius: 11,
-  },
+      fontWeight:
+        '800',
 
-  disabledOrderButton: {
-    backgroundColor: '#A00B0F',
-  },
+      marginTop:
+        2,
+    },
 
-  orderButtonText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
+    /* =====================================================
+     * Header Actions
+     * ===================================================== */
 
-  disabledOrderButtonText: {
-    color: '#A00B0F',
-  },
-  passwordEyes: {
-    width: 20,
-    height: 20,
-  },
-  passwordnotification: {
-    width: 17,
-    height: 17,
-  },
-  TimeIcons :{
-     width: 13,
-    height: 13,
-  }
-});
+    actions: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    iconButton: {
+      width:
+        38,
+
+      height:
+        38,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        12,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE8F1',
+
+      marginLeft:
+        7,
+    },
+
+    headerIcon: {
+      width:
+        19,
+
+      height:
+        19,
+
+      resizeMode:
+        'contain',
+    },
+
+    /* =====================================================
+     * Notification Count Badge
+     * ===================================================== */
+
+    notificationCountBadge: {
+      position:
+        'absolute',
+
+      top:
+        -6,
+
+      right:
+        -6,
+
+      minWidth:
+        19,
+
+      height:
+        19,
+
+      paddingHorizontal:
+        4,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        10,
+
+      borderWidth:
+        2,
+
+      borderColor:
+        '#FAF8FD',
+    },
+
+    notificationCountText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        10,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+    },
+
+    /* =====================================================
+     * Cart Badge
+     * ===================================================== */
+
+    cartCountBadge: {
+      position:
+        'absolute',
+
+      top:
+        -6,
+
+      right:
+        -6,
+
+      minWidth:
+        19,
+
+      height:
+        19,
+
+      paddingHorizontal:
+        4,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        10,
+
+      borderWidth:
+        2,
+
+      borderColor:
+        '#FAF8FD',
+    },
+
+    cartCountText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        10,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+    },
+
+    /* =====================================================
+     * Heading
+     * ===================================================== */
+
+    heading: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-end',
+
+      justifyContent:
+        'space-between',
+
+      marginTop:
+        15,
+
+      marginBottom:
+        12,
+    },
+
+    eyebrow: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        0.7,
+    },
+
+    headingText: {
+      color:
+        '#1B1720',
+
+      fontSize:
+        18,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        3,
+    },
+
+    mealCountBadge: {
+      backgroundColor:
+        '#F3EAEF',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        9,
+
+      paddingVertical:
+        5,
+    },
+
+    mealCountText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '800',
+    },
+
+    /* =====================================================
+     * Tiffin Card
+     * ===================================================== */
+
+    card: {
+      width:
+        '100%',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        17,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#ECE7EF',
+
+      overflow:
+        'hidden',
+
+      marginBottom:
+        15,
+
+      elevation:
+        3,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          4,
+      },
+
+      shadowOpacity:
+        0.06,
+
+      shadowRadius:
+        8,
+    },
+
+    tabletCard: {
+      width:
+        '48.5%',
+    },
+
+    pressedCard: {
+      opacity:
+        0.92,
+
+      transform: [
+        {
+          scale:
+            0.995,
+        },
+      ],
+    },
+
+    column: {
+      justifyContent:
+        'space-between',
+    },
+
+    /* =====================================================
+     * Tiffin Image
+     * ===================================================== */
+
+    imageContainer: {
+      height:
+        190,
+    },
+
+    image: {
+      width:
+        '100%',
+
+      height:
+        '100%',
+    },
+
+    noImage: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#EEE9F0',
+    },
+
+    noImageIcon: {
+      width:
+        30,
+
+      height:
+        30,
+
+      opacity:
+        0.4,
+    },
+
+    noImageText: {
+      color:
+        '#8B828D',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '600',
+
+      marginTop:
+        7,
+    },
+
+    /* =====================================================
+     * Food Type
+     * ===================================================== */
+
+    foodBadge: {
+      position:
+        'absolute',
+
+      top:
+        10,
+
+      left:
+        10,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      paddingHorizontal:
+        9,
+
+      paddingVertical:
+        5,
+
+      borderRadius:
+        20,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#D6EBD9',
+    },
+
+    foodDot: {
+      width:
+        6,
+
+      height:
+        6,
+
+      borderRadius:
+        3,
+
+      backgroundColor:
+        '#2F8B45',
+
+      marginRight:
+        5,
+    },
+
+    foodBadgeText: {
+      color:
+        '#2F8B45',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '900',
+    },
+
+    nonVegBadge: {
+      borderColor:
+        '#F0CEC8',
+    },
+
+    nonVegDot: {
+      backgroundColor:
+        '#D65343',
+    },
+
+    nonVegText: {
+      color:
+        '#D65343',
+    },
+
+    /* =====================================================
+     * Sold Out
+     * ===================================================== */
+
+    soldOutOverlay: {
+      ...StyleSheet.absoluteFillObject,
+
+      backgroundColor:
+        'rgba(0,0,0,.35)',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    soldOutBadge: {
+      backgroundColor:
+        '#FFFFFF',
+
+      paddingHorizontal:
+        15,
+
+      paddingVertical:
+        7,
+
+      borderRadius:
+        20,
+    },
+
+    soldOutText: {
+      color:
+        '#555',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    /* =====================================================
+     * Tiffin Content
+     * ===================================================== */
+
+    cardContent: {
+      padding:
+        14,
+    },
+
+    titleRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems:
+        'flex-start',
+    },
+
+    name: {
+      flex:
+        1,
+
+      color:
+        '#17121E',
+
+      fontSize:
+        15,
+
+      fontWeight:
+        '900',
+
+      lineHeight:
+        20,
+
+      paddingRight:
+        10,
+    },
+
+    price: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        14,
+
+      fontWeight:
+        '900',
+    },
+
+    description: {
+      color:
+        '#6F6773',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        15,
+
+      marginTop:
+        7,
+    },
+
+    /* =====================================================
+     * Metadata
+     * ===================================================== */
+
+    metaRow: {
+      flexDirection:
+        'row',
+
+      flexWrap:
+        'wrap',
+
+      marginTop:
+        10,
+    },
+
+    meta: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#F9E8E9',
+
+      paddingHorizontal:
+        8,
+
+      paddingVertical:
+        5,
+
+      borderRadius:
+        20,
+
+      marginRight:
+        6,
+
+      marginBottom:
+        4,
+    },
+
+    metaIcon: {
+      width:
+        11,
+
+      height:
+        11,
+
+      tintColor:
+        '#A00B0F',
+
+      marginRight:
+        4,
+    },
+
+    metaText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '700',
+    },
+
+    /* =====================================================
+     * Add To Cart
+     * ===================================================== */
+
+    addCartButton: {
+      width:
+        '100%',
+
+      minHeight:
+        43,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#A00B0F',
+
+      borderRadius:
+        11,
+
+      marginTop:
+        13,
+    },
+
+    addCartButtonDisabled: {
+      opacity:
+        0.5,
+    },
+
+    addCartIcon: {
+      width:
+        17,
+
+      height:
+        17,
+
+      tintColor:
+        '#A00B0F',
+
+      marginRight:
+        7,
+    },
+
+    addCartText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        0.3,
+    },
+
+    tapText: {
+      textAlign:
+        'center',
+
+      color:
+        '#9C939F',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '700',
+
+      marginTop:
+        9,
+    },
+
+    /* =====================================================
+     * Loading
+     * ===================================================== */
+
+    loadingContainer: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal:
+        30,
+    },
+
+    loadingTitle: {
+      color:
+        '#211A25',
+
+      fontSize:
+        16,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        15,
+    },
+
+    loadingText: {
+      color:
+        '#887E8A',
+
+      fontSize:
+        10,
+
+      marginTop:
+        5,
+    },
+
+    /* =====================================================
+     * Empty
+     * ===================================================== */
+
+    emptyContainer: {
+      minHeight:
+        350,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      paddingHorizontal:
+        25,
+    },
+
+    emptyIcon: {
+      width:
+        44,
+
+      height:
+        44,
+
+      opacity:
+        0.35,
+    },
+
+    emptyTitle: {
+      color:
+        '#211A25',
+
+      fontSize:
+        16,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+
+      marginTop:
+        13,
+    },
+
+    emptyDescription: {
+      color:
+        '#887E8A',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        16,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        6,
+    },
+
+    /* =====================================================
+     * Cart Popup
+     * ===================================================== */
+
+    cartPopupOverlay: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        'rgba(24, 17, 20, 0.62)',
+
+      paddingHorizontal:
+        22,
+    },
+
+    cartPopupCard: {
+      width:
+        '100%',
+
+      maxWidth:
+        380,
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        25,
+
+      paddingHorizontal:
+        20,
+
+      paddingTop:
+        28,
+
+      paddingBottom:
+        20,
+
+      shadowColor:
+        '#000000',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          10,
+      },
+
+      shadowOpacity:
+        0.25,
+
+      shadowRadius:
+        20,
+
+      elevation:
+        16,
+    },
+
+    cartPopupIconOuter: {
+      width:
+        84,
+
+      height:
+        84,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#EEF8F1',
+
+      borderRadius:
+        42,
+
+      marginBottom:
+        15,
+    },
+
+    cartPopupIconInner: {
+      width:
+        58,
+
+      height:
+        58,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#2E9C55',
+
+      borderRadius:
+        29,
+
+      shadowColor:
+        '#2E9C55',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          4,
+      },
+
+      shadowOpacity:
+        0.25,
+
+      shadowRadius:
+        7,
+
+      elevation:
+        5,
+    },
+
+    cartPopupCheck: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        30,
+
+      lineHeight:
+        34,
+
+      fontWeight:
+        '900',
+    },
+
+    cartPopupTitle: {
+      color:
+        '#21191D',
+
+      fontSize:
+        20,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+    },
+
+    cartPopupDescription: {
+      maxWidth:
+        290,
+
+      color:
+        '#7A7075',
+
+      fontSize:
+        10,
+
+      lineHeight:
+        16,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        7,
+    },
+
+    cartPopupProduct: {
+      width:
+        '100%',
+
+      minHeight:
+        82,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FAF7F8',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE6E9',
+
+      borderRadius:
+        14,
+
+      padding:
+        8,
+
+      marginTop:
+        18,
+    },
+
+    cartPopupProductImage: {
+      width:
+        64,
+
+      height:
+        64,
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        '#ECE7EA',
+    },
+
+    cartPopupNoImage: {
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    cartPopupNoImageIcon: {
+      width:
+        25,
+
+      height:
+        25,
+
+      opacity:
+        0.4,
+    },
+
+    cartPopupProductDetails: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        11,
+    },
+
+    cartPopupItemName: {
+      color:
+        '#241B20',
+
+      fontSize:
+        11,
+
+      lineHeight:
+        16,
+
+      fontWeight:
+        '900',
+    },
+
+    cartPopupCategory: {
+      color:
+        '#8C8086',
+
+      fontSize:
+        8,
+
+      marginTop:
+        2,
+    },
+
+    cartPopupPrice: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        12,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        5,
+    },
+
+    cartPopupAddedBadge: {
+      backgroundColor:
+        '#EAF7EE',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        8,
+
+      paddingVertical:
+        4,
+
+      marginRight:
+        3,
+    },
+
+    cartPopupAddedText: {
+      color:
+        '#2E8C4B',
+
+      fontSize:
+        7,
+
+      fontWeight:
+        '900',
+    },
+
+    cartPopupButtons: {
+      width:
+        '100%',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      marginTop:
+        20,
+    },
+
+    continueShoppingButton: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF7F5',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#E6D8D5',
+
+      borderRadius:
+        12,
+
+      marginRight:
+        5,
+
+      paddingHorizontal:
+        6,
+    },
+
+    continueShoppingText: {
+      color:
+        '#74645F',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '800',
+
+      textAlign:
+        'center',
+    },
+
+    viewCartButton: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        12,
+
+      marginLeft:
+        5,
+
+      shadowColor:
+        '#A00B0F',
+
+      shadowOffset: {
+        width:
+          0,
+
+        height:
+          4,
+      },
+
+      shadowOpacity:
+        0.22,
+
+      shadowRadius:
+        7,
+
+      elevation:
+        4,
+    },
+
+    viewCartIcon: {
+      width:
+        16,
+
+      height:
+        16,
+
+      tintColor:
+        '#FFFFFF',
+
+      marginRight:
+        6,
+    },
+
+    viewCartText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+  });

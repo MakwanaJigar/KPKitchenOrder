@@ -21,10 +21,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 
 const VERIFY_OTP_API_URL =
-  'https://replete-software.com/projects/kp_kitchen/api/driver/verify-otp';
+  'https://replete-software.com/projects/kp_admin/api/customer/verify-otp';
 
 const RESEND_OTP_API_URL =
-  'https://replete-software.com/projects/kp_kitchen/api/driver/forgot-password';
+  'https://replete-software.com/projects/kp_admin/api/customer/forget-password';
 
 const OTP_LENGTH = 6;
 const RESEND_TIME = 60;
@@ -530,7 +530,7 @@ const Otp = ({ navigation, route }) => {
                     handleKeyPress(event, index)
                   }
                   keyboardType="number-pad"
-                  maxLength={
+                  maxLength={ 
                     index === 0 ? OTP_LENGTH : 1
                   }
                   selectTextOnFocus

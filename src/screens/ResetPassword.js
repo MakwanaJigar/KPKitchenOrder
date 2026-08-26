@@ -21,7 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 
 const RESET_PASSWORD_API_URL =
-  'https://replete-software.com/projects/kp_kitchen/api/driver/reset-password';
+  'https://replete-software.com/projects/kp_admin/api/customer/reset-password';
 
 const ResetPassword = ({ navigation, route }) => {
   const { width, height } = useWindowDimensions();

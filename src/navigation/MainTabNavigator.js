@@ -8,6 +8,7 @@ import Home from '../screens/Home';
 // import ProfileScreen from '../screens/ProfileScreen';
 import GlassTabBar from './GlassTabBar';
 import Profile from '../screens/Profile';
+// import RecentOrder from '../screens/RecentOrder';
 
 const Tab = createBottomTabNavigator();
 
@@ -37,16 +38,16 @@ const MainTabNavigator = () => {
         name="Orders"
         component={OrdersScreen}
       />
-
-      <Tab.Screen
-        name="Bills"
-        component={BillsScreen}
-      />*/}
+*/}
 
       <Tab.Screen
         name="Profile"
         component={Profile}
       /> 
+      {/* <Tab.Screen
+        name="RecentOrder"
+        component={RecentOrder}
+      /> */}
     </Tab.Navigator>
   );
 };
