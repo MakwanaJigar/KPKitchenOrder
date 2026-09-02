@@ -6,9 +6,9 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -29,14 +29,68 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /* =========================================================
- * Storage
+ * APIs
  * ========================================================= */
+
+const PROFILE_API_URL =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile';
+
+const PROFILE_EDIT_API_URL =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile/edit';
 
 const ADDRESS_STORAGE_KEY =
   'kp_customer_addresses';
 
 /* =========================================================
- * Add Address
+ * HELPERS
+ * ========================================================= */
+
+const getAddressLine =
+  address =>
+    [
+      address?.addressLine1,
+      address?.addressLine2,
+      address?.suburb,
+      address?.state,
+      address?.country,
+    ]
+      .filter(Boolean)
+      .map(value =>
+        String(value).trim(),
+      )
+      .filter(Boolean)
+      .join(', ');
+
+const toApiAddress =
+  address => ({
+    type:
+      String(
+        address?.type ??
+          'Home',
+      ).trim(),
+
+    address_line:
+      address?.address_line ??
+      getAddressLine(
+        address,
+      ),
+
+    pincode:
+      String(
+        address?.postcode ??
+          address?.pincode ??
+          '',
+      ).trim(),
+
+    is_default:
+      Boolean(
+        address?.isDefault ??
+          address?.is_default,
+      ),
+  });
+
+/* =========================================================
+ * ADD ADDRESS
  * ========================================================= */
 
 const AddAddress = ({
@@ -45,31 +99,30 @@ const AddAddress = ({
 }) => {
   const {
     width,
-  } = useWindowDimensions();
+  } =
+    useWindowDimensions();
 
   const mode =
-    route?.params?.mode ||
+    route?.params?.mode ??
     'add';
 
   const existingAddress =
-    route?.params?.address ||
+    route?.params?.address ??
     null;
 
   const isEdit =
     mode ===
     'edit';
 
-  /* =====================================================
-   * Form State
-   * ===================================================== */
+  /* =======================================================
+   * FORM
+   * ======================================================= */
 
   const [
     addressType,
     setAddressType,
   ] =
-    useState(
-      'Home',
-    );
+    useState('Home');
 
   const [
     fullName,
@@ -134,70 +187,41 @@ const AddAddress = ({
     useState(false);
 
   const [
-    errors,
-    setErrors,
-  ] =
-    useState({});
-
-  /* =====================================================
-   * Save State
-   * ===================================================== */
-
-  const [
     saving,
     setSaving,
   ] =
     useState(false);
 
   const [
-    successPopupVisible,
-    setSuccessPopupVisible,
+    errors,
+    setErrors,
   ] =
-    useState(false);
-
-  const [
-    savedAddress,
-    setSavedAddress,
-  ] =
-    useState(null);
-
-  /* =====================================================
-   * Responsive
-   * ===================================================== */
+    useState({});
 
   const responsive =
     useMemo(
-      () => {
-        const isTablet =
-          width >= 768;
+      () => ({
+        width:
+          width >= 768
+            ? Math.min(
+                width - 80,
+                720,
+              )
+            : width,
 
-        return {
-          isTablet,
-
-          contentWidth:
-            isTablet
-              ? Math.min(
-                  width -
-                    80,
-
-                  720,
-                )
-              : width,
-
-          horizontalPadding:
-            isTablet
-              ? 28
-              : 14,
-        };
-      },
+        padding:
+          width >= 768
+            ? 28
+            : 14,
+      }),
       [
         width,
       ],
     );
 
-  /* =====================================================
-   * Load Address For Edit
-   * ===================================================== */
+  /* =======================================================
+   * LOAD EDIT VALUES
+   * ======================================================= */
 
   useEffect(
     () => {
@@ -208,81 +232,67 @@ const AddAddress = ({
       }
 
       setAddressType(
-        existingAddress
-          ?.type ??
+        existingAddress?.type ??
           'Home',
       );
 
       setFullName(
-        existingAddress
-          ?.name ??
+        existingAddress?.name ??
           '',
       );
 
       setMobileNumber(
-        existingAddress
-          ?.phone ??
+        existingAddress?.phone ??
           '',
       );
 
       setAddressLine1(
-        existingAddress
-          ?.addressLine1 ??
-          existingAddress
-            ?.address_line_1 ??
-          '',
+        existingAddress?.addressLine1 ??
+        existingAddress?.address_line_1 ??
+        existingAddress?.address_line ??
+        '',
       );
 
       setAddressLine2(
-        existingAddress
-          ?.addressLine2 ??
-          existingAddress
-            ?.address_line_2 ??
-          '',
+        existingAddress?.addressLine2 ??
+        existingAddress?.address_line_2 ??
+        '',
       );
 
       setSuburb(
-        existingAddress
-          ?.suburb ??
-          existingAddress
-            ?.city ??
-          '',
+        existingAddress?.suburb ??
+        existingAddress?.city ??
+        '',
       );
 
       setState(
-        existingAddress
-          ?.state ??
+        existingAddress?.state ??
           '',
       );
 
       setPostcode(
-        existingAddress
-          ?.postcode ??
-          existingAddress
-            ?.pincode ??
-          '',
+        String(
+          existingAddress?.postcode ??
+            existingAddress?.pincode ??
+            '',
+        ),
       );
 
       setCountry(
-        existingAddress
-          ?.country ??
+        existingAddress?.country ??
           'Australia',
       );
 
       setDeliveryInstructions(
-        existingAddress
-          ?.deliveryInstructions ??
-          existingAddress
-            ?.delivery_instructions ??
-          '',
+        existingAddress?.deliveryInstructions ??
+        existingAddress?.delivery_instructions ??
+        '',
       );
 
       setIsDefault(
         Boolean(
-          existingAddress
-            ?.isDefault ??
-            existingAddress
-              ?.is_default ??
+          existingAddress?.isDefault ??
+            existingAddress?.is_default ??
             false,
         ),
       );
@@ -292,103 +302,9 @@ const AddAddress = ({
     ],
   );
 
-  /* =====================================================
-   * Clear Field Error
-   * ===================================================== */
-
-  const clearError =
-    field => {
-      if (
-        !errors[
-          field
-        ]
-      ) {
-        return;
-      }
-
-      setErrors(
-        current => ({
-          ...current,
-
-          [field]:
-            '',
-        }),
-      );
-    };
-
-  /* =====================================================
-   * Validation
-   * ===================================================== */
-
-  const validateForm =
-    () => {
-      const newErrors =
-        {};
-
-      if (
-        !fullName.trim()
-      ) {
-        newErrors.fullName =
-          'Please enter your full name';
-      }
-
-      if (
-        !mobileNumber.trim()
-      ) {
-        newErrors.mobileNumber =
-          'Please enter your mobile number';
-      }
-
-      if (
-        !addressLine1.trim()
-      ) {
-        newErrors.addressLine1 =
-          'Please enter your street address';
-      }
-
-      if (
-        !suburb.trim()
-      ) {
-        newErrors.suburb =
-          'Please enter your suburb';
-      }
-
-      if (
-        !state.trim()
-      ) {
-        newErrors.state =
-          'Please enter your state';
-      }
-
-      if (
-        !postcode.trim()
-      ) {
-        newErrors.postcode =
-          'Please enter your postcode';
-      }
-
-      if (
-        !country.trim()
-      ) {
-        newErrors.country =
-          'Please enter your country';
-      }
-
-      setErrors(
-        newErrors,
-      );
-
-      return (
-        Object.keys(
-          newErrors,
-        ).length ===
-        0
-      );
-    };
-
-  /* =====================================================
-   * Read Existing Stored Addresses
-   * ===================================================== */
+  /* =======================================================
+   * GET STORED ADDRESSES
+   * ======================================================= */
 
   const getStoredAddresses =
     async () => {
@@ -398,46 +314,309 @@ const AddAddress = ({
             ADDRESS_STORAGE_KEY,
           );
 
-        if (!stored) {
-          return [];
-        }
-
         const parsed =
-          JSON.parse(
-            stored,
-          );
+          stored
+            ? JSON.parse(
+                stored,
+              )
+            : [];
 
         return Array.isArray(
           parsed,
         )
           ? parsed
           : [];
-      } catch (
-        error
-      ) {
-        console.log(
-          'READ ADDRESS ERROR:',
-          error,
-        );
-
+      } catch {
         return [];
       }
     };
 
-  /* =====================================================
-   * Save Address
-   * ===================================================== */
+  /* =======================================================
+   * GET PROFILE
+   * ======================================================= */
+
+  const getProfile =
+    async token => {
+      const response =
+        await fetch(
+          PROFILE_API_URL,
+          {
+            headers: {
+              Accept:
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+          },
+        );
+
+      const text =
+        await response.text();
+
+      let result =
+        {};
+
+      try {
+        result =
+          text
+            ? JSON.parse(
+                text,
+              )
+            : {};
+      } catch {
+        result =
+          {};
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result?.message ??
+            'Unable to load profile.',
+        );
+      }
+
+      return (
+        result?.data?.customer ??
+        result?.data?.user ??
+        result?.data?.profile ??
+        result?.data ??
+        result?.customer ??
+        result
+      );
+    };
+
+  /* =======================================================
+   * SYNC PROFILE
+   * ======================================================= */
+
+  const syncAddressList =
+    async addressList => {
+      const token =
+        await AsyncStorage.getItem(
+          'token',
+        );
+
+      if (!token) {
+        throw new Error(
+          'Authentication token not found.',
+        );
+      }
+
+      const profile =
+        await getProfile(
+          token,
+        );
+
+      let firstName =
+        profile?.first_name ??
+        '';
+
+      let lastName =
+        profile?.last_name ??
+        '';
+
+      if (
+        !firstName &&
+        profile?.name
+      ) {
+        const parts =
+          String(
+            profile.name,
+          )
+            .trim()
+            .split(
+              /\s+/,
+            );
+
+        firstName =
+          parts[0] ??
+          '';
+
+        lastName =
+          parts
+            .slice(
+              1,
+            )
+            .join(
+              ' ',
+            );
+      }
+
+      const payload = {
+        first_name:
+          firstName,
+
+        last_name:
+          lastName,
+
+        phone:
+          profile?.phone ??
+          '',
+
+        email:
+          profile?.email ??
+          '',
+
+        addresses:
+          addressList.map(
+            toApiAddress,
+          ),
+      };
+
+      console.log(
+        'ADD ADDRESS PROFILE PAYLOAD:',
+        JSON.stringify(
+          payload,
+          null,
+          2,
+        ),
+      );
+
+      const response =
+        await fetch(
+          PROFILE_EDIT_API_URL,
+          {
+            method:
+              'POST',
+
+            headers: {
+              Accept:
+                'application/json',
+
+              'Content-Type':
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        );
+
+      const text =
+        await response.text();
+
+      let result =
+        {};
+
+      try {
+        result =
+          text
+            ? JSON.parse(
+                text,
+              )
+            : {};
+      } catch {
+        result =
+          {};
+      }
+
+      console.log(
+        'ADD ADDRESS SYNC STATUS:',
+        response.status,
+      );
+
+      console.log(
+        'ADD ADDRESS SYNC RESPONSE:',
+        text,
+      );
+
+      /*
+       * IMPORTANT:
+       * No automatic logout/reset.
+       */
+
+      if (
+        !response.ok ||
+        result?.success ===
+          false
+      ) {
+        throw new Error(
+          result?.message ??
+            result?.error ??
+            'Unable to save address.',
+        );
+      }
+    };
+
+  /* =======================================================
+   * VALIDATE
+   * ======================================================= */
+
+  const validate =
+    () => {
+      const nextErrors =
+        {};
+
+      if (
+        !fullName.trim()
+      ) {
+        nextErrors.fullName =
+          'Please enter full name';
+      }
+
+      if (
+        !mobileNumber.trim()
+      ) {
+        nextErrors.mobileNumber =
+          'Please enter mobile number';
+      }
+
+      if (
+        !addressLine1.trim()
+      ) {
+        nextErrors.addressLine1 =
+          'Please enter address';
+      }
+
+      if (
+        !suburb.trim()
+      ) {
+        nextErrors.suburb =
+          'Please enter suburb';
+      }
+
+      if (
+        !state.trim()
+      ) {
+        nextErrors.state =
+          'Please enter state';
+      }
+
+      if (
+        !postcode.trim()
+      ) {
+        nextErrors.postcode =
+          'Please enter postcode';
+      }
+
+      setErrors(
+        nextErrors,
+      );
+
+      return (
+        Object.keys(
+          nextErrors,
+        ).length === 0
+      );
+    };
+
+  /* =======================================================
+   * SAVE
+   * ======================================================= */
 
   const handleSaveAddress =
     async () => {
       if (
-        saving
-      ) {
-        return;
-      }
-
-      if (
-        !validateForm()
+        saving ||
+        !validate()
       ) {
         return;
       }
@@ -447,26 +626,11 @@ const AddAddress = ({
           true,
         );
 
-        setErrors(
-          current => ({
-            ...current,
-
-            general:
-              '',
-          }),
-        );
-
-        /* =============================================
-         * Build Address
-         * ============================================= */
-
         const addressData = {
           id:
-            existingAddress
-              ?.id
+            existingAddress?.id
               ? String(
-                  existingAddress
-                    .id,
+                  existingAddress.id,
                 )
               : `address-${Date.now()}`,
 
@@ -474,76 +638,66 @@ const AddAddress = ({
             addressType,
 
           name:
-            fullName
-              .trim(),
+            fullName.trim(),
 
           phone:
-            mobileNumber
-              .trim(),
+            mobileNumber.trim(),
 
           addressLine1:
-            addressLine1
-              .trim(),
+            addressLine1.trim(),
 
           addressLine2:
-            addressLine2
-              .trim(),
+            addressLine2.trim(),
 
           suburb:
-            suburb
-              .trim(),
+            suburb.trim(),
 
           city:
-            suburb
-              .trim(),
+            suburb.trim(),
 
           state:
-            state
-              .trim(),
+            state.trim(),
 
           postcode:
-            postcode
-              .trim(),
+            postcode.trim(),
 
           pincode:
-            postcode
-              .trim(),
+            postcode.trim(),
 
           country:
-            country
-              .trim(),
+            country.trim(),
 
           deliveryInstructions:
-            deliveryInstructions
-              .trim(),
+            deliveryInstructions.trim(),
 
           isDefault:
             Boolean(
               isDefault,
             ),
 
-          createdAt:
-            existingAddress
-              ?.createdAt ??
-            new Date()
-              .toISOString(),
+          is_default:
+            Boolean(
+              isDefault,
+            ),
 
-          updatedAt:
-            new Date()
-              .toISOString(),
+          address_line:
+            [
+              addressLine1.trim(),
+              addressLine2.trim(),
+              suburb.trim(),
+              state.trim(),
+              country.trim(),
+            ]
+              .filter(Boolean)
+              .join(', '),
         };
-
-        /* =============================================
-         * Existing List
-         * ============================================= */
 
         let addressList =
           await getStoredAddresses();
 
-        /* =============================================
-         * New first address should automatically
-         * become the default address.
-         * ============================================= */
+        /*
+         * First address becomes default.
+         */
 
         if (
           !isEdit &&
@@ -552,12 +706,15 @@ const AddAddress = ({
         ) {
           addressData.isDefault =
             true;
+
+          addressData.is_default =
+            true;
         }
 
-        /* =============================================
-         * If current address is default,
-         * remove default flag from others.
-         * ============================================= */
+        /*
+         * When new/current is default,
+         * unset all others.
+         */
 
         if (
           addressData.isDefault
@@ -569,63 +726,47 @@ const AddAddress = ({
 
                 isDefault:
                   false,
+
+                is_default:
+                  false,
               }),
             );
         }
 
-        /* =============================================
-         * Edit Existing
-         * ============================================= */
-
         if (
           isEdit &&
-          existingAddress
-            ?.id
+          existingAddress?.id
         ) {
-          const existingIndex =
+          const index =
             addressList.findIndex(
               item =>
                 String(
-                  item
-                    ?.id,
+                  item?.id,
                 ) ===
                 String(
-                  existingAddress
-                    .id,
+                  existingAddress.id,
                 ),
             );
 
           if (
-            existingIndex >=
-            0
+            index >= 0
           ) {
-            addressList[
-              existingIndex
-            ] =
+            addressList[index] =
               addressData;
           } else {
-            /*
-             * In case edit data did not originally
-             * exist in local storage.
-             */
-
-            addressList.unshift(
+            addressList.push(
               addressData,
             );
           }
         } else {
-          /* =========================================
-           * Add New
-           * ========================================= */
-
-          addressList.unshift(
+          addressList.push(
             addressData,
           );
         }
 
-        /* =============================================
-         * Ensure only one Default Address
-         * ============================================= */
+        /*
+         * Ensure exactly one default.
+         */
 
         if (
           addressData.isDefault
@@ -640,27 +781,25 @@ const AddAddress = ({
                     item.id,
                   ) ===
                   String(
-                    addressData
-                      .id,
+                    addressData.id,
+                  ),
+
+                is_default:
+                  String(
+                    item.id,
+                  ) ===
+                  String(
+                    addressData.id,
                   ),
               }),
             );
         }
 
-        /* =============================================
-         * Safety:
-         *
-         * If somehow none are default,
-         * make first one default.
-         * ============================================= */
-
         if (
-          addressList.length >
-            0 &&
+          addressList.length > 0 &&
           !addressList.some(
             item =>
-              item
-                ?.isDefault,
+              item.isDefault,
           )
         ) {
           addressList =
@@ -672,78 +811,51 @@ const AddAddress = ({
                 ...item,
 
                 isDefault:
-                  index ===
-                  0,
+                  index === 0,
+
+                is_default:
+                  index === 0,
               }),
             );
-
-          /*
-           * Also update the saved preview if
-           * this current address became default.
-           */
-
-          const savedItem =
-            addressList.find(
-              item =>
-                String(
-                  item.id,
-                ) ===
-                String(
-                  addressData
-                    .id,
-                ),
-            );
-
-          if (
-            savedItem
-          ) {
-            Object.assign(
-              addressData,
-              savedItem,
-            );
-          }
         }
 
-        /* =============================================
-         * Persist
-         * ============================================= */
+        /*
+         * FIRST sync backend.
+         */
+
+        await syncAddressList(
+          addressList,
+        );
+
+        /*
+         * Then persist exact same list locally.
+         */
 
         await AsyncStorage.setItem(
           ADDRESS_STORAGE_KEY,
-
           JSON.stringify(
             addressList,
           ),
         );
 
-        console.log(
-          'ADDRESS SAVED:',
-          JSON.stringify(
-            addressData,
-            null,
-            2,
-          ),
-        );
+        Alert.alert(
+          isEdit
+            ? 'Address Updated'
+            : 'Address Added',
 
-        console.log(
-          'ALL SAVED ADDRESSES:',
-          JSON.stringify(
-            addressList,
-            null,
-            2,
-          ),
-        );
+          isEdit
+            ? 'Your address has been updated successfully.'
+            : 'Your new address has been added successfully.',
 
-        /* =============================================
-         * Custom Success Popup
-         * ============================================= */
+          [
+            {
+              text:
+                'OK',
 
-        setSavedAddress(
-          addressData,
-        );
-
-        setSuccessPopupVisible(
-          true,
+              onPress: () =>
+                navigation.goBack(),
+            },
+          ],
         );
       } catch (
         saveError
@@ -753,13 +865,10 @@ const AddAddress = ({
           saveError,
         );
 
-        setErrors(
-          current => ({
-            ...current,
-
-            general:
-              'Unable to save address. Please try again.',
-          }),
+        Alert.alert(
+          'Address Save Failed',
+          saveError?.message ??
+            'Unable to save address.',
         );
       } finally {
         setSaving(
@@ -768,1086 +877,470 @@ const AddAddress = ({
       }
     };
 
-  /* =====================================================
-   * Close Success + Go Back
-   * ===================================================== */
-
-  const handleSuccessDone =
-    () => {
-      setSuccessPopupVisible(
-        false,
-      );
-
-      navigation.goBack();
-    };
-
-  /* =====================================================
+  /* =======================================================
    * UI
-   * ===================================================== */
+   * ======================================================= */
 
   return (
-    <>
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }>
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFF9F6"
+      />
 
-        <StatusBar
-          barStyle="dark-content"
-
-          backgroundColor="#FFF9F6"
-        />
-
-        <KeyboardAvoidingView
-          style={
-            styles.keyboardView
-          }
-
-          behavior={
-            Platform.OS ===
+      <KeyboardAvoidingView
+        style={{
+          flex:
+            1,
+        }}
+        behavior={
+          Platform.OS ===
             'ios'
-              ? 'padding'
-              : undefined
-          }>
+            ? 'padding'
+            : undefined
+        }
+      >
+        <View
+          style={[
+            styles.screen,
 
-          <View
-            style={[
-              styles.screenContainer,
+            {
+              width:
+                responsive.width,
+            },
+          ]}
+        >
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              paddingHorizontal:
+                responsive.padding,
 
-              {
-                width:
-                  responsive.contentWidth,
-              },
-            ]}>
+              paddingBottom:
+                80,
+            }}
+          >
+            {/* HEADER */}
 
-            <ScrollView
-              showsVerticalScrollIndicator={
-                false
+            <View
+              style={
+                styles.header
               }
-
-              keyboardShouldPersistTaps="handled"
-
-              contentContainerStyle={[
-                styles.scrollContent,
-
-                {
-                  paddingHorizontal:
-                    responsive.horizontalPadding,
-                },
-              ]}>
-
-              {/* ================================================= */}
-              {/* HEADER */}
-              {/* ================================================= */}
-
-              <View
+            >
+              <Pressable
                 style={
-                  styles.header
-                }>
-
-                <Pressable
-                  hitSlop={
-                    10
-                  }
-
+                  styles.backButton
+                }
+                onPress={() =>
+                  navigation.goBack()
+                }
+              >
+                <Image
+                  source={require('../assets/login-icons/back.png')}
                   style={
-                    styles.backButton
-                  }
-
-                  onPress={() =>
-                    navigation.goBack()
-                  }>
-
-                  <Image
-                    source={require('../assets/login-icons/back.png')}
-
-                    style={
-                      styles.backIcon
-                    }
-
-                    resizeMode="contain"
-                  />
-
-                </Pressable>
-
-                <View
-                  style={
-                    styles.headerTextContainer
-                  }>
-
-                  <Text
-                    style={
-                      styles.headerEyebrow
-                    }>
-                    DELIVERY ADDRESS
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.headerTitle
-                    }>
-
-                    {isEdit
-                      ? 'Edit Address'
-                      : 'Add Address'}
-
-                  </Text>
-
-                </View>
-
-                <View
-                  style={
-                    styles.headerSpacer
+                    styles.backIcon
                   }
                 />
+              </Pressable>
 
+              <View>
+                <Text
+                  style={
+                    styles.eyebrow
+                  }
+                >
+                  DELIVERY ADDRESS
+                </Text>
+
+                <Text
+                  style={
+                    styles.title
+                  }
+                >
+                  {isEdit
+                    ? 'Edit Address'
+                    : 'Add Address'}
+                </Text>
               </View>
+            </View>
 
-              {/* ================================================= */}
-              {/* ADDRESS TYPE */}
-              {/* ================================================= */}
+            {/* TYPE */}
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                Address Type
+              </Text>
 
               <View
                 style={
-                  styles.sectionCard
-                }>
+                  styles.typeRow
+                }
+              >
+                {[
+                  'Home',
+                  'Work',
+                  'Other',
+                ].map(
+                  type => (
+                    <TouchableOpacity
+                      key={
+                        type
+                      }
+                      style={[
+                        styles.typeButton,
 
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }>
-                  Address Type
-                </Text>
+                        addressType ===
+                          type &&
+                          styles.typeButtonActive,
+                      ]}
+                      onPress={() =>
+                        setAddressType(
+                          type,
+                        )
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.typeButtonText,
 
-                <Text
-                  style={
-                    styles.sectionSubtitle
-                  }>
-                  Choose a label for this delivery address.
-                </Text>
+                          addressType ===
+                            type &&
+                            styles.typeButtonTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  ),
+                )}
+              </View>
+            </View>
 
+            {/* CONTACT */}
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                Contact Details
+              </Text>
+
+              <FormInput
+                label="Full Name"
+                value={
+                  fullName
+                }
+                onChangeText={
+                  setFullName
+                }
+                error={
+                  errors.fullName
+                }
+              />
+
+              <FormInput
+                label="Mobile Number"
+                value={
+                  mobileNumber
+                }
+                onChangeText={
+                  setMobileNumber
+                }
+                keyboardType="phone-pad"
+                error={
+                  errors.mobileNumber
+                }
+              />
+            </View>
+
+            {/* ADDRESS */}
+
+            <View
+              style={
+                styles.card
+              }
+            >
+              <Text
+                style={
+                  styles.cardTitle
+                }
+              >
+                Address Details
+              </Text>
+
+              <FormInput
+                label="Address Line 1"
+                value={
+                  addressLine1
+                }
+                onChangeText={
+                  setAddressLine1
+                }
+                error={
+                  errors.addressLine1
+                }
+              />
+
+              <FormInput
+                label="Address Line 2"
+                value={
+                  addressLine2
+                }
+                onChangeText={
+                  setAddressLine2
+                }
+              />
+
+              <FormInput
+                label="Suburb"
+                value={
+                  suburb
+                }
+                onChangeText={
+                  setSuburb
+                }
+                error={
+                  errors.suburb
+                }
+              />
+
+              <FormInput
+                label="State"
+                value={
+                  state
+                }
+                onChangeText={
+                  setState
+                }
+                error={
+                  errors.state
+                }
+              />
+
+              <FormInput
+                label="Postcode"
+                value={
+                  postcode
+                }
+                onChangeText={
+                  setPostcode
+                }
+                keyboardType="number-pad"
+                error={
+                  errors.postcode
+                }
+              />
+
+              <FormInput
+                label="Country"
+                value={
+                  country
+                }
+                onChangeText={
+                  setCountry
+                }
+              />
+
+              <FormInput
+                label="Delivery Instructions"
+                value={
+                  deliveryInstructions
+                }
+                onChangeText={
+                  setDeliveryInstructions
+                }
+                multiline
+              />
+
+              <View
+                style={
+                  styles.defaultRow
+                }
+              >
                 <View
                   style={
-                    styles.typeRow
-                  }>
-
-                  <AddressTypeButton
-                    title="Home"
-
-                    selected={
-                      addressType ===
-                      'Home'
-                    }
-
-                    onPress={() =>
-                      setAddressType(
-                        'Home',
-                      )
-                    }
-                  />
-
-                  <AddressTypeButton
-                    title="Work"
-
-                    selected={
-                      addressType ===
-                      'Work'
-                    }
-
-                    onPress={() =>
-                      setAddressType(
-                        'Work',
-                      )
-                    }
-                  />
-
-                  <AddressTypeButton
-                    title="Other"
-
-                    selected={
-                      addressType ===
-                      'Other'
-                    }
-
-                    onPress={() =>
-                      setAddressType(
-                        'Other',
-                      )
-                    }
-                  />
-
-                </View>
-
-              </View>
-
-              {/* ================================================= */}
-              {/* CONTACT */}
-              {/* ================================================= */}
-
-              <View
-                style={
-                  styles.sectionCard
-                }>
-
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }>
-                  Contact Details
-                </Text>
-
-                <Text
-                  style={
-                    styles.sectionSubtitle
-                  }>
-                  Used by the driver when delivering your order.
-                </Text>
-
-                <FormInput
-                  label="Full Name"
-
-                  placeholder="Enter full name"
-
-                  value={
-                    fullName
+                    styles.defaultIconBox
                   }
-
-                  error={
-                    errors.fullName
-                  }
-
-                  autoCapitalize="words"
-
-                  onChangeText={
-                    value => {
-                      setFullName(
-                        value,
-                      );
-
-                      clearError(
-                        'fullName',
-                      );
-                    }
-                  }
-                />
-
-                <FormInput
-                  label="Mobile Number"
-
-                  placeholder="+61 400 000 000"
-
-                  value={
-                    mobileNumber
-                  }
-
-                  error={
-                    errors.mobileNumber
-                  }
-
-                  keyboardType="phone-pad"
-
-                  onChangeText={
-                    value => {
-                      setMobileNumber(
-                        value,
-                      );
-
-                      clearError(
-                        'mobileNumber',
-                      );
-                    }
-                  }
-                />
-
-              </View>
-
-              {/* ================================================= */}
-              {/* DELIVERY ADDRESS */}
-              {/* ================================================= */}
-
-              <View
-                style={
-                  styles.sectionCard
-                }>
-
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }>
-                  Address Details
-                </Text>
-
-                <Text
-                  style={
-                    styles.sectionSubtitle
-                  }>
-                  Enter the complete address for your tiffin delivery.
-                </Text>
-
-                <FormInput
-                  label="Address Line 1"
-
-                  placeholder="Street address"
-
-                  value={
-                    addressLine1
-                  }
-
-                  error={
-                    errors.addressLine1
-                  }
-
-                  onChangeText={
-                    value => {
-                      setAddressLine1(
-                        value,
-                      );
-
-                      clearError(
-                        'addressLine1',
-                      );
-                    }
-                  }
-                />
-
-                <FormInput
-                  label="Address Line 2"
-
-                  placeholder="Apartment, unit, floor (optional)"
-
-                  value={
-                    addressLine2
-                  }
-
-                  onChangeText={
-                    setAddressLine2
-                  }
-                />
-
-                <FormInput
-                  label="Suburb / City"
-
-                  placeholder="Enter suburb or city"
-
-                  value={
-                    suburb
-                  }
-
-                  error={
-                    errors.suburb
-                  }
-
-                  onChangeText={
-                    value => {
-                      setSuburb(
-                        value,
-                      );
-
-                      clearError(
-                        'suburb',
-                      );
-                    }
-                  }
-                />
-
-                {/* ============================================= */}
-                {/* State + Postcode */}
-                {/* ============================================= */}
-
-                <View
-                  style={
-                    styles.doubleRow
-                  }>
-
-                  <View
-                    style={
-                      styles.halfInput
-                    }>
-
-                    <FormInput
-                      label="State"
-
-                      placeholder="VIC"
-
-                      value={
-                        state
-                      }
-
-                      error={
-                        errors.state
-                      }
-
-                      autoCapitalize="characters"
-
-                      onChangeText={
-                        value => {
-                          setState(
-                            value,
-                          );
-
-                          clearError(
-                            'state',
-                          );
-                        }
-                      }
-                    />
-
-                  </View>
-
-                  <View
-                    style={
-                      styles.inputGap
-                    }
-                  />
-
-                  <View
-                    style={
-                      styles.halfInput
-                    }>
-
-                    <FormInput
-                      label="Postcode"
-
-                      placeholder="3000"
-
-                      value={
-                        postcode
-                      }
-
-                      error={
-                        errors.postcode
-                      }
-
-                      keyboardType="number-pad"
-
-                      onChangeText={
-                        value => {
-                          setPostcode(
-                            value,
-                          );
-
-                          clearError(
-                            'postcode',
-                          );
-                        }
-                      }
-                    />
-
-                  </View>
-
-                </View>
-
-                <FormInput
-                  label="Country"
-
-                  placeholder="Enter country"
-
-                  value={
-                    country
-                  }
-
-                  error={
-                    errors.country
-                  }
-
-                  autoCapitalize="words"
-
-                  onChangeText={
-                    value => {
-                      setCountry(
-                        value,
-                      );
-
-                      clearError(
-                        'country',
-                      );
-                    }
-                  }
-                />
-
-              </View>
-
-              {/* ================================================= */}
-              {/* DELIVERY INSTRUCTIONS */}
-              {/* ================================================= */}
-
-              <View
-                style={
-                  styles.sectionCard
-                }>
-
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }>
-                  Delivery Instructions
-                </Text>
-
-                <Text
-                  style={
-                    styles.sectionSubtitle
-                  }>
-                  Optional instructions for your delivery driver.
-                </Text>
-
-                <View
-                  style={
-                    styles.textAreaContainer
-                  }>
-
-                  <TextInput
-                    value={
-                      deliveryInstructions
-                    }
-
-                    onChangeText={
-                      setDeliveryInstructions
-                    }
-
-                    placeholder="Example: Leave at front door, ring bell on arrival..."
-
-                    placeholderTextColor="#B3A39D"
-
-                    multiline
-
-                    textAlignVertical="top"
-
-                    maxLength={
-                      200
-                    }
-
-                    style={
-                      styles.textArea
-                    }
-                  />
-
-                </View>
-
-                <Text
-                  style={
-                    styles.characterCount
-                  }>
-
-                  {deliveryInstructions.length}/200
-
-                </Text>
-
-              </View>
-
-              {/* ================================================= */}
-              {/* DEFAULT */}
-              {/* ================================================= */}
-
-              <View
-                style={
-                  styles.defaultCard
-                }>
-
-                <View
-                  style={
-                    styles.defaultIconContainer
-                  }>
-
+                >
                   <Image
                     source={require('../assets/login-icons/home.png')}
-
                     style={
                       styles.defaultIcon
                     }
-
-                    resizeMode="contain"
                   />
-
                 </View>
 
                 <View
-                  style={
-                    styles.defaultDetails
-                  }>
-
+                  style={{
+                    flex:
+                      1,
+                  }}
+                >
                   <Text
                     style={
                       styles.defaultTitle
-                    }>
-                    Set as Default Address
+                    }
+                  >
+                    Make Default Address
                   </Text>
 
                   <Text
                     style={
                       styles.defaultSubtitle
-                    }>
-                    Use this address automatically for future orders.
+                    }
+                  >
+                    Use this as your main delivery address.
                   </Text>
-
                 </View>
 
                 <Switch
                   value={
                     isDefault
                   }
-
                   onValueChange={
                     setIsDefault
                   }
-
-                  trackColor={{
-                    false:
-                      '#DDD7D2',
-
-                    true:
-                      '#E6A27E',
-                  }}
-
-                  thumbColor={
-                    isDefault
-                      ? '#B64D19'
-                      : '#FFFFFF'
-                  }
                 />
-
               </View>
-
-              {/* ================================================= */}
-              {/* General Error */}
-              {/* ================================================= */}
-
-              {!!errors.general && (
-                <View
-                  style={
-                    styles.generalErrorBox
-                  }>
-
-                  <Text
-                    style={
-                      styles.generalErrorText
-                    }>
-                    {
-                      errors.general
-                    }
-                  </Text>
-
-                </View>
-              )}
-
-              {/* ================================================= */}
-              {/* SAVE */}
-              {/* ================================================= */}
-
-              <TouchableOpacity
-                activeOpacity={
-                  0.85
-                }
-
-                disabled={
-                  saving
-                }
-
-                style={[
-                  styles.saveButton,
-
-                  saving &&
-                    styles.saveButtonDisabled,
-                ]}
-
-                onPress={
-                  handleSaveAddress
-                }>
-
-                {saving ? (
-                  <ActivityIndicator
-                    size="small"
-
-                    color="#FFFFFF"
-                  />
-                ) : (
-                  <Text
-                    style={
-                      styles.saveButtonText
-                    }>
-
-                    {isEdit
-                      ? 'Update Address'
-                      : 'Save Address'}
-
-                  </Text>
-                )}
-
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={
-                  0.8
-                }
-
-                disabled={
-                  saving
-                }
-
-                style={
-                  styles.cancelButton
-                }
-
-                onPress={() =>
-                  navigation.goBack()
-                }>
-
-                <Text
-                  style={
-                    styles.cancelText
-                  }>
-                  Cancel
-                </Text>
-
-              </TouchableOpacity>
-
-            </ScrollView>
-
-          </View>
-
-        </KeyboardAvoidingView>
-
-      </SafeAreaView>
-
-      {/* ================================================= */}
-      {/* ADDRESS SAVED SUCCESS POPUP */}
-      {/* ================================================= */}
-
-      <Modal
-        visible={
-          successPopupVisible
-        }
-
-        transparent
-
-        animationType="fade"
-
-        statusBarTranslucent
-
-        onRequestClose={() => {}}>
-
-        <View
-          style={
-            styles.successOverlay
-          }>
-
-          <View
-            style={
-              styles.successPopupCard
-            }>
-
-            {/* =========================================== */}
-            {/* Icon */}
-            {/* =========================================== */}
-
-            <View
-              style={
-                styles.successIconOuter
-              }>
-
-              <View
-                style={
-                  styles.successIconInner
-                }>
-
-                <Text
-                  style={
-                    styles.successCheck
-                  }>
-                  ✓
-                </Text>
-
-              </View>
-
             </View>
 
-            {/* =========================================== */}
-            {/* Heading */}
-            {/* =========================================== */}
-
-            <Text
-              style={
-                styles.successPopupTitle
-              }>
-
-              {isEdit
-                ? 'Address Updated!'
-                : 'Address Saved!'}
-
-            </Text>
-
-            <Text
-              style={
-                styles.successPopupDescription
-              }>
-
-              {isEdit
-                ? 'Your delivery address has been updated successfully.'
-                : 'Your new delivery address has been saved successfully.'}
-
-            </Text>
-
-            {/* =========================================== */}
-            {/* Address Preview */}
-            {/* =========================================== */}
-
-            {!!savedAddress && (
-              <View
-                style={
-                  styles.savedAddressPreview
-                }>
-
-                <View
-                  style={
-                    styles.savedAddressTopRow
-                  }>
-
-                  <Text
-                    style={
-                      styles.savedAddressType
-                    }>
-
-                    {
-                      savedAddress.type
-                    }
-
-                  </Text>
-
-                  {savedAddress.isDefault && (
-                    <View
-                      style={
-                        styles.savedDefaultBadge
-                      }>
-
-                      <Text
-                        style={
-                          styles.savedDefaultBadgeText
-                        }>
-                        Default
-                      </Text>
-
-                    </View>
-                  )}
-
-                </View>
-
-                <Text
-                  style={
-                    styles.savedAddressName
-                  }>
-
-                  {
-                    savedAddress.name
-                  }
-
-                </Text>
-
-                <Text
-                  style={
-                    styles.savedAddressPhone
-                  }>
-
-                  {
-                    savedAddress.phone
-                  }
-
-                </Text>
-
-                <Text
-                  style={
-                    styles.savedAddressText
-                  }>
-
-                  {[
-                    savedAddress
-                      .addressLine1,
-
-                    savedAddress
-                      .addressLine2,
-
-                    savedAddress
-                      .suburb,
-
-                    savedAddress
-                      .state,
-
-                    savedAddress
-                      .postcode,
-
-                    savedAddress
-                      .country,
-                  ]
-                    .filter(
-                      Boolean,
-                    )
-                    .join(
-                      ', ',
-                    )}
-
-                </Text>
-
-              </View>
-            )}
-
-            {/* =========================================== */}
-            {/* Done */}
-            {/* =========================================== */}
+            {/* SAVE */}
 
             <TouchableOpacity
               activeOpacity={
                 0.85
               }
-
-              style={
-                styles.successDoneButton
+              disabled={
+                saving
               }
+              style={[
+                styles.saveButton,
 
+                saving && {
+                  opacity:
+                    0.6,
+                },
+              ]}
               onPress={
-                handleSuccessDone
-              }>
-
-              <Text
-                style={
-                  styles.successDoneText
-                }>
-                Done
-              </Text>
-
+                handleSaveAddress
+              }
+            >
+              {saving ? (
+                <ActivityIndicator
+                  color="#FFFFFF"
+                />
+              ) : (
+                <Text
+                  style={
+                    styles.saveText
+                  }
+                >
+                  {isEdit
+                    ? 'Update Address'
+                    : 'Save Address'}
+                </Text>
+              )}
             </TouchableOpacity>
-
-          </View>
-
+          </ScrollView>
         </View>
-
-      </Modal>
-    </>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 /* =========================================================
- * Address Type Button
- * ========================================================= */
-
-const AddressTypeButton = ({
-  title,
-  selected,
-  onPress,
-}) => {
-  return (
-    <TouchableOpacity
-      activeOpacity={
-        0.8
-      }
-
-      style={[
-        styles.typeButton,
-
-        selected &&
-          styles.typeButtonSelected,
-      ]}
-
-      onPress={
-        onPress
-      }>
-
-      <View
-        style={[
-          styles.typeRadio,
-
-          selected &&
-            styles.typeRadioSelected,
-        ]}>
-
-        {selected ? (
-          <View
-            style={
-              styles.typeRadioInner
-            }
-          />
-        ) : null}
-
-      </View>
-
-      <Text
-        style={[
-          styles.typeButtonText,
-
-          selected &&
-            styles.typeButtonTextSelected,
-        ]}>
-
-        {
-          title
-        }
-
-      </Text>
-
-    </TouchableOpacity>
-  );
-};
-
-/* =========================================================
- * Form Input
+ * FORM INPUT
  * ========================================================= */
 
 const FormInput = ({
   label,
+  value,
+  onChangeText,
   error,
-  ...props
-}) => {
-  return (
-    <View
+  keyboardType = 'default',
+  multiline = false,
+}) => (
+  <View
+    style={
+      styles.field
+    }
+  >
+    <Text
       style={
-        styles.fieldContainer
-      }>
+        styles.label
+      }
+    >
+      {label}
+    </Text>
 
+    <TextInput
+      value={
+        value
+      }
+      onChangeText={
+        onChangeText
+      }
+      keyboardType={
+        keyboardType
+      }
+      multiline={
+        multiline
+      }
+      textAlignVertical={
+        multiline
+          ? 'top'
+          : 'center'
+      }
+      style={[
+        styles.input,
+
+        multiline && {
+          minHeight:
+            75,
+        },
+
+        !!error &&
+          styles.inputError,
+      ]}
+    />
+
+    {!!error && (
       <Text
         style={
-          styles.inputLabel
-        }>
-        {label}
+          styles.error
+        }
+      >
+        {error}
       </Text>
-
-      <View
-        style={[
-          styles.inputContainer,
-
-          error &&
-            styles.inputContainerError,
-        ]}>
-
-        <TextInput
-          {...props}
-
-          placeholderTextColor="#B3A39D"
-
-          style={
-            styles.input
-          }
-        />
-
-      </View>
-
-      {error ? (
-        <Text
-          style={
-            styles.errorText
-          }>
-
-          {
-            error
-          }
-
-        </Text>
-      ) : null}
-
-    </View>
-  );
-};
+    )}
+  </View>
+);
 
 export default AddAddress;
 
 /* =========================================================
- * Styles
+ * STYLES
  * ========================================================= */
 
 const styles =
@@ -1857,49 +1350,26 @@ const styles =
         1,
 
       backgroundColor:
-        '#F5F0ED',
+        '#FFF9F6',
     },
 
-    keyboardView: {
-      flex:
-        1,
-    },
-
-    screenContainer: {
+    screen: {
       flex:
         1,
 
       alignSelf:
         'center',
-
-      backgroundColor:
-        '#FFF9F6',
     },
-
-    scrollContent: {
-      paddingTop:
-        10,
-
-      paddingBottom:
-        70,
-    },
-
-    /* =====================================================
-     * Header
-     * ===================================================== */
 
     header: {
       minHeight:
-        65,
+        72,
 
       flexDirection:
         'row',
 
       alignItems:
         'center',
-
-      marginBottom:
-        14,
     },
 
     backButton: {
@@ -1909,79 +1379,62 @@ const styles =
       height:
         42,
 
+      borderRadius:
+        12,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE4DF',
+
       alignItems:
         'center',
 
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        14,
+      marginRight:
+        12,
     },
 
     backIcon: {
       width:
-        19,
+        20,
 
       height:
-        19,
+        20,
     },
 
-    headerTextContainer: {
-      flex:
-        1,
-
-      paddingHorizontal:
-        12,
-    },
-
-    headerEyebrow: {
+    eyebrow: {
       color:
-        '#A84B20',
+        '#A00B0F',
 
       fontSize:
-        9,
+        8,
 
       fontWeight:
-        '800',
+        '900',
 
       letterSpacing:
         1,
     },
 
-    headerTitle: {
-      color:
-        '#231815',
-
+    title: {
       fontSize:
-        24,
+        21,
 
       fontWeight:
         '900',
 
-      marginTop:
-        2,
+      color:
+        '#30231F',
     },
 
-    headerSpacer: {
-      width:
-        42,
-    },
-
-    /* =====================================================
-     * Section
-     * ===================================================== */
-
-    sectionCard: {
+    card: {
       backgroundColor:
         '#FFFFFF',
 
@@ -1989,73 +1442,38 @@ const styles =
         1,
 
       borderColor:
-        '#EFE5E0',
+        '#EEE5E1',
 
       borderRadius:
-        17,
+        16,
 
       padding:
         14,
 
       marginBottom:
         13,
-
-      shadowColor:
-        '#503328',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          3,
-      },
-
-      shadowOpacity:
-        0.04,
-
-      shadowRadius:
-        8,
-
-      elevation:
-        2,
     },
 
-    sectionTitle: {
-      color:
-        '#2B1D18',
-
+    cardTitle: {
       fontSize:
-        18,
+        15,
 
       fontWeight:
         '900',
-    },
 
-    sectionSubtitle: {
       color:
-        '#928079',
-
-      fontSize:
-        8.5,
-
-      lineHeight:
-        13,
-
-      marginTop:
-        4,
+        '#30231F',
 
       marginBottom:
-        15,
+        12,
     },
-
-    /* =====================================================
-     * Address Type
-     * ===================================================== */
 
     typeRow: {
       flexDirection:
         'row',
+
+      gap:
+        8,
     },
 
     typeButton: {
@@ -2063,10 +1481,10 @@ const styles =
         1,
 
       minHeight:
-        46,
+        42,
 
-      flexDirection:
-        'row',
+      borderRadius:
+        11,
 
       alignItems:
         'center',
@@ -2075,290 +1493,132 @@ const styles =
         'center',
 
       backgroundColor:
-        '#FFF9F6',
+        '#F8F4F2',
 
       borderWidth:
         1,
 
       borderColor:
-        '#EFE4DE',
-
-      borderRadius:
-        12,
-
-      marginHorizontal:
-        3,
+        '#EDE4DF',
     },
 
-    typeButtonSelected: {
+    typeButtonActive: {
       backgroundColor:
-        '#FFF0E8',
+        '#A00B0F',
 
       borderColor:
-        '#D99170',
-    },
-
-    typeRadio: {
-      width:
-        15,
-
-      height:
-        15,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderWidth:
-        1.5,
-
-      borderColor:
-        '#B8AAA4',
-
-      borderRadius:
-        50,
-
-      marginRight:
-        6,
-    },
-
-    typeRadioSelected: {
-      borderColor:
-        '#A84B20',
-    },
-
-    typeRadioInner: {
-      width:
-        7,
-
-      height:
-        7,
-
-      backgroundColor:
-        '#A84B20',
-
-      borderRadius:
-        50,
+        '#A00B0F',
     },
 
     typeButtonText: {
       color:
-        '#71605A',
+        '#685A54',
 
       fontSize:
         9,
 
       fontWeight:
-        '700',
+        '900',
     },
 
-    typeButtonTextSelected: {
+    typeButtonTextActive: {
       color:
-        '#A84B20',
+        '#FFFFFF',
+    },
+
+    field: {
+      marginBottom:
+        12,
+    },
+
+    label: {
+      color:
+        '#554741',
+
+      fontSize:
+        9,
 
       fontWeight:
         '800',
-    },
-
-    /* =====================================================
-     * Fields
-     * ===================================================== */
-
-    fieldContainer: {
-      marginBottom:
-        14,
-    },
-
-    inputLabel: {
-      color:
-        '#4A3831',
-
-      fontSize:
-        10,
-
-      fontWeight:
-        '700',
 
       marginBottom:
-        7,
-    },
-
-    inputContainer: {
-      minHeight:
-        51,
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF9F6',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EDE2DC',
-
-      borderRadius:
-        13,
-    },
-
-    inputContainerError: {
-      borderColor:
-        '#A00B0F',
+        6,
     },
 
     input: {
       minHeight:
-        49,
+        47,
 
-      color:
-        '#2C201B',
-
-      fontSize:
-        10.5,
-
-      fontWeight:
-        '600',
-
-      paddingHorizontal:
-        13,
-
-      paddingVertical:
-        0,
-    },
-
-    errorText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        8,
-
-      fontWeight:
-        '600',
-
-      marginTop:
-        5,
-
-      marginLeft:
-        3,
-    },
-
-    doubleRow: {
-      flexDirection:
-        'row',
-    },
-
-    halfInput: {
-      flex:
-        1,
-    },
-
-    inputGap: {
-      width:
-        10,
-    },
-
-    /* =====================================================
-     * Instructions
-     * ===================================================== */
-
-    textAreaContainer: {
-      minHeight:
-        110,
-
-      backgroundColor:
-        '#FFF9F6',
+      borderRadius:
+        11,
 
       borderWidth:
         1,
 
       borderColor:
-        '#EDE2DC',
+        '#EAE1DD',
 
-      borderRadius:
-        13,
-    },
+      backgroundColor:
+        '#FBF8F6',
 
-    textArea: {
-      minHeight:
-        108,
-
-      color:
-        '#2C201B',
+      paddingHorizontal:
+        11,
 
       fontSize:
         10,
 
-      lineHeight:
-        16,
-
-      paddingHorizontal:
-        13,
-
-      paddingVertical:
-        12,
+      color:
+        '#332720',
     },
 
-    characterCount: {
+    inputError: {
+      borderColor:
+        '#D74747',
+    },
+
+    error: {
       color:
-        '#A99B95',
+        '#D74747',
 
       fontSize:
-        7.5,
-
-      textAlign:
-        'right',
+        7,
 
       marginTop:
-        5,
+        4,
     },
 
-    /* =====================================================
-     * Default
-     * ===================================================== */
-
-    defaultCard: {
-      minHeight:
-        76,
-
+    defaultRow: {
       flexDirection:
         'row',
 
       alignItems:
         'center',
 
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
+      borderTopWidth:
         1,
 
-      borderColor:
-        '#EFE5E0',
+      borderTopColor:
+        '#EEE6E2',
 
-      borderRadius:
-        16,
-
-      paddingHorizontal:
+      paddingTop:
         12,
 
-      paddingVertical:
-        11,
-
-      marginBottom:
-        14,
+      marginTop:
+        4,
     },
 
-    defaultIconContainer: {
+    defaultIconBox: {
       width:
-        43,
+        40,
 
       height:
-        43,
+        40,
+
+      borderRadius:
+        11,
+
+      backgroundColor:
+        '#FFF0F0',
 
       alignItems:
         'center',
@@ -2366,497 +1626,68 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#FFF0E8',
-
-      borderRadius:
-        12,
-
       marginRight:
-        11,
+        10,
     },
 
     defaultIcon: {
       width:
-        21,
+        19,
 
       height:
-        21,
-    },
-
-    defaultDetails: {
-      flex:
-        1,
-
-      paddingRight:
-        8,
+        19,
     },
 
     defaultTitle: {
       color:
-        '#30231E',
+        '#3A2D27',
 
       fontSize:
-        11,
+        9,
 
       fontWeight:
-        '800',
+        '900',
     },
 
     defaultSubtitle: {
       color:
-        '#908079',
+        '#94847E',
 
       fontSize:
-        8,
-
-      lineHeight:
-        12,
+        7,
 
       marginTop:
-        4,
+        3,
     },
-
-    /* =====================================================
-     * General Error
-     * ===================================================== */
-
-    generalErrorBox: {
-      width:
-        '100%',
-
-      backgroundColor:
-        '#FFF1F1',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#F0CECE',
-
-      borderRadius:
-        11,
-
-      padding:
-        10,
-
-      marginBottom:
-        10,
-    },
-
-    generalErrorText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        9,
-
-      lineHeight:
-        14,
-
-      fontWeight:
-        '700',
-
-      textAlign:
-        'center',
-    },
-
-    /* =====================================================
-     * Buttons
-     * ===================================================== */
 
     saveButton: {
       minHeight:
-        54,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
+        52,
 
       backgroundColor:
         '#A00B0F',
 
       borderRadius:
-        14,
-
-      marginTop:
-        3,
-
-      shadowColor:
-        '#A00B0F',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          4,
-      },
-
-      shadowOpacity:
-        0.15,
-
-      shadowRadius:
-        8,
-
-      elevation:
-        3,
-    },
-
-    saveButtonDisabled: {
-      opacity:
-        0.6,
-    },
-
-    saveButtonText: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        15,
-
-      fontWeight:
-        '800',
-    },
-
-    cancelButton: {
-      minHeight:
-        48,
+        13,
 
       alignItems:
         'center',
 
       justifyContent:
         'center',
-
-      marginTop:
-        5,
-    },
-
-    cancelText: {
-      color:
-        '#8E7770',
-
-      fontSize:
-        11,
-
-      fontWeight:
-        '700',
-    },
-
-    /* =====================================================
-     * Success Popup
-     * ===================================================== */
-
-    successOverlay: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(28, 19, 17, 0.62)',
-
-      paddingHorizontal:
-        22,
-    },
-
-    successPopupCard: {
-      width:
-        '100%',
-
-      maxWidth:
-        380,
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderRadius:
-        26,
-
-      paddingHorizontal:
-        22,
-
-      paddingTop:
-        27,
-
-      paddingBottom:
-        21,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          10,
-      },
-
-      shadowOpacity:
-        0.22,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        18,
-    },
-
-    successIconOuter: {
-      width:
-        84,
-
-      height:
-        84,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#EDF8F1',
-
-      borderRadius:
-        42,
 
       marginBottom:
-        15,
-    },
-
-    successIconInner: {
-      width:
-        58,
-
-      height:
-        58,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#27905B',
-
-      borderRadius:
-        29,
-    },
-
-    successCheck: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        31,
-
-      lineHeight:
-        34,
-
-      fontWeight:
-        '900',
-    },
-
-    successPopupTitle: {
-      color:
-        '#281C19',
-
-      fontSize:
         20,
-
-      fontWeight:
-        '900',
-
-      textAlign:
-        'center',
     },
 
-    successPopupDescription: {
-      maxWidth:
-        290,
-
-      color:
-        '#766B67',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        16,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        7,
-    },
-
-    /* =====================================================
-     * Saved Address Preview
-     * ===================================================== */
-
-    savedAddressPreview: {
-      width:
-        '100%',
-
-      backgroundColor:
-        '#FFF9F6',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EEE3DE',
-
-      borderRadius:
-        13,
-
-      padding:
-        12,
-
-      marginTop:
-        17,
-    },
-
-    savedAddressTopRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-    },
-
-    savedAddressType: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '900',
-
-      textTransform:
-        'uppercase',
-
-      letterSpacing:
-        0.4,
-    },
-
-    savedDefaultBadge: {
-      backgroundColor:
-        '#FBE4D8',
-
-      borderRadius:
-        12,
-
-      paddingHorizontal:
-        7,
-
-      paddingVertical:
-        3,
-
-      marginLeft:
-        7,
-    },
-
-    savedDefaultBadgeText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        7,
-
-      fontWeight:
-        '800',
-    },
-
-    savedAddressName: {
-      color:
-        '#30231E',
-
-      fontSize:
-        11,
-
-      fontWeight:
-        '900',
-
-      marginTop:
-        7,
-    },
-
-    savedAddressPhone: {
-      color:
-        '#A84B20',
-
-      fontSize:
-        8.5,
-
-      fontWeight:
-        '700',
-
-      marginTop:
-        3,
-    },
-
-    savedAddressText: {
-      color:
-        '#82736D',
-
-      fontSize:
-        9,
-
-      lineHeight:
-        14,
-
-      marginTop:
-        4,
-    },
-
-    successDoneButton: {
-      width:
-        '100%',
-
-      minHeight:
-        49,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        13,
-
-      marginTop:
-        19,
-    },
-
-    successDoneText: {
+    saveText: {
       color:
         '#FFFFFF',
 
-      fontSize:
-        10,
-
       fontWeight:
         '900',
+
+      fontSize:
+        10,
     },
   });

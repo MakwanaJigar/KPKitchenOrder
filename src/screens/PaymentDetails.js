@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useMemo,
   useState,
 } from 'react';
@@ -6,7 +7,6 @@ import React, {
 import {
   ActivityIndicator,
   Image,
-  Linking,
   Modal,
   Platform,
   Pressable,
@@ -23,6 +23,10 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
+import {
+  useFocusEffect,
+} from '@react-navigation/native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -34,39 +38,35 @@ import {
 } from '@stripe/stripe-react-native';
 
 /* =========================================================
- * CONFIGURATION
+ * CONFIG
  * ========================================================= */
 
-const UPI_MERCHANT_VPA =
-  'YOUR_UPI_ID@bank';
-
-const UPI_MERCHANT_NAME =
+const BUSINESS_NAME =
   'KP Cloud Kitchen';
 
-const UPI_MERCHANT_CODE =
-  '5812';
+const DEFAULT_CURRENCY =
+  'AUD';
 
-const GOOGLE_PAY_MERCHANT_COUNTRY =
-  'US';
-
-/* =========================================================
- * STORAGE
- * ========================================================= */
-
-const CART_STORAGE_KEY =
-  'kp_customer_cart';
+const MERCHANT_COUNTRY =
+  'AU';
 
 /* =========================================================
- * APIs
+ * LOCAL STORAGE
+ *
+ * Order.js should append every successfully created order
+ * to this storage key.
  * ========================================================= */
 
-const getCreateOrderPaymentIntentApi =
-  orderId =>
-    `https://replete-software.com/projects/kp_admin/api/customer/orders/${orderId}/create-payment-intent`;
+const WEEKLY_ORDERS_STORAGE_KEY =
+  'kp_customer_weekly_orders';
 
-const getConfirmOrderApi =
-  orderId =>
-    `https://replete-software.com/projects/kp_admin/api/customer/orders/${orderId}/confirm`;
+/* =========================================================
+ * WEEKLY BILL PAYMENT APIs
+ *
+ * IMPORTANT:
+ * Payment is now only against generated weekly invoices.
+ * Individual order payments are not used here.
+ * ========================================================= */
 
 const getCreateBillPaymentIntentApi =
   billId =>
@@ -75,6 +75,169 @@ const getCreateBillPaymentIntentApi =
 const getConfirmBillPaymentApi =
   billId =>
     `https://replete-software.com/projects/kp_admin/api/customer/weekly-bills/${billId}/confirm-payment`;
+
+/* =========================================================
+ * MONEY
+ * ========================================================= */
+
+const parseMoney =
+  value => {
+    const number =
+      Number(
+        String(
+          value ?? 0,
+        ).replace(
+          /[^0-9.-]/g,
+          '',
+        ),
+      );
+
+    return Number.isFinite(
+      number,
+    )
+      ? number
+      : 0;
+  };
+
+/* =========================================================
+ * GET ORDER TOTAL
+ * ========================================================= */
+
+const getOrderTotal =
+  order => {
+    return parseMoney(
+      order?.total_amount ??
+        order?.totalAmount ??
+        order?.grand_total ??
+        order?.grandTotal ??
+        order?.total ??
+        order?.amount ??
+        order?.order_total ??
+        order?.orderTotal ??
+        0,
+    );
+  };
+
+/* =========================================================
+ * GET ORDER DATE
+ * ========================================================= */
+
+const getOrderDate =
+  order => {
+    const rawDate =
+      order?.created_at ??
+      order?.createdAt ??
+      order?.order_date ??
+      order?.orderDate ??
+      order?.placed_at ??
+      order?.placedAt ??
+      order?.date ??
+      null;
+
+    if (!rawDate) {
+      return null;
+    }
+
+    const date =
+      new Date(
+        rawDate,
+      );
+
+    if (
+      Number.isNaN(
+        date.getTime(),
+      )
+    ) {
+      return null;
+    }
+
+    return date;
+  };
+
+/* =========================================================
+ * CURRENT BILLING CYCLE
+ *
+ * Cycle:
+ *
+ * Tuesday → Monday
+ *
+ * Orders are normally placed Tuesday → Sunday.
+ * Monday is invoice generation/payment day.
+ * ========================================================= */
+
+const getCurrentBillingCycle =
+  () => {
+    const now =
+      new Date();
+
+    /*
+     * JavaScript:
+     *
+     * Sunday    = 0
+     * Monday    = 1
+     * Tuesday   = 2
+     * ...
+     */
+
+    const day =
+      now.getDay();
+
+    const daysSinceTuesday =
+      (
+        day -
+        2 +
+        7
+      ) %
+      7;
+
+    const start =
+      new Date(
+        now,
+      );
+
+    start.setDate(
+      now.getDate() -
+        daysSinceTuesday,
+    );
+
+    start.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
+
+    return {
+      start,
+
+      now,
+    };
+  };
+
+/* =========================================================
+ * FORMAT DATE
+ * ========================================================= */
+
+const formatDate =
+  date => {
+    if (!date) {
+      return '';
+    }
+
+    return date.toLocaleDateString(
+      'en-AU',
+      {
+        day:
+          '2-digit',
+
+        month:
+          'short',
+
+        year:
+          'numeric',
+      },
+    );
+  };
 
 /* =========================================================
  * PAYMENT DETAILS
@@ -90,57 +253,61 @@ const PaymentDetails = ({
     useWindowDimensions();
 
   /* =======================================================
-   * ROUTE PARAMS
+   * ROUTE DATA
+   *
+   * WeeklyInvoice page should send:
+   *
+   * billId
+   * billNumber
+   * balanceAmount / totalAmount
+   * invoiceGenerated
+   * currency
    * ======================================================= */
 
-  const orderId =
-    route?.params?.orderId ??
-    null;
-
   const billId =
-    route?.params?.billId ??
+    route?.params
+      ?.billId ??
     null;
-
-  const isWeeklyBill =
-    Boolean(
-      route?.params
-        ?.isWeeklyBill,
-    );
 
   const billNumber =
     route?.params
       ?.billNumber ??
     null;
 
-  const totalAmount =
-    Number(
+  const routeInvoiceGenerated =
+    route?.params
+      ?.invoiceGenerated;
+
+  const serverBillAmount =
+    parseMoney(
+      route?.params
+        ?.balanceAmount ??
       route?.params
         ?.totalAmount ??
-        route?.params
-          ?.balanceAmount ??
-        0,
-    );
-
-  const subtotal =
-    Number(
-      route?.params
-        ?.subtotal ??
-        totalAmount,
-    );
-
-  const deliveryFee =
-    Number(
-      route?.params
-        ?.deliveryFee ??
-        0,
+      0,
     );
 
   const currency =
     String(
       route?.params
         ?.currency ??
-        'AUD',
+      DEFAULT_CURRENCY,
     ).toUpperCase();
+
+  /* =======================================================
+   * AUTHORITATIVE INVOICE STATUS
+   *
+   * A Monday date by itself does NOT allow payment.
+   *
+   * billId must exist.
+   * ======================================================= */
+
+  const invoiceGenerated =
+    Boolean(
+      billId,
+    ) &&
+    routeInvoiceGenerated !==
+      false;
 
   /* =======================================================
    * STRIPE
@@ -159,8 +326,20 @@ const PaymentDetails = ({
     usePlatformPay();
 
   /* =======================================================
-   * STATES
+   * STATE
    * ======================================================= */
+
+  const [
+    weeklyOrders,
+    setWeeklyOrders,
+  ] =
+    useState([]);
+
+  const [
+    loadingOrders,
+    setLoadingOrders,
+  ] =
+    useState(true);
 
   const [
     processingMethod,
@@ -204,17 +383,6 @@ const PaymentDetails = ({
       message:
         '',
 
-      /*
-       * NEW
-       *
-       * If image exists,
-       * popup will show image
-       * instead of Ionicon.
-       */
-
-      image:
-        null,
-
       primaryText:
         'OK',
 
@@ -236,15 +404,13 @@ const PaymentDetails = ({
     useMemo(
       () => {
         const isTablet =
-          width >=
-          768;
+          width >= 768;
 
         return {
           contentWidth:
             isTablet
               ? Math.min(
-                  width -
-                    80,
+                  width - 80,
                   720,
                 )
               : width,
@@ -260,13 +426,42 @@ const PaymentDetails = ({
       ],
     );
 
-  const isProcessing =
-    Boolean(
-      processingMethod,
+  /* =======================================================
+   * CURRENT DAY
+   * ======================================================= */
+
+  const today =
+    new Date();
+
+  const currentDay =
+    today.getDay();
+
+  const isMonday =
+    currentDay === 1;
+
+  const isSunday =
+    currentDay === 0;
+
+  const isTuesdayToSunday =
+    currentDay === 0 ||
+    (
+      currentDay >= 2 &&
+      currentDay <= 6
     );
 
   /* =======================================================
-   * CUSTOM POPUP HELPER
+   * BILLING CYCLE
+   * ======================================================= */
+
+  const billingCycle =
+    useMemo(
+      () =>
+        getCurrentBillingCycle(),
+      [],
+    );
+
+  /* =======================================================
+   * POPUP
    * ======================================================= */
 
   const showPopup =
@@ -277,9 +472,6 @@ const PaymentDetails = ({
       title,
 
       message,
-
-      image =
-        null,
 
       primaryText =
         'OK',
@@ -299,8 +491,6 @@ const PaymentDetails = ({
         title,
 
         message,
-
-        image,
 
         primaryText,
 
@@ -368,58 +558,289 @@ const PaymentDetails = ({
     };
 
   /* =======================================================
-   * VALIDATE PAYMENT DATA
+   * LOAD CURRENT WEEK ORDERS
+   *
+   * This screen reloads this data every time it gets focus.
+   *
+   * Therefore:
+   *
+   * Place new order
+   *     ↓
+   * Order.js saves weekly order
+   *     ↓
+   * Open this page
+   *     ↓
+   * Amount immediately reflects new order
+   * ======================================================= */
+
+  const loadWeeklyOrders =
+    async () => {
+      try {
+        setLoadingOrders(
+          true,
+        );
+
+        const stored =
+          await AsyncStorage.getItem(
+            WEEKLY_ORDERS_STORAGE_KEY,
+          );
+
+        if (!stored) {
+          setWeeklyOrders([]);
+
+          return;
+        }
+
+        const parsed =
+          JSON.parse(
+            stored,
+          );
+
+        const orders =
+          Array.isArray(
+            parsed,
+          )
+            ? parsed
+            : [];
+
+        /*
+         * Only use orders belonging to current
+         * Tuesday → Monday billing cycle.
+         *
+         * If an older locally stored order has no date,
+         * keep it because its cycle cannot be determined.
+         */
+
+        const currentCycleOrders =
+          orders.filter(
+            order => {
+              const orderDate =
+                getOrderDate(
+                  order,
+                );
+
+              if (!orderDate) {
+                return true;
+              }
+
+              return (
+                orderDate >=
+                  billingCycle.start &&
+                orderDate <=
+                  billingCycle.now
+              );
+            },
+          );
+
+        setWeeklyOrders(
+          currentCycleOrders,
+        );
+      } catch (error) {
+        console.log(
+          'LOAD WEEKLY ORDERS ERROR:',
+          error,
+        );
+
+        setWeeklyOrders([]);
+      } finally {
+        setLoadingOrders(
+          false,
+        );
+      }
+    };
+
+  /* =======================================================
+   * RELOAD ON FOCUS
+   * ======================================================= */
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        loadWeeklyOrders();
+      },
+      [],
+    ),
+  );
+
+  /* =======================================================
+   * CURRENT WEEK ORDER TOTAL
+   * ======================================================= */
+
+  const currentOrdersTotal =
+    useMemo(
+      () => {
+        return weeklyOrders.reduce(
+          (
+            total,
+            order,
+          ) =>
+            total +
+            getOrderTotal(
+              order,
+            ),
+          0,
+        );
+      },
+      [
+        weeklyOrders,
+      ],
+    );
+
+  /* =======================================================
+   * CURRENT WEEK ORDER COUNT
+   * ======================================================= */
+
+  const currentOrderCount =
+    weeklyOrders.length;
+
+  /* =======================================================
+   * DISPLAY AMOUNT
+   *
+   * Before invoice:
+   * show accumulated order amount.
+   *
+   * After invoice:
+   * use server invoice amount.
+   *
+   * If server amount is not supplied, use local accrued
+   * amount as visual fallback.
+   * ======================================================= */
+
+  const invoiceAmount =
+    invoiceGenerated &&
+    serverBillAmount > 0
+      ? serverBillAmount
+      : currentOrdersTotal;
+
+  /* =======================================================
+   * PAYMENT ALLOWED
+   *
+   * CRITICAL:
+   *
+   * Must have generated invoice/billId.
+   * ======================================================= */
+
+  const paymentAllowed =
+    invoiceGenerated &&
+    Boolean(
+      billId,
+    ) &&
+    invoiceAmount > 0;
+
+  const isProcessing =
+    Boolean(
+      processingMethod,
+    );
+
+  /* =======================================================
+   * STATUS MESSAGE
+   * ======================================================= */
+
+  const billingStatus =
+    useMemo(
+      () => {
+        if (
+          invoiceGenerated
+        ) {
+          return {
+            title:
+              'Invoice Ready',
+
+            text:
+              'Your Monday invoice has been generated. You can now pay the outstanding weekly balance.',
+
+            icon:
+              'document-text-outline',
+
+            type:
+              'ready',
+          };
+        }
+
+        if (
+          isMonday
+        ) {
+          return {
+            title:
+              'Invoice Generation Pending',
+
+            text:
+              'Today is invoice day. Payment will become available once the Monday invoice has been generated by the server.',
+
+            icon:
+              'time-outline',
+
+            type:
+              'waiting',
+          };
+        }
+
+        return {
+          title:
+            'Weekly Total Building',
+
+          text:
+            'You can continue placing orders Tuesday through Sunday. Your running total is shown here, but payment stays locked until Monday’s invoice is generated.',
+
+          icon:
+            'calendar-outline',
+
+          type:
+            'building',
+        };
+      },
+      [
+        invoiceGenerated,
+        isMonday,
+      ],
+    );
+
+  /* =======================================================
+   * VALIDATE PAYMENT
    * ======================================================= */
 
   const validatePaymentData =
     () => {
+      /*
+       * No bill = absolutely no payment.
+       */
+
       if (
-        !orderId &&
+        !invoiceGenerated ||
         !billId
       ) {
         showPopup({
           type:
-            'error',
+            'warning',
 
           title:
-            'Payment Reference Missing',
+            'Invoice Not Generated',
 
           message:
-            'The order or weekly bill reference was not supplied. Please return and try again.',
-
-          /*
-           * NEW IMAGE
-           */
-
-          image:
-            require('../assets/login-icons/wallet.png'),
+            isMonday
+              ? 'Your weekly invoice has not been generated yet. Payment will unlock automatically after the invoice is available.'
+              : 'Payment is not available before the Monday weekly invoice is generated. You can continue placing orders and viewing your running weekly total.',
 
           primaryText:
-            'Go Back',
-
-          onPrimary:
-            () => {
-              navigation.goBack();
-            },
+            'OK',
         });
 
         return false;
       }
 
       if (
-        !totalAmount ||
-        totalAmount <=
-          0
+        !invoiceAmount ||
+        invoiceAmount <= 0
       ) {
         showPopup({
           type:
-            'error',
+            'warning',
 
           title:
-            'Invalid Amount',
+            'Nothing to Pay',
 
           message:
-            'There is no valid outstanding amount available for this payment.',
+            'There is currently no outstanding amount on this weekly invoice.',
         });
 
         return false;
@@ -429,7 +850,7 @@ const PaymentDetails = ({
     };
 
   /* =======================================================
-   * CREATE STRIPE PAYMENT INTENT
+   * CREATE WEEKLY BILL PAYMENT INTENT
    * ======================================================= */
 
   const createStripePaymentIntent =
@@ -438,7 +859,7 @@ const PaymentDetails = ({
         !validatePaymentData()
       ) {
         throw new Error(
-          'Invalid payment data.',
+          'Weekly invoice is not ready for payment.',
         );
       }
 
@@ -447,46 +868,30 @@ const PaymentDetails = ({
           'token',
         );
 
-      if (
-        !token
-      ) {
+      if (!token) {
         throw new Error(
           'Your login session has expired. Please login again.',
         );
       }
 
       const api =
-        isWeeklyBill
-          ? getCreateBillPaymentIntentApi(
-              billId,
-            )
-          : getCreateOrderPaymentIntentApi(
-              orderId,
-            );
+        getCreateBillPaymentIntentApi(
+          billId,
+        );
 
       console.log(
-        '==============================================',
-      );
-
-      console.log(
-        'CREATE PAYMENT INTENT API:',
+        'CREATE WEEKLY BILL PAYMENT INTENT:',
         api,
       );
 
       console.log(
-        'PAYMENT TYPE:',
-        isWeeklyBill
-          ? 'WEEKLY BILL'
-          : 'ORDER',
+        'BILL ID:',
+        billId,
       );
 
       console.log(
-        'AMOUNT:',
-        totalAmount,
-      );
-
-      console.log(
-        '==============================================',
+        'BILL AMOUNT:',
+        invoiceAmount,
       );
 
       const response =
@@ -509,20 +914,15 @@ const PaymentDetails = ({
 
             body:
               JSON.stringify({
-                order_id:
-                  orderId,
-
                 bill_id:
                   billId,
 
                 payable_type:
-                  isWeeklyBill
-                    ? 'weekly_bill'
-                    : 'order',
+                  'weekly_bill',
 
                 amount:
                   Number(
-                    totalAmount.toFixed(
+                    invoiceAmount.toFixed(
                       2,
                     ),
                   ),
@@ -539,17 +939,13 @@ const PaymentDetails = ({
       let result =
         {};
 
-      if (
-        responseText
-      ) {
+      if (responseText) {
         try {
           result =
             JSON.parse(
               responseText,
             );
-        } catch (
-          error
-        ) {
+        } catch (error) {
           console.log(
             'RAW PAYMENT RESPONSE:',
             responseText,
@@ -560,16 +956,6 @@ const PaymentDetails = ({
           );
         }
       }
-
-      console.log(
-        'PAYMENT INTENT STATUS:',
-        response.status,
-      );
-
-      console.log(
-        'PAYMENT INTENT RESULT:',
-        result,
-      );
 
       if (
         response.status ===
@@ -597,9 +983,7 @@ const PaymentDetails = ({
         );
       }
 
-      if (
-        !response.ok
-      ) {
+      if (!response.ok) {
         throw new Error(
           result?.message ??
             result?.error ??
@@ -618,7 +1002,7 @@ const PaymentDetails = ({
           ?.client_secret ??
         null;
 
-      const intentId =
+      const paymentIntentId =
         result
           ?.payment_intent_id ??
         result?.data
@@ -629,50 +1013,29 @@ const PaymentDetails = ({
         null;
 
       if (
-        !clientSecret
+        !clientSecret ||
+        typeof clientSecret !==
+          'string'
       ) {
         throw new Error(
           'Stripe client secret was not returned by the server.',
         );
       }
 
-      if (
-        typeof clientSecret !==
-        'string'
-      ) {
-        throw new Error(
-          'Invalid Stripe client secret.',
-        );
-      }
-
-      if (
-        !clientSecret.startsWith(
-          'pi_',
-        ) ||
-        !clientSecret.includes(
-          '_secret_',
-        )
-      ) {
-        throw new Error(
-          'Invalid Stripe PaymentIntent client secret.',
-        );
-      }
-
       return {
         clientSecret,
 
-        paymentIntentId:
-          intentId,
+        paymentIntentId,
       };
     };
 
   /* =======================================================
-   * CONFIRM PAYMENT
+   * CONFIRM WEEKLY BILL PAYMENT
    * ======================================================= */
 
   const confirmPayment =
     async ({
-      currentPaymentIntentId,
+      paymentIntentId,
 
       paymentMethod,
     }) => {
@@ -681,27 +1044,16 @@ const PaymentDetails = ({
           'token',
         );
 
-      if (
-        !token
-      ) {
+      if (!token) {
         throw new Error(
           'Your session has expired. Please login again.',
         );
       }
 
       const api =
-        isWeeklyBill
-          ? getConfirmBillPaymentApi(
-              billId,
-            )
-          : getConfirmOrderApi(
-              orderId,
-            );
-
-      console.log(
-        'CONFIRM PAYMENT API:',
-        api,
-      );
+        getConfirmBillPaymentApi(
+          billId,
+        );
 
       const response =
         await fetch(
@@ -724,16 +1076,13 @@ const PaymentDetails = ({
             body:
               JSON.stringify({
                 payment_intent_id:
-                  currentPaymentIntentId,
+                  paymentIntentId,
 
                 payment_method:
                   paymentMethod,
 
                 bill_id:
                   billId,
-
-                order_id:
-                  orderId,
               }),
           },
         );
@@ -744,22 +1093,13 @@ const PaymentDetails = ({
       let result =
         {};
 
-      if (
-        responseText
-      ) {
+      if (responseText) {
         try {
           result =
             JSON.parse(
               responseText,
             );
-        } catch (
-          error
-        ) {
-          console.log(
-            'RAW CONFIRM RESPONSE:',
-            responseText,
-          );
-
+        } catch (error) {
           throw new Error(
             'Invalid payment confirmation response.',
           );
@@ -775,9 +1115,7 @@ const PaymentDetails = ({
         );
       }
 
-      if (
-        !response.ok
-      ) {
+      if (!response.ok) {
         throw new Error(
           result?.message ??
             result?.error ??
@@ -804,13 +1142,18 @@ const PaymentDetails = ({
 
   const completePayment =
     async paymentMethod => {
-      if (
-        !isWeeklyBill
-      ) {
-        await AsyncStorage.removeItem(
-          CART_STORAGE_KEY,
-        );
-      }
+      /*
+       * Weekly order history is cleared locally only
+       * after successful weekly bill payment.
+       *
+       * This starts a fresh local running balance.
+       */
+
+      await AsyncStorage.removeItem(
+        WEEKLY_ORDERS_STORAGE_KEY,
+      );
+
+      setWeeklyOrders([]);
 
       setSuccessfulMethod(
         paymentMethod,
@@ -828,12 +1171,7 @@ const PaymentDetails = ({
   const handleCardPayment =
     async () => {
       if (
-        isProcessing
-      ) {
-        return;
-      }
-
-      if (
+        isProcessing ||
         !validatePaymentData()
       ) {
         return;
@@ -853,11 +1191,10 @@ const PaymentDetails = ({
         } =
           await initPaymentSheet({
             merchantDisplayName:
-              'KP Cloud Kitchen',
+              BUSINESS_NAME,
 
             paymentIntentClientSecret:
-              paymentData
-                .clientSecret,
+              paymentData.clientSecret,
 
             allowsDelayedPaymentMethods:
               false,
@@ -870,9 +1207,7 @@ const PaymentDetails = ({
             },
           });
 
-        if (
-          initError
-        ) {
+        if (initError) {
           throw new Error(
             initError?.message ??
               'Unable to initialize card payment.',
@@ -885,13 +1220,10 @@ const PaymentDetails = ({
         } =
           await presentPaymentSheet();
 
-        if (
-          paymentError
-        ) {
+        if (paymentError) {
           const code =
             String(
-              paymentError
-                ?.code ??
+              paymentError?.code ??
                 '',
             ).toLowerCase();
 
@@ -911,7 +1243,7 @@ const PaymentDetails = ({
         }
 
         await confirmPayment({
-          currentPaymentIntentId:
+          paymentIntentId:
             paymentData
               .paymentIntentId,
 
@@ -922,9 +1254,7 @@ const PaymentDetails = ({
         await completePayment(
           'Card',
         );
-      } catch (
-        error
-      ) {
+      } catch (error) {
         console.log(
           'CARD PAYMENT ERROR:',
           error,
@@ -955,12 +1285,7 @@ const PaymentDetails = ({
   const handleGooglePay =
     async () => {
       if (
-        isProcessing
-      ) {
-        return;
-      }
-
-      if (
+        isProcessing ||
         !validatePaymentData()
       ) {
         return;
@@ -997,9 +1322,7 @@ const PaymentDetails = ({
             },
           });
 
-        if (
-          !supported
-        ) {
+        if (!supported) {
           throw new Error(
             'Google Pay is not available on this device.',
           );
@@ -1012,43 +1335,38 @@ const PaymentDetails = ({
           error,
         } =
           await confirmPlatformPayPayment(
-            paymentData
-              .clientSecret,
-
+            paymentData.clientSecret,
             {
               googlePay: {
                 testEnv:
                   __DEV__,
 
                 merchantName:
-                  'KP Cloud Kitchen',
+                  BUSINESS_NAME,
 
                 merchantCountryCode:
-                  GOOGLE_PAY_MERCHANT_COUNTRY,
+                  MERCHANT_COUNTRY,
 
                 currencyCode:
                   currency,
 
-                billingAddressConfig:
-                  {
-                    format:
-                      PlatformPay
-                        .BillingAddressFormat
-                        .Full,
+                billingAddressConfig: {
+                  format:
+                    PlatformPay
+                      .BillingAddressFormat
+                      .Full,
 
-                    isPhoneNumberRequired:
-                      false,
+                  isPhoneNumberRequired:
+                    false,
 
-                    isRequired:
-                      false,
-                  },
+                  isRequired:
+                    false,
+                },
               },
             },
           );
 
-        if (
-          error
-        ) {
+        if (error) {
           const code =
             String(
               error?.code ??
@@ -1071,7 +1389,7 @@ const PaymentDetails = ({
         }
 
         await confirmPayment({
-          currentPaymentIntentId:
+          paymentIntentId:
             paymentData
               .paymentIntentId,
 
@@ -1082,9 +1400,7 @@ const PaymentDetails = ({
         await completePayment(
           'Google Pay',
         );
-      } catch (
-        error
-      ) {
+      } catch (error) {
         console.log(
           'GOOGLE PAY ERROR:',
           error,
@@ -1109,414 +1425,139 @@ const PaymentDetails = ({
     };
 
   /* =======================================================
-   * UPI VALIDATION
-   * ======================================================= */
-
-  const validateUpiPayment =
-    () => {
-      if (
-        !validatePaymentData()
-      ) {
-        return false;
-      }
-
-      if (
-        currency !==
-        'INR'
-      ) {
-        showPopup({
-          type:
-            'warning',
-
-          title:
-            'UPI Not Available',
-
-          message:
-            `PhonePe, CRED and UPI require an INR transaction. This bill is currently in ${currency}.`,
-        });
-
-        return false;
-      }
-
-      if (
-        UPI_MERCHANT_VPA.includes(
-          'YOUR_UPI_ID',
-        )
-      ) {
-        showPopup({
-          type:
-            'warning',
-
-          title:
-            'UPI Setup Required',
-
-          message:
-            'Please configure your verified merchant UPI ID before using PhonePe, CRED or other UPI applications.',
-        });
-
-        return false;
-      }
-
-      return true;
-    };
-
-  /* =======================================================
-   * BUILD UPI
-   * ======================================================= */
-
-  const buildUpiQuery =
-    () => {
-      const transactionRef =
-        `${
-          isWeeklyBill
-            ? `BILL-${billId}`
-            : `ORDER-${orderId}`
-        }-${Date.now()}`;
-
-      return [
-        `pa=${encodeURIComponent(
-          UPI_MERCHANT_VPA,
-        )}`,
-
-        `pn=${encodeURIComponent(
-          UPI_MERCHANT_NAME,
-        )}`,
-
-        `mc=${encodeURIComponent(
-          UPI_MERCHANT_CODE,
-        )}`,
-
-        `tr=${encodeURIComponent(
-          transactionRef,
-        )}`,
-
-        `tn=${encodeURIComponent(
-          isWeeklyBill
-            ? `Weekly bill ${
-                billNumber ??
-                billId
-              }`
-            : `Order ${orderId}`,
-        )}`,
-
-        `am=${encodeURIComponent(
-          totalAmount.toFixed(
-            2,
-          ),
-        )}`,
-
-        'cu=INR',
-      ].join(
-        '&',
-      );
-    };
-
-  /* =======================================================
-   * GENERIC UPI
-   * ======================================================= */
-
-  const openGenericUpi =
-    async () => {
-      const url =
-        `upi://pay?${buildUpiQuery()}`;
-
-      await Linking.openURL(
-        url,
-      );
-    };
-
-  /* =======================================================
-   * OPEN SPECIFIC UPI APP
-   * ======================================================= */
-
-  const openAndroidUpiApp =
-    async ({
-      packageName,
-    }) => {
-      const query =
-        buildUpiQuery();
-
-      const intentUrl =
-        `intent://pay?${query}` +
-        `#Intent;scheme=upi;package=${packageName};end`;
-
-      try {
-        await Linking.openURL(
-          intentUrl,
-        );
-
-        return true;
-      } catch (
-        error
-      ) {
-        console.log(
-          'DIRECT UPI ERROR:',
-          error,
-        );
-
-        return false;
-      }
-    };
-
-  /* =======================================================
-   * APPLE PAY BUTTON
-   *
-   * NOTE:
-   * Your current code is using
-   * the old PhonePe Android UPI handler here.
+   * APPLE PAY
    * ======================================================= */
 
   const handleApplePay =
     async () => {
       if (
         isProcessing ||
-        !validateUpiPayment()
+        !validatePaymentData()
       ) {
         return;
       }
 
-      try {
-        setProcessingMethod(
-          'phonepe',
-        );
-
-        let opened =
-          false;
-
-        if (
-          Platform.OS ===
-          'android'
-        ) {
-          opened =
-            await openAndroidUpiApp({
-              packageName:
-                'com.phonepe.app',
-            });
-        }
-
-        if (
-          !opened
-        ) {
-          showPopup({
-            type:
-              'info',
-
-            title:
-              'Open UPI App',
-
-            message:
-              'PhonePe could not be opened directly. Would you like to choose another installed UPI application?',
-
-            primaryText:
-              'Continue',
-
-            secondaryText:
-              'Cancel',
-
-            onPrimary:
-              async () => {
-                try {
-                  await openGenericUpi();
-                } catch (
-                  error
-                ) {
-                  showPopup({
-                    type:
-                      'error',
-
-                    title:
-                      'PhonePe',
-
-                    message:
-                      'No compatible UPI application was found.',
-                  });
-                }
-              },
-          });
-
-          return;
-        }
-
-        showPopup({
-          type:
-            'info',
-
-          title:
-            'Complete Payment',
-
-          message:
-            'PhonePe has been opened. Complete the payment there. Your outstanding balance will remain until the server verifies the transaction.',
-        });
-      } catch (
-        error
-      ) {
-        showPopup({
-          type:
-            'error',
-
-          title:
-            'PhonePe',
-
-          message:
-            error?.message ??
-            'Unable to open PhonePe.',
-        });
-      } finally {
-        setProcessingMethod(
-          null,
-        );
-      }
-    };
-
-  /* =======================================================
-   * CRED
-   * ======================================================= */
-
-  const handleCred =
-    async () => {
       if (
-        isProcessing ||
-        !validateUpiPayment()
+        Platform.OS !==
+        'ios'
       ) {
+        showPopup({
+          type:
+            'info',
+
+          title:
+            'Apple Pay',
+
+          message:
+            'Apple Pay is available from the iOS version of this application.',
+        });
+
         return;
       }
 
       try {
         setProcessingMethod(
-          'cred',
+          'apple',
         );
 
-        let opened =
-          false;
+        const supported =
+          await isPlatformPaySupported();
 
-        if (
-          Platform.OS ===
-          'android'
-        ) {
-          opened =
-            await openAndroidUpiApp({
-              packageName:
-                'com.dreamplug.androidapp',
-            });
+        if (!supported) {
+          throw new Error(
+            'Apple Pay is not available on this device.',
+          );
         }
 
-        if (
-          !opened
-        ) {
-          showPopup({
-            type:
-              'info',
+        const paymentData =
+          await createStripePaymentIntent();
 
-            title:
-              'Open UPI App',
+        const {
+          error,
+        } =
+          await confirmPlatformPayPayment(
+            paymentData.clientSecret,
+            {
+              applePay: {
+                merchantCountryCode:
+                  MERCHANT_COUNTRY,
 
-            message:
-              'CRED could not be opened directly. Would you like to choose another installed UPI application?',
+                currencyCode:
+                  currency,
 
-            primaryText:
-              'Continue',
+                cartItems: [
+                  {
+                    label:
+                      `Weekly Invoice ${
+                        billNumber ??
+                        billId
+                      }`,
 
-            secondaryText:
-              'Cancel',
+                    amount:
+                      invoiceAmount.toFixed(
+                        2,
+                      ),
 
-            onPrimary:
-              async () => {
-                try {
-                  await openGenericUpi();
-                } catch (
-                  error
-                ) {
-                  showPopup({
-                    type:
-                      'error',
-
-                    title:
-                      'CRED',
-
-                    message:
-                      'No compatible UPI application was found.',
-                  });
-                }
+                    paymentType:
+                      PlatformPay
+                        .PaymentType
+                        .Immediate,
+                  },
+                ],
               },
-          });
+            },
+          );
 
-          return;
+        if (error) {
+          const code =
+            String(
+              error?.code ??
+                '',
+            ).toLowerCase();
+
+          if (
+            code ===
+              'canceled' ||
+            code ===
+              'cancelled'
+          ) {
+            return;
+          }
+
+          throw new Error(
+            error?.message ??
+              'Apple Pay payment failed.',
+          );
         }
 
-        showPopup({
-          type:
-            'info',
+        await confirmPayment({
+          paymentIntentId:
+            paymentData
+              .paymentIntentId,
 
-          title:
-            'Complete Payment',
-
-          message:
-            'CRED has been opened. Complete the payment there. Your outstanding amount remains until payment is verified.',
+          paymentMethod:
+            'apple_pay',
         });
-      } catch (
-        error
-      ) {
+
+        await completePayment(
+          'Apple Pay',
+        );
+      } catch (error) {
+        console.log(
+          'APPLE PAY ERROR:',
+          error,
+        );
+
         showPopup({
           type:
             'error',
 
           title:
-            'CRED',
+            'Apple Pay',
 
           message:
             error?.message ??
-            'Unable to open CRED.',
-        });
-      } finally {
-        setProcessingMethod(
-          null,
-        );
-      }
-    };
-
-  /* =======================================================
-   * OTHER UPI
-   * ======================================================= */
-
-  const handleOtherUpi =
-    async () => {
-      if (
-        isProcessing ||
-        !validateUpiPayment()
-      ) {
-        return;
-      }
-
-      try {
-        setProcessingMethod(
-          'upi',
-        );
-
-        await openGenericUpi();
-
-        showPopup({
-          type:
-            'info',
-
-          title:
-            'UPI App Opened',
-
-          message:
-            'Complete your payment in the selected UPI app. The outstanding balance remains until your backend verifies payment.',
-        });
-      } catch (
-        error
-      ) {
-        showPopup({
-          type:
-            'error',
-
-          title:
-            'UPI Payment',
-
-          message:
-            error?.message ??
-            'No compatible UPI application was found.',
+            'Unable to process Apple Pay.',
         });
       } finally {
         setProcessingMethod(
@@ -1529,62 +1570,61 @@ const PaymentDetails = ({
    * PAYMENT METHODS
    * ======================================================= */
 
-  const paymentMethods =
-    [
-      {
-        id:
-          'card',
+  const paymentMethods = [
+    {
+      id:
+        'card',
 
-        title:
-          'Pay with Card',
+      title:
+        'Pay with Card',
 
-        subtitle:
-          'Visa, Mastercard and supported cards',
+      subtitle:
+        'Visa, Mastercard and supported cards',
 
-        image:
-          require('../assets/login-icons/card-pay.png'),
+      image:
+        require('../assets/login-icons/card-pay.png'),
 
-        onPress:
-          handleCardPayment,
-      },
+      onPress:
+        handleCardPayment,
+    },
 
-      {
-        id:
-          'google',
+    {
+      id:
+        'google',
 
-        title:
-          'Google Pay',
+      title:
+        'Google Pay',
 
-        subtitle:
-          'Pay securely using Google Pay',
+      subtitle:
+        'Pay securely using Google Pay',
 
-        image:
-          require('../assets/login-icons/google-pay.png'),
+      image:
+        require('../assets/login-icons/google-pay.png'),
 
-        onPress:
-          handleGooglePay,
-      },
+      onPress:
+        handleGooglePay,
+    },
 
-      {
-        id:
-          'ApplePay',
+    {
+      id:
+        'apple',
 
-        title:
-          'Apple Pay',
+      title:
+        'Apple Pay',
 
-        subtitle:
-          'Pay securely through Apple Pay',
+      subtitle:
+        'Pay securely through Apple Pay',
 
-        image:
-          require('../assets/login-icons/apple-pay.png'),
+      image:
+        require('../assets/login-icons/apple-pay.png'),
 
-        onPress:
-          handleApplePay,
-      },
-    ];
+      onPress:
+        handleApplePay,
+    },
+  ];
 
   /* =======================================================
-   * DONE
+   * PAYMENT DONE
    * ======================================================= */
 
   const handleDone =
@@ -1677,8 +1717,13 @@ const PaymentDetails = ({
       <SafeAreaView
         style={
           styles.safeArea
-        }>
-
+        }
+        edges={[
+          'top',
+          'left',
+          'right',
+        ]}
+      >
         <StatusBar
           barStyle="dark-content"
           backgroundColor="#FFF9F6"
@@ -1693,9 +1738,11 @@ const PaymentDetails = ({
                 responsive
                   .contentWidth,
             },
-          ]}>
-
+          ]}
+        >
+          {/* ================================================= */}
           {/* HEADER */}
+          {/* ================================================= */}
 
           <View
             style={[
@@ -1703,11 +1750,10 @@ const PaymentDetails = ({
 
               {
                 paddingHorizontal:
-                  responsive
-                    .padding,
+                  responsive.padding,
               },
-            ]}>
-
+            ]}
+          >
             <Pressable
               hitSlop={
                 10
@@ -1717,8 +1763,8 @@ const PaymentDetails = ({
               }
               onPress={() =>
                 navigation.goBack()
-              }>
-
+              }
+            >
               <Image
                 source={require('../assets/login-icons/back.png')}
                 style={
@@ -1726,32 +1772,28 @@ const PaymentDetails = ({
                 }
                 resizeMode="contain"
               />
-
             </Pressable>
 
             <View
               style={
                 styles.headerText
-              }>
-
+              }
+            >
               <Text
                 style={
                   styles.headerEyebrow
-                }>
-                {isWeeklyBill
-                  ? 'WEEKLY BILL'
-                  : 'PAYMENT'}
+                }
+              >
+                WEEKLY BILLING
               </Text>
 
               <Text
                 style={
                   styles.headerTitle
-                }>
-                {isWeeklyBill
-                  ? 'Pay Weekly Bill'
-                  : 'Payment Method'}
+                }
+              >
+                Payment Details
               </Text>
-
             </View>
 
             <View
@@ -1759,7 +1801,6 @@ const PaymentDetails = ({
                 styles.headerSpacer
               }
             />
-
           </View>
 
           <ScrollView
@@ -1771,67 +1812,78 @@ const PaymentDetails = ({
 
               {
                 paddingHorizontal:
-                  responsive
-                    .padding,
+                  responsive.padding,
               },
-            ]}>
-
-            {/* AMOUNT SUMMARY */}
+            ]}
+          >
+            {/* ================================================= */}
+            {/* WEEKLY TOTAL */}
+            {/* ================================================= */}
 
             <View
               style={
                 styles.orderSummary
-              }>
-
+              }
+            >
               <View
                 style={
                   styles.orderSummaryTop
-                }>
-
+                }
+              >
                 <View>
-
                   <Text
                     style={
                       styles.summaryLabel
-                    }>
-                    {isWeeklyBill
-                      ? 'WEEKLY BILL'
-                      : 'ORDER'}
+                    }
+                  >
+                    CURRENT WEEK
                   </Text>
 
                   <Text
                     style={
-                      styles.orderNumber
-                    }>
-                    {isWeeklyBill
-                      ? billNumber ??
-                        `#${billId ?? 'N/A'}`
-                      : orderId ??
-                        'N/A'}
+                      styles.billingPeriod
+                    }
+                  >
+                    {formatDate(
+                      billingCycle.start,
+                    )}{' '}
+                    – Today
                   </Text>
-
                 </View>
 
                 <View
-                  style={
-                    styles.pendingBadge
-                  }>
+                  style={[
+                    styles.statusBadge,
 
+                    invoiceGenerated
+                      ? styles.readyBadge
+                      : styles.pendingBadge,
+                  ]}
+                >
                   <View
-                    style={
-                      styles.pendingDot
-                    }
+                    style={[
+                      styles.statusDot,
+
+                      invoiceGenerated
+                        ? styles.readyDot
+                        : styles.pendingDot,
+                    ]}
                   />
 
                   <Text
-                    style={
-                      styles.pendingText
-                    }>
-                    Payment Pending
+                    style={[
+                      styles.statusBadgeText,
+
+                      invoiceGenerated
+                        ? styles.readyText
+                        : styles.pendingText,
+                    ]}
+                  >
+                    {invoiceGenerated
+                      ? 'Invoice Ready'
+                      : 'Building Total'}
                   </Text>
-
                 </View>
-
               </View>
 
               <View
@@ -1840,257 +1892,610 @@ const PaymentDetails = ({
                 }
               />
 
-              {!isWeeklyBill && (
-                <>
-                  <SummaryRow
-                    label="Subtotal"
-                    value={`${currency} ${subtotal.toFixed(
-                      2,
-                    )}`}
-                  />
+              {/* ORDER COUNT */}
 
-                  <SummaryRow
-                    label="Delivery Fee"
-                    value={
-                      deliveryFee ===
-                      0
-                        ? 'FREE'
-                        : `${currency} ${deliveryFee.toFixed(
-                            2,
-                          )}`
-                    }
-                  />
+              <SummaryRow
+                label="Orders This Cycle"
+                value={`${currentOrderCount}`}
+              />
 
-                  <View
-                    style={
-                      styles.summaryDivider
-                    }
-                  />
-                </>
-              )}
+              {/* ACCRUED AMOUNT */}
+
+              <SummaryRow
+                label="Orders Total"
+                value={
+                  loadingOrders
+                    ? 'Loading...'
+                    : `${currency} ${currentOrdersTotal.toFixed(
+                        2,
+                      )}`
+                }
+              />
+
+              {invoiceGenerated &&
+                serverBillAmount >
+                  0 && (
+                  <>
+                    <View
+                      style={
+                        styles.summaryDivider
+                      }
+                    />
+
+                    <SummaryRow
+                      label="Invoice Number"
+                      value={
+                        billNumber ??
+                        `#${billId}`
+                      }
+                    />
+                  </>
+                )}
+
+              <View
+                style={
+                  styles.summaryDivider
+                }
+              />
 
               <View
                 style={
                   styles.totalRow
-                }>
-
-                <View>
-
+                }
+              >
+                <View
+                  style={{
+                    flex:
+                      1,
+                  }}
+                >
                   <Text
                     style={
                       styles.totalLabel
-                    }>
-                    {isWeeklyBill
-                      ? 'Outstanding Balance'
-                      : 'Amount to Pay'}
+                    }
+                  >
+                    {invoiceGenerated
+                      ? 'Amount Due'
+                      : 'Running Weekly Total'}
                   </Text>
 
-                  {isWeeklyBill && (
-                    <Text
-                      style={
-                        styles.balanceNote
-                      }>
-                      Balance remains until payment is verified
-                    </Text>
-                  )}
-
+                  <Text
+                    style={
+                      styles.balanceNote
+                    }
+                  >
+                    {invoiceGenerated
+                      ? 'Your Monday invoice is ready for payment.'
+                      : 'For viewing only. Payment unlocks after Monday invoice generation.'}
+                  </Text>
                 </View>
 
                 <Text
                   style={
                     styles.totalAmount
-                  }>
+                  }
+                >
                   {currency}{' '}
-                  {totalAmount.toFixed(
+                  {invoiceAmount.toFixed(
                     2,
                   )}
                 </Text>
+              </View>
+            </View>
 
+            {/* ================================================= */}
+            {/* BILLING STATUS */}
+            {/* ================================================= */}
+
+            <View
+              style={[
+                styles.billingStatusCard,
+
+                invoiceGenerated &&
+                  styles.billingStatusReady,
+              ]}
+            >
+              <View
+                style={[
+                  styles.billingStatusIcon,
+
+                  invoiceGenerated &&
+                    styles.billingStatusIconReady,
+                ]}
+              >
+                <Image
+                                source={require('../assets/login-icons/invoice.png')}
+                                style={
+                                  styles.inputImageIcon
+                                }
+                                resizeMode="cover"
+                              />
+                {/* <Ionicons
+                  name={
+                    billingStatus.icon
+                  }
+                  size={
+                    22
+                  }
+                  color={
+                    invoiceGenerated
+                      ? '#278850'
+                      : '#A00B0F'
+                  }
+                /> */}
               </View>
 
-            </View>
-
-            {/* HEADING */}
-
-            <View
-              style={
-                styles.methodHeading
-              }>
-
-              <Text
-                style={
-                  styles.methodTitle
-                }>
-                Choose Payment Method
-              </Text>
-
-              <Text
-                style={
-                  styles.methodSubtitle
-                }>
-                Select how you would like
-                to pay the outstanding amount.
-              </Text>
-
-            </View>
-
-            {/* PAYMENT METHODS */}
-
-            <View
-              style={
-                styles.methodContainer
-              }>
-
-              {paymentMethods.map(
-                method => {
-                  const loading =
-                    processingMethod ===
-                    method.id;
-
-                  return (
-                    <TouchableOpacity
-                      key={
-                        method.id
-                      }
-                      disabled={
-                        isProcessing
-                      }
-                      activeOpacity={
-                        0.85
-                      }
-                      style={[
-                        styles.paymentMethod,
-
-                        isProcessing &&
-                          !loading &&
-                          styles.disabledMethod,
-                      ]}
-                      onPress={
-                        method.onPress
-                      }>
-
-                      <View
-                        style={
-                          styles.methodIcon
-                        }>
-
-                        {loading ? (
-                          <ActivityIndicator
-                            size="small"
-                            color="#A00B0F"
-                          />
-                        ) : (
-                          <Image
-                            source={
-                              method.image
-                            }
-                            style={
-                              styles.paymentLogo
-                            }
-                            resizeMode="contain"
-                          />
-                        )}
-
-                      </View>
-
-                      <View
-                        style={
-                          styles.methodContent
-                        }>
-
-                        <Text
-                          style={
-                            styles.methodName
-                          }>
-                          {
-                            method.title
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.methodDescription
-                          }>
-                          {
-                            method.subtitle
-                          }
-                        </Text>
-
-                      </View>
-
-                      <Image
-                        source={require('../assets/login-icons/next.png')}
-                        style={
-                          styles.quantityIcon
-                        }
-                        resizeMode="contain"
-                      />
-
-                    </TouchableOpacity>
-                  );
-                },
-              )}
-
-            </View>
-
-            {/* WEEKLY BILL */}
-
-            {isWeeklyBill && (
               <View
                 style={
-                  styles.billInfoBox
-                }>
+                  styles.billingStatusContent
+                }
+              >
+                <Text
+                  style={[
+                    styles.billingStatusTitle,
 
-                <Ionicons
-                  name="calendar-outline"
-                  size={
-                    19
+                    invoiceGenerated &&
+                      styles.billingStatusTitleReady,
+                  ]}
+                >
+                  {
+                    billingStatus.title
                   }
-                  color="#A00B0F"
-                />
+                </Text>
+
+                <Text
+                  style={
+                    styles.billingStatusText
+                  }
+                >
+                  {
+                    billingStatus.text
+                  }
+                </Text>
+              </View>
+            </View>
+
+            {/* ================================================= */}
+            {/* WEEKLY ORDERS */}
+            {/* ================================================= */}
+
+            <View
+              style={
+                styles.ordersSection
+              }
+            >
+              <View
+                style={
+                  styles.sectionHeadingRow
+                }
+              >
+                <View>
+                  <Text
+                    style={
+                      styles.sectionEyebrow
+                    }
+                  >
+                    THIS BILLING CYCLE
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.sectionTitle
+                    }
+                  >
+                    Your Orders
+                  </Text>
+                </View>
 
                 <View
                   style={
-                    styles.billInfoContent
-                  }>
+                    styles.orderCountBadge
+                  }
+                >
+                  <Text
+                    style={
+                      styles.orderCountText
+                    }
+                  >
+                    {
+                      currentOrderCount
+                    }
+                  </Text>
+                </View>
+              </View>
+
+              {loadingOrders ? (
+                <View
+                  style={
+                    styles.ordersLoading
+                  }
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color="#A00B0F"
+                  />
 
                   <Text
                     style={
-                      styles.billInfoTitle
-                    }>
-                    Weekly Billing
+                      styles.ordersLoadingText
+                    }
+                  >
+                    Updating weekly total...
+                  </Text>
+                </View>
+              ) : weeklyOrders.length >
+                0 ? (
+                <View
+                  style={
+                    styles.ordersCard
+                  }
+                >
+                  {weeklyOrders.map(
+                    (
+                      order,
+                      index,
+                    ) => {
+                      const id =
+                        order?.orderId ??
+                        order?.order_id ??
+                        order?.id ??
+                        index + 1;
+
+                      const date =
+                        getOrderDate(
+                          order,
+                        );
+
+                      const total =
+                        getOrderTotal(
+                          order,
+                        );
+
+                      return (
+                        <View
+                          key={`weekly-order-${id}-${index}`}
+                          style={[
+                            styles.orderRow,
+
+                            index ===
+                              weeklyOrders.length -
+                                1 &&
+                              styles.lastOrderRow,
+                          ]}
+                        >
+                          <View
+                            style={
+                              styles.orderIcon
+                            }
+                          >
+                            <Image
+                source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+                style={
+                  styles.inputImageIcon
+                }
+                resizeMode="cover"
+              />
+                          </View>
+
+                          <View
+                            style={
+                              styles.orderRowContent
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.orderRowTitle
+                              }
+                            >
+                              Order #
+                              {
+                                id
+                              }
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.orderRowDate
+                              }
+                            >
+                              {date
+                                ? formatDate(
+                                    date,
+                                  )
+                                : 'Current billing cycle'}
+                            </Text>
+                          </View>
+
+                          <Text
+                            style={
+                              styles.orderRowAmount
+                            }
+                          >
+                            {currency}{' '}
+                            {total.toFixed(
+                              2,
+                            )}
+                          </Text>
+                        </View>
+                      );
+                    },
+                  )}
+                </View>
+              ) : (
+                <View
+                  style={
+                    styles.noOrdersCard
+                  }
+                >
+                  <Ionicons
+                    name="restaurant-outline"
+                    size={
+                      28
+                    }
+                    color="#B9AEB2"
+                  />
+
+                  <Text
+                    style={
+                      styles.noOrdersTitle
+                    }
+                  >
+                    No orders yet
                   </Text>
 
                   <Text
                     style={
-                      styles.billInfoText
-                    }>
-                    Weekly bills are generated every Saturday.
-                    Outstanding bills must be cleared by Monday
-                    to continue placing new tiffin orders.
+                      styles.noOrdersText
+                    }
+                  >
+                    Orders placed during this billing cycle will appear here automatically.
                   </Text>
+                </View>
+              )}
+            </View>
 
+            {/* ================================================= */}
+            {/* PAYMENT LOCKED */}
+            {/* ================================================= */}
+
+            {!paymentAllowed && (
+              <View
+                style={
+                  styles.paymentLockedCard
+                }
+              >
+                <View
+                  style={
+                    styles.lockIcon
+                  }
+                >
+                  <Image
+                source={require('../assets/login-icons/wallet.png')}
+                style={
+                  styles.inputImageIcon
+                }
+                resizeMode="cover"
+              />
                 </View>
 
+                <Text
+                  style={
+                    styles.paymentLockedTitle
+                  }
+                >
+                  Payment Not Available Yet
+                </Text>
+
+                <Text
+                  style={
+                    styles.paymentLockedText
+                  }
+                >
+                  {isMonday
+                    ? 'Payment will become available once your Monday invoice is generated.'
+                    : 'You cannot pay individual orders. Keep ordering as needed; all order amounts will be combined into your Monday invoice.'}
+                </Text>
+
+                <View
+                  style={
+                    styles.lockedSchedule
+                  }
+                >
+                  <ScheduleStep
+                    number="1"
+                    title="Tuesday – Sunday"
+                    description="Place as many tiffin orders as needed."
+                  />
+
+                  <ScheduleStep
+                    number="2"
+                    title="Running Total"
+                    description="Every successful order increases your weekly total."
+                  />
+
+                  <ScheduleStep
+                    number="3"
+                    title="Monday"
+                    description="Weekly invoice is generated and payment becomes available."
+                    last
+                  />
+                </View>
               </View>
+            )}
+
+            {/* ================================================= */}
+            {/* PAYMENT METHODS
+             *
+             * RENDER ONLY AFTER ACTUAL INVOICE EXISTS.
+             * ================================================= */}
+
+            {paymentAllowed && (
+              <>
+                <View
+                  style={
+                    styles.methodHeading
+                  }
+                >
+                  <Text
+                    style={
+                      styles.methodTitle
+                    }
+                  >
+                    Choose Payment Method
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.methodSubtitle
+                    }
+                  >
+                    Your weekly invoice has been generated.
+                    Select how you would like to pay the outstanding balance.
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.methodContainer
+                  }
+                >
+                  {paymentMethods.map(
+                    method => {
+                      const methodLoading =
+                        processingMethod ===
+                        method.id;
+
+                      return (
+                        <TouchableOpacity
+                          key={
+                            method.id
+                          }
+                          disabled={
+                            isProcessing
+                          }
+                          activeOpacity={
+                            0.85
+                          }
+                          style={[
+                            styles.paymentMethod,
+
+                            isProcessing &&
+                              !methodLoading &&
+                              styles.disabledMethod,
+                          ]}
+                          onPress={
+                            method.onPress
+                          }
+                        >
+                          <View
+                            style={
+                              styles.methodIcon
+                            }
+                          >
+                            {methodLoading ? (
+                              <ActivityIndicator
+                                size="small"
+                                color="#A00B0F"
+                              />
+                            ) : (
+                              <Image
+                                source={
+                                  method.image
+                                }
+                                style={
+                                  styles.paymentLogo
+                                }
+                                resizeMode="contain"
+                              />
+                            )}
+                          </View>
+
+                          <View
+                            style={
+                              styles.methodContent
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.methodName
+                              }
+                            >
+                              {
+                                method.title
+                              }
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.methodDescription
+                              }
+                            >
+                              {
+                                method.subtitle
+                              }
+                            </Text>
+                          </View>
+
+                          <Image
+                            source={require('../assets/login-icons/next.png')}
+                            style={
+                              styles.nextIcon
+                            }
+                            resizeMode="contain"
+                          />
+                        </TouchableOpacity>
+                      );
+                    },
+                  )}
+                </View>
+
+                <View
+                  style={
+                    styles.invoiceInfoBox
+                  }
+                >
+
+                  <View
+                    style={
+                      styles.invoiceInfoContent
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.invoiceInfoTitle
+                      }
+                    >
+                      Invoice Generated
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.invoiceInfoText
+                      }
+                    >
+                      Payment is being made against weekly invoice{' '}
+                      {billNumber ??
+                        `#${billId}`}.
+                      Individual tiffin orders are not charged separately.
+                    </Text>
+                  </View>
+                </View>
+              </>
             )}
 
             <View
               style={{
                 height:
-                  40,
+                  50,
               }}
             />
-
           </ScrollView>
-
         </View>
-
       </SafeAreaView>
 
-      {/* ===================================================== */}
+      {/* ================================================= */}
       {/* CUSTOM POPUP */}
-      {/* ===================================================== */}
+      {/* ================================================= */}
 
       <Modal
         visible={
@@ -2101,85 +2506,67 @@ const PaymentDetails = ({
         statusBarTranslucent
         onRequestClose={
           closePopup
-        }>
-
+        }
+      >
         <View
           style={
             styles.popupOverlay
-          }>
-
+          }
+        >
           <View
             style={
               styles.popupCard
-            }>
+            }
+          >
+            <View
+              style={[
+                styles.popupIconOuter,
 
-            {/* ============================================= */}
-            {/* IMAGE OR ICON */}
-            {/* ============================================= */}
-
-            {popupData.image ? (
-              <View
-                style={
-                  styles.popupImageOuter
-                }>
-
-                <Image
-                  source={
-                    popupData.image
-                  }
-                  style={
-                    styles.popupImage
-                  }
-                  resizeMode="contain"
-                />
-
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.popupIconOuter,
-
-                  {
-                    backgroundColor:
-                      popupIcon
-                        .background,
-                  },
-                ]}>
-
-                <Ionicons
-                  name={
-                    popupIcon.icon
-                  }
-                  size={
-                    36
-                  }
-                  color={
-                    popupIcon.color
-                  }
-                />
-
-              </View>
-            )}
+                {
+                  backgroundColor:
+                    popupIcon
+                      .background,
+                },
+              ]}
+            >
+              <Ionicons
+                name={
+                  popupIcon.icon
+                }
+                size={
+                  36
+                }
+                color={
+                  popupIcon.color
+                }
+              />
+            </View>
 
             <Text
               style={
                 styles.popupTitle
-              }>
-              {popupData.title}
+              }
+            >
+              {
+                popupData.title
+              }
             </Text>
 
             <Text
               style={
                 styles.popupMessage
-              }>
-              {popupData.message}
+              }
+            >
+              {
+                popupData.message
+              }
             </Text>
 
             <View
               style={
                 styles.popupButtonRow
-              }>
-
+              }
+            >
               {!!popupData
                 .secondaryText && (
                 <TouchableOpacity
@@ -2191,18 +2578,18 @@ const PaymentDetails = ({
                   }
                   onPress={
                     handlePopupSecondary
-                  }>
-
+                  }
+                >
                   <Text
                     style={
                       styles.popupSecondaryText
-                    }>
+                    }
+                  >
                     {
                       popupData
                         .secondaryText
                     }
                   </Text>
-
                 </TouchableOpacity>
               )}
 
@@ -2221,31 +2608,27 @@ const PaymentDetails = ({
                 ]}
                 onPress={
                   handlePopupPrimary
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.popupPrimaryText
-                  }>
+                  }
+                >
                   {
                     popupData
                       .primaryText
                   }
                 </Text>
-
               </TouchableOpacity>
-
             </View>
-
           </View>
-
         </View>
-
       </Modal>
 
-      {/* ===================================================== */}
-      {/* SUCCESS MODAL */}
-      {/* ===================================================== */}
+      {/* ================================================= */}
+      {/* PAYMENT SUCCESS */}
+      {/* ================================================= */}
 
       <Modal
         visible={
@@ -2253,58 +2636,65 @@ const PaymentDetails = ({
         }
         transparent
         animationType="fade"
-        statusBarTranslucent>
-
+        statusBarTranslucent
+        onRequestClose={() => {}}
+      >
         <View
           style={
-            styles.overlay
-          }>
-
+            styles.successOverlay
+          }
+        >
           <View
             style={
               styles.successCard
-            }>
-
+            }
+          >
             <View
               style={
-                styles.successCircle
-              }>
-
-              <Ionicons
-                name="checkmark"
-                size={
-                  42
+                styles.successCircleOuter
+              }
+            >
+              <View
+                style={
+                  styles.successCircle
                 }
-                color="#FFFFFF"
-              />
-
+              >
+                <Ionicons
+                  name="checkmark"
+                  size={
+                    42
+                  }
+                  color="#FFFFFF"
+                />
+              </View>
             </View>
 
             <Text
               style={
                 styles.successTitle
-              }>
-              Payment Successful!
+              }
+            >
+              Weekly Bill Paid!
             </Text>
 
             <Text
               style={
                 styles.successText
-              }>
-              {isWeeklyBill
-                ? 'Your weekly outstanding bill has been paid successfully. You can continue ordering tiffins.'
-                : 'Your payment has been verified successfully.'}
+              }
+            >
+              Your Monday weekly invoice has been paid successfully.
+              Your current outstanding balance is now cleared.
             </Text>
 
             <View
               style={
                 styles.successBadge
-              }>
-
+              }
+            >
               <Ionicons
                 name="shield-checkmark-outline"
                 size={
-                  16
+                  17
                 }
                 color="#278850"
               />
@@ -2312,11 +2702,13 @@ const PaymentDetails = ({
               <Text
                 style={
                   styles.successBadgeText
-                }>
+                }
+              >
                 Paid with{' '}
-                {successfulMethod}
+                {
+                  successfulMethod
+                }
               </Text>
-
             </View>
 
             <TouchableOpacity
@@ -2328,23 +2720,27 @@ const PaymentDetails = ({
               }
               onPress={
                 handleDone
-              }>
-
+              }
+            >
               <Text
                 style={
                   styles.doneText
-                }>
-                Done
+                }
+              >
+                Back to Home
               </Text>
 
+              <Ionicons
+                name="arrow-forward"
+                size={
+                  18
+                }
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
-
           </View>
-
         </View>
-
       </Modal>
-
     </>
   );
 };
@@ -2361,22 +2757,98 @@ const SummaryRow = ({
     <View
       style={
         styles.summaryRow
-      }>
-
+      }
+    >
       <Text
         style={
           styles.summaryRowLabel
-        }>
+        }
+      >
         {label}
       </Text>
 
       <Text
         style={
           styles.summaryRowValue
-        }>
+        }
+      >
         {value}
       </Text>
+    </View>
+  );
+};
 
+/* =========================================================
+ * SCHEDULE STEP
+ * ========================================================= */
+
+const ScheduleStep = ({
+  number,
+  title,
+  description,
+  last = false,
+}) => {
+  return (
+    <View
+      style={
+        styles.scheduleStep
+      }
+    >
+      <View
+        style={
+          styles.scheduleLeft
+        }
+      >
+        <View
+          style={
+            styles.scheduleNumber
+          }
+        >
+          <Text
+            style={
+              styles.scheduleNumberText
+            }
+          >
+            {
+              number
+            }
+          </Text>
+        </View>
+
+        {!last && (
+          <View
+            style={
+              styles.scheduleLine
+            }
+          />
+        )}
+      </View>
+
+      <View
+        style={
+          styles.scheduleContent
+        }
+      >
+        <Text
+          style={
+            styles.scheduleTitle
+          }
+        >
+          {
+            title
+          }
+        </Text>
+
+        <Text
+          style={
+            styles.scheduleDescription
+          }
+        >
+          {
+            description
+          }
+        </Text>
+      </View>
     </View>
   );
 };
@@ -2414,6 +2886,13 @@ const styles =
 
       paddingBottom:
         40,
+    },
+    inputImageIcon: {
+      width:
+        20,
+
+      height:
+        20,
     },
 
     /* =====================================================
@@ -2466,6 +2945,9 @@ const styles =
 
       height:
         19,
+
+      tintColor:
+        '#A00B0F',
     },
 
     headerText: {
@@ -2510,7 +2992,7 @@ const styles =
     },
 
     /* =====================================================
-     * SUMMARY
+     * SUMMARY CARD
      * ===================================================== */
 
     orderSummary: {
@@ -2524,7 +3006,7 @@ const styles =
         18,
 
       marginBottom:
-        20,
+        15,
 
       overflow:
         'hidden',
@@ -2543,24 +3025,24 @@ const styles =
 
     summaryLabel: {
       color:
-        '#B9A9A1',
+        '#DAB9BA',
 
       fontSize:
         7,
 
       fontWeight:
-        '800',
+        '900',
 
       letterSpacing:
         1,
     },
 
-    orderNumber: {
+    billingPeriod: {
       color:
         '#FFFFFF',
 
       fontSize:
-        13,
+        12,
 
       fontWeight:
         '900',
@@ -2569,63 +3051,15 @@ const styles =
         4,
     },
 
-    pendingBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        'rgba(255,255,255,.1)',
-
-      borderRadius:
-        20,
-
-      paddingHorizontal:
-        9,
-
-      paddingVertical:
-        6,
-    },
-
-    pendingDot: {
-      width:
-        7,
-
-      height:
-        7,
-
-      borderRadius:
-        4,
-
-      backgroundColor:
-        '#F2B85B',
-
-      marginRight:
-        5,
-    },
-
-    pendingText: {
-      color:
-        '#F9D79F',
-
-      fontSize:
-        7.5,
-
-      fontWeight:
-        '800',
-    },
-
     summaryDivider: {
       height:
         1,
 
       backgroundColor:
-        'rgba(255,255,255,.12)',
+        'rgba(255,255,255,.15)',
 
       marginVertical:
-        14,
+        13,
     },
 
     summaryRow: {
@@ -2639,15 +3073,15 @@ const styles =
         'center',
 
       marginBottom:
-        8,
+        9,
     },
 
     summaryRowLabel: {
       color:
-        '#C8B9B2',
+        '#E0C7C7',
 
       fontSize:
-        8,
+        8.5,
     },
 
     summaryRowValue: {
@@ -2655,10 +3089,10 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        8.5,
+        9,
 
       fontWeight:
-        '800',
+        '900',
     },
 
     totalRow: {
@@ -2674,21 +3108,27 @@ const styles =
 
     totalLabel: {
       color:
-        '#D6C9C3',
+        '#FFFFFF',
 
       fontSize:
-        9,
+        10,
 
       fontWeight:
-        '800',
+        '900',
     },
 
     balanceNote: {
+      maxWidth:
+        210,
+
       color:
-        '#A89991',
+        '#D2AEAF',
 
       fontSize:
-        6.8,
+        7,
+
+      lineHeight:
+        11,
 
       marginTop:
         4,
@@ -2699,17 +3139,665 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        21,
+        20,
+
+      fontWeight:
+        '900',
+
+      marginLeft:
+        10,
+    },
+
+    /* =====================================================
+     * STATUS BADGES
+     * ===================================================== */
+
+    statusBadge: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        9,
+
+      paddingVertical:
+        6,
+    },
+
+    pendingBadge: {
+      backgroundColor:
+        'rgba(255,255,255,.12)',
+    },
+
+    readyBadge: {
+      backgroundColor:
+        '#E8F6ED',
+    },
+
+    statusDot: {
+      width:
+        7,
+
+      height:
+        7,
+
+      borderRadius:
+        4,
+
+      marginRight:
+        5,
+    },
+
+    pendingDot: {
+      backgroundColor:
+        '#F2B85B',
+    },
+
+    readyDot: {
+      backgroundColor:
+        '#278850',
+    },
+
+    statusBadgeText: {
+      fontSize:
+        7.5,
 
       fontWeight:
         '900',
     },
 
+    pendingText: {
+      color:
+        '#F9D79F',
+    },
+
+    readyText: {
+      color:
+        '#278850',
+    },
+
     /* =====================================================
-     * PAYMENT HEADING
+     * BILLING STATUS
+     * ===================================================== */
+
+    billingStatusCard: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'flex-start',
+
+      backgroundColor:
+        '#FFF2F2',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F2DADB',
+
+      borderRadius:
+        16,
+
+      padding:
+        13,
+
+      marginBottom:
+        20,
+    },
+
+    billingStatusReady: {
+      backgroundColor:
+        '#F2FAF5',
+
+      borderColor:
+        '#DCEFE2',
+    },
+
+    billingStatusIcon: {
+      width:
+        42,
+
+      height:
+        42,
+
+      borderRadius:
+        13,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFE5E6',
+
+      marginRight:
+        11,
+    },
+
+    billingStatusIconReady: {
+      backgroundColor:
+        '#E1F4E7',
+    },
+
+    billingStatusContent: {
+      flex:
+        1,
+    },
+
+    billingStatusTitle: {
+      color:
+        '#7A282C',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    billingStatusTitleReady: {
+      color:
+        '#2F6D43',
+    },
+
+    billingStatusText: {
+      color:
+        '#826C6D',
+
+      fontSize:
+        8,
+
+      lineHeight:
+        13,
+
+      marginTop:
+        4,
+    },
+
+    /* =====================================================
+     * ORDERS
+     * ===================================================== */
+
+    ordersSection: {
+      marginBottom:
+        20,
+    },
+
+    sectionHeadingRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      marginBottom:
+        10,
+    },
+
+    sectionEyebrow: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        7,
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        0.8,
+    },
+
+    sectionTitle: {
+      color:
+        '#281E1A',
+
+      fontSize:
+        16,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        2,
+    },
+
+    orderCountBadge: {
+      minWidth:
+        32,
+
+      height:
+        32,
+
+      borderRadius:
+        16,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF0F0',
+    },
+
+    orderCountText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    ordersCard: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E0',
+
+      borderRadius:
+        15,
+
+      paddingHorizontal:
+        12,
+    },
+
+    orderRow: {
+      minHeight:
+        64,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        '#F2EBE7',
+    },
+
+    lastOrderRow: {
+      borderBottomWidth:
+        0,
+    },
+
+    orderIcon: {
+      width:
+        36,
+
+      height:
+        36,
+
+      borderRadius:
+        11,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF0F0',
+
+      marginRight:
+        10,
+    },
+
+    orderRowContent: {
+      flex:
+        1,
+    },
+
+    orderRowTitle: {
+      color:
+        '#342722',
+
+      fontSize:
+        9.5,
+
+      fontWeight:
+        '900',
+    },
+
+    orderRowDate: {
+      color:
+        '#9B8B84',
+
+      fontSize:
+        7.5,
+
+      marginTop:
+        3,
+    },
+
+    orderRowAmount: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    ordersLoading: {
+      minHeight:
+        85,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E0',
+    },
+
+    ordersLoadingText: {
+      color:
+        '#8D817C',
+
+      fontSize:
+        8,
+
+      marginTop:
+        7,
+    },
+
+    noOrdersCard: {
+      minHeight:
+        130,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        15,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E0',
+
+      paddingHorizontal:
+        20,
+    },
+
+    noOrdersTitle: {
+      color:
+        '#4A3C36',
+
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        8,
+    },
+
+    noOrdersText: {
+      maxWidth:
+        260,
+
+      color:
+        '#998B85',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        12,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        4,
+    },
+
+    /* =====================================================
+     * PAYMENT LOCKED
+     * ===================================================== */
+
+    paymentLockedCard: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#F0E4DF',
+
+      borderRadius:
+        18,
+
+      padding:
+        16,
+
+      alignItems:
+        'center',
+    },
+
+    lockIcon: {
+      width:
+        58,
+
+      height:
+        58,
+
+      borderRadius:
+        29,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#FFF0F0',
+    },
+
+    paymentLockedTitle: {
+      color:
+        '#30231E',
+
+      fontSize:
+        14,
+
+      fontWeight:
+        '900',
+
+      marginTop:
+        10,
+    },
+
+    paymentLockedText: {
+      maxWidth:
+        310,
+
+      color:
+        '#887A74',
+
+      fontSize:
+        8.5,
+
+      lineHeight:
+        14,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        5,
+    },
+
+    lockedSchedule: {
+      width:
+        '100%',
+
+      marginTop:
+        18,
+
+      backgroundColor:
+        '#FAF7F5',
+
+      borderRadius:
+        14,
+
+      padding:
+        12,
+    },
+
+    scheduleStep: {
+      flexDirection:
+        'row',
+
+      minHeight:
+        60,
+    },
+
+    scheduleLeft: {
+      width:
+        31,
+
+      alignItems:
+        'center',
+    },
+
+    scheduleNumber: {
+      width:
+        27,
+
+      height:
+        27,
+
+      borderRadius:
+        14,
+
+      backgroundColor:
+        '#A00B0F',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    scheduleNumberText: {
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '900',
+    },
+
+    scheduleLine: {
+      width:
+        1,
+
+      flex:
+        1,
+
+      backgroundColor:
+        '#E6D5D3',
+
+      marginVertical:
+        3,
+    },
+
+    scheduleContent: {
+      flex:
+        1,
+
+      paddingLeft:
+        9,
+
+      paddingBottom:
+        12,
+    },
+
+    scheduleTitle: {
+      color:
+        '#3E302B',
+
+      fontSize:
+        9.5,
+
+      fontWeight:
+        '900',
+    },
+
+    scheduleDescription: {
+      color:
+        '#93847E',
+
+      fontSize:
+        7.5,
+
+      lineHeight:
+        12,
+
+      marginTop:
+        3,
+    },
+
+    /* =====================================================
+     * PAYMENT METHODS
      * ===================================================== */
 
     methodHeading: {
+      marginTop:
+        2,
+
       marginBottom:
         12,
     },
@@ -2738,10 +3826,6 @@ const styles =
       marginTop:
         4,
     },
-
-    /* =====================================================
-     * PAYMENT METHODS
-     * ===================================================== */
 
     methodContainer: {
       backgroundColor:
@@ -2855,7 +3939,7 @@ const styles =
         3,
     },
 
-    quantityIcon: {
+    nextIcon: {
       width:
         16,
 
@@ -2864,10 +3948,10 @@ const styles =
     },
 
     /* =====================================================
-     * WEEKLY BILL
+     * INVOICE INFO
      * ===================================================== */
 
-    billInfoBox: {
+    invoiceInfoBox: {
       flexDirection:
         'row',
 
@@ -2875,13 +3959,13 @@ const styles =
         'flex-start',
 
       backgroundColor:
-        '#FFF2F2',
+        '#F2FAF5',
 
       borderWidth:
         1,
 
       borderColor:
-        '#F3DADB',
+        '#DCEFE2',
 
       borderRadius:
         14,
@@ -2893,7 +3977,7 @@ const styles =
         12,
     },
 
-    billInfoContent: {
+    invoiceInfoContent: {
       flex:
         1,
 
@@ -2901,9 +3985,9 @@ const styles =
         9,
     },
 
-    billInfoTitle: {
+    invoiceInfoTitle: {
       color:
-        '#6D2528',
+        '#2F6D43',
 
       fontSize:
         9,
@@ -2912,9 +3996,9 @@ const styles =
         '900',
     },
 
-    billInfoText: {
+    invoiceInfoText: {
       color:
-        '#86696B',
+        '#607366',
 
       fontSize:
         7.5,
@@ -2927,7 +4011,7 @@ const styles =
     },
 
     /* =====================================================
-     * CUSTOM POPUP
+     * POPUP
      * ===================================================== */
 
     popupOverlay: {
@@ -2973,8 +4057,6 @@ const styles =
         20,
     },
 
-    /* DEFAULT POPUP ICON */
-
     popupIconOuter: {
       width:
         78,
@@ -2990,42 +4072,6 @@ const styles =
 
       justifyContent:
         'center',
-    },
-
-    /* NEW CUSTOM POPUP IMAGE */
-
-    popupImageOuter: {
-      width:
-        110,
-
-      height:
-        110,
-
-      borderRadius:
-        55,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF3F3',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#F5DDDE',
-    },
-
-    popupImage: {
-      width:
-        78,
-
-      height:
-        78,
     },
 
     popupTitle: {
@@ -3104,7 +4150,7 @@ const styles =
 
     popupSecondaryText: {
       color:
-        '#71666C',
+        '#6D6268',
 
       fontSize:
         10,
@@ -3151,7 +4197,7 @@ const styles =
      * SUCCESS
      * ===================================================== */
 
-    overlay: {
+    successOverlay: {
       flex:
         1,
 
@@ -3162,10 +4208,10 @@ const styles =
         'center',
 
       backgroundColor:
-        'rgba(0,0,0,.55)',
+        'rgba(20,15,18,0.66)',
 
       paddingHorizontal:
-        25,
+        22,
     },
 
     successCard: {
@@ -3173,7 +4219,7 @@ const styles =
         '100%',
 
       maxWidth:
-        370,
+        380,
 
       alignItems:
         'center',
@@ -3182,21 +4228,27 @@ const styles =
         '#FFFFFF',
 
       borderRadius:
-        24,
-
-      padding:
         25,
+
+      paddingHorizontal:
+        22,
+
+      paddingTop:
+        28,
+
+      paddingBottom:
+        22,
     },
 
-    successCircle: {
+    successCircleOuter: {
       width:
-        78,
+        90,
 
       height:
-        78,
+        90,
 
       borderRadius:
-        39,
+        45,
 
       alignItems:
         'center',
@@ -3205,32 +4257,52 @@ const styles =
         'center',
 
       backgroundColor:
-        '#26975B',
+        '#E8F7ED',
+    },
+
+    successCircle: {
+      width:
+        64,
+
+      height:
+        64,
+
+      borderRadius:
+        32,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#278850',
     },
 
     successTitle: {
       color:
-        '#241D2B',
+        '#2C2327',
 
       fontSize:
-        19,
+        20,
 
       fontWeight:
         '900',
 
-      textAlign:
-        'center',
-
       marginTop:
-        17,
+        16,
     },
 
     successText: {
+      maxWidth:
+        300,
+
       color:
-        '#7B727F',
+        '#786E73',
 
       fontSize:
-        10,
+        9.5,
 
       lineHeight:
         16,
@@ -3239,7 +4311,7 @@ const styles =
         'center',
 
       marginTop:
-        7,
+        6,
     },
 
     successBadge: {
@@ -3250,7 +4322,7 @@ const styles =
         'center',
 
       backgroundColor:
-        '#EFF9F2',
+        '#F2FAF5',
 
       borderRadius:
         20,
@@ -3262,15 +4334,15 @@ const styles =
         7,
 
       marginTop:
-        14,
+        15,
     },
 
     successBadgeText: {
       color:
-        '#36704B',
+        '#427254',
 
       fontSize:
-        8.5,
+        8,
 
       fontWeight:
         '800',
@@ -3284,7 +4356,10 @@ const styles =
         '100%',
 
       minHeight:
-        48,
+        51,
+
+      flexDirection:
+        'row',
 
       alignItems:
         'center',
@@ -3296,10 +4371,10 @@ const styles =
         '#A00B0F',
 
       borderRadius:
-        12,
+        13,
 
       marginTop:
-        20,
+        18,
     },
 
     doneText: {
@@ -3307,9 +4382,12 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        11,
+        10.5,
 
       fontWeight:
         '900',
+
+      marginRight:
+        7,
     },
   });

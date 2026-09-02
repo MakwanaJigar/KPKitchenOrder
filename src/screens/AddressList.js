@@ -6,8 +6,8 @@ import React, {
 
 import {
   ActivityIndicator,
+  Alert,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StatusBar,
@@ -29,14 +29,212 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /* =========================================================
- * Storage
+ * APIs
  * ========================================================= */
+
+const PROFILE_API_URL =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile';
+
+const PROFILE_EDIT_API_URL =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile/edit';
 
 const ADDRESS_STORAGE_KEY =
   'kp_customer_addresses';
 
 /* =========================================================
- * Address List
+ * HELPERS
+ * ========================================================= */
+
+const getAddressLine =
+  address => {
+    if (
+      address?.address_line
+    ) {
+      return String(
+        address.address_line,
+      );
+    }
+
+    return [
+      address?.addressLine1 ??
+        address?.address_line_1,
+
+      address?.addressLine2 ??
+        address?.address_line_2,
+
+      address?.suburb ??
+        address?.city,
+
+      address?.state,
+
+      address?.country,
+    ]
+      .filter(Boolean)
+      .map(value =>
+        String(value).trim(),
+      )
+      .filter(Boolean)
+      .join(', ');
+  };
+
+const normalizeAddress =
+  (
+    item,
+    index,
+  ) => ({
+    ...item,
+
+    id:
+      String(
+        item?.id ??
+          `address-${index}`,
+      ),
+
+    type:
+      item?.type ??
+      item?.address_type ??
+      'Home',
+
+    name:
+      item?.name ??
+      item?.full_name ??
+      '',
+
+    phone:
+      item?.phone ??
+      item?.mobile ??
+      '',
+
+    addressLine1:
+      item?.addressLine1 ??
+      item?.address_line_1 ??
+      item?.address_line ??
+      '',
+
+    addressLine2:
+      item?.addressLine2 ??
+      item?.address_line_2 ??
+      '',
+
+    suburb:
+      item?.suburb ??
+      item?.city ??
+      '',
+
+    city:
+      item?.city ??
+      item?.suburb ??
+      '',
+
+    state:
+      item?.state ??
+      '',
+
+    postcode:
+      String(
+        item?.postcode ??
+          item?.pincode ??
+          '',
+      ),
+
+    pincode:
+      String(
+        item?.pincode ??
+          item?.postcode ??
+          '',
+      ),
+
+    country:
+      item?.country ??
+      'Australia',
+
+    deliveryInstructions:
+      item?.deliveryInstructions ??
+      item?.delivery_instructions ??
+      '',
+
+    isDefault:
+      Boolean(
+        item?.isDefault ??
+          item?.is_default ??
+          false,
+      ),
+
+    is_default:
+      Boolean(
+        item?.is_default ??
+          item?.isDefault ??
+          false,
+      ),
+
+    address_line:
+      getAddressLine(
+        item,
+      ),
+  });
+
+const ensureDefault =
+  list => {
+    if (
+      list.length === 0
+    ) {
+      return [];
+    }
+
+    if (
+      list.some(
+        item =>
+          item.isDefault,
+      )
+    ) {
+      return list;
+    }
+
+    return list.map(
+      (
+        item,
+        index,
+      ) => ({
+        ...item,
+
+        isDefault:
+          index === 0,
+
+        is_default:
+          index === 0,
+      }),
+    );
+  };
+
+const addressToApi =
+  address => ({
+    type:
+      String(
+        address?.type ??
+          'Home',
+      ).trim(),
+
+    address_line:
+      getAddressLine(
+        address,
+      ),
+
+    pincode:
+      String(
+        address?.postcode ??
+          address?.pincode ??
+          '',
+      ).trim(),
+
+    is_default:
+      Boolean(
+        address?.isDefault ??
+          address?.is_default,
+      ),
+  });
+
+/* =========================================================
+ * ADDRESS LIST
  * ========================================================= */
 
 const AddressList = ({
@@ -44,492 +242,496 @@ const AddressList = ({
 }) => {
   const {
     width,
-  } = useWindowDimensions();
-
-  /* =====================================================
-   * Responsive
-   * ===================================================== */
+  } =
+    useWindowDimensions();
 
   const responsive =
     useMemo(
-      () => {
-        const isTablet =
-          width >= 768;
+      () => ({
+        width:
+          width >= 768
+            ? Math.min(
+                width - 80,
+                720,
+              )
+            : width,
 
-        return {
-          isTablet,
-
-          contentWidth:
-            isTablet
-              ? Math.min(
-                  width - 80,
-                  720,
-                )
-              : width,
-
-          horizontalPadding:
-            isTablet
-              ? 28
-              : 14,
-        };
-      },
+        padding:
+          width >= 768
+            ? 28
+            : 14,
+      }),
       [
         width,
       ],
     );
 
-  /* =====================================================
-   * Address Data
-   * ===================================================== */
-
   const [
     addresses,
     setAddresses,
-  ] = useState([]);
+  ] =
+    useState([]);
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
-
-  /* =====================================================
-   * Delete Popup
-   * ===================================================== */
+  ] =
+    useState(true);
 
   const [
-    deletePopupVisible,
-    setDeletePopupVisible,
-  ] = useState(false);
+    syncing,
+    setSyncing,
+  ] =
+    useState(false);
 
-  const [
-    selectedAddress,
-    setSelectedAddress,
-  ] = useState(null);
-
-  const [
-    deleting,
-    setDeleting,
-  ] = useState(false);
-
-  /* =====================================================
-   * Default Address Warning Popup
-   * ===================================================== */
-
-  const [
-    defaultWarningVisible,
-    setDefaultWarningVisible,
-  ] = useState(false);
-
-  /* =====================================================
-   * Load Addresses
-   * ===================================================== */
+  /* =======================================================
+   * LOAD
+   * ======================================================= */
 
   const loadAddresses =
-    async () => {
-      try {
-        setLoading(
-          true,
-        );
-
-        const stored =
-          await AsyncStorage.getItem(
-            ADDRESS_STORAGE_KEY,
-          );
-
-        if (!stored) {
-          setAddresses([]);
-
-          return;
-        }
-
-        let parsed =
-          [];
-
+    useCallback(
+      async () => {
         try {
-          parsed =
-            JSON.parse(
-              stored,
-            );
-        } catch (
-          parseError
-        ) {
-          console.log(
-            'ADDRESS JSON PARSE ERROR:',
-            parseError,
+          setLoading(
+            true,
           );
 
-          setAddresses([]);
-
-          return;
-        }
-
-        if (
-          !Array.isArray(
-            parsed,
-          )
-        ) {
-          setAddresses([]);
-
-          return;
-        }
-
-        /* =============================================
-         * Normalize
-         * ============================================= */
-
-        const normalized =
-          parsed.map(
-            (
-              item,
-              index,
-            ) => ({
-              ...item,
-
-              id:
-                String(
-                  item?.id ??
-                    `address-${index}`,
-                ),
-
-              type:
-                item?.type ??
-                item?.address_type ??
-                'Home',
-
-              name:
-                item?.name ??
-                item?.full_name ??
-                '',
-
-              phone:
-                item?.phone ??
-                item?.mobile ??
-                '',
-
-              addressLine1:
-                item?.addressLine1 ??
-                item?.address_line_1 ??
-                '',
-
-              addressLine2:
-                item?.addressLine2 ??
-                item?.address_line_2 ??
-                '',
-
-              suburb:
-                item?.suburb ??
-                item?.city ??
-                '',
-
-              state:
-                item?.state ??
-                '',
-
-              postcode:
-                item?.postcode ??
-                item?.pincode ??
-                '',
-
-              country:
-                item?.country ??
-                'Australia',
-
-              deliveryInstructions:
-                item?.deliveryInstructions ??
-                item?.delivery_instructions ??
-                '',
-
-              isDefault:
-                Boolean(
-                  item?.isDefault ??
-                    item?.is_default ??
-                    false,
-                ),
-            }),
-          );
-
-        /* =============================================
-         * Safety:
-         * If addresses exist but none are default,
-         * make first one default.
-         * ============================================= */
-
-        let finalAddresses =
-          normalized;
-
-        if (
-          finalAddresses.length >
-            0 &&
-          !finalAddresses.some(
-            item =>
-              item.isDefault,
-          )
-        ) {
-          finalAddresses =
-            finalAddresses.map(
-              (
-                item,
-                index,
-              ) => ({
-                ...item,
-
-                isDefault:
-                  index ===
-                  0,
-              }),
+          const stored =
+            await AsyncStorage.getItem(
+              ADDRESS_STORAGE_KEY,
             );
 
-          await AsyncStorage.setItem(
-            ADDRESS_STORAGE_KEY,
+          let parsed =
+            [];
 
-            JSON.stringify(
-              finalAddresses,
-            ),
+          try {
+            parsed =
+              stored
+                ? JSON.parse(
+                    stored,
+                  )
+                : [];
+          } catch {
+            parsed =
+              [];
+          }
+
+          const normalized =
+            ensureDefault(
+              Array.isArray(
+                parsed,
+              )
+                ? parsed.map(
+                    normalizeAddress,
+                  )
+                : [],
+            );
+
+          setAddresses(
+            normalized,
+          );
+
+          if (
+            normalized.length >
+            0
+          ) {
+            await AsyncStorage.setItem(
+              ADDRESS_STORAGE_KEY,
+              JSON.stringify(
+                normalized,
+              ),
+            );
+          }
+        } finally {
+          setLoading(
+            false,
           );
         }
-
-        setAddresses(
-          finalAddresses,
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          'LOAD ADDRESS ERROR:',
-          error,
-        );
-
-        setAddresses([]);
-      } finally {
-        setLoading(
-          false,
-        );
-      }
-    };
-
-  /* =====================================================
-   * Reload Every Time Page Gets Focus
-   * ===================================================== */
+      },
+      [],
+    );
 
   useFocusEffect(
     useCallback(
       () => {
         loadAddresses();
       },
-      [],
+      [
+        loadAddresses,
+      ],
     ),
   );
 
-  /* =====================================================
-   * Save Updated Address List
-   * ===================================================== */
+  /* =======================================================
+   * GET PROFILE
+   * ======================================================= */
 
-  const saveAddresses =
-    async updated => {
+  const getProfile =
+    async token => {
+      const response =
+        await fetch(
+          PROFILE_API_URL,
+          {
+            headers: {
+              Accept:
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+          },
+        );
+
+      const text =
+        await response.text();
+
+      let result =
+        {};
+
       try {
-        setAddresses(
-          updated,
+        result =
+          text
+            ? JSON.parse(
+                text,
+              )
+            : {};
+      } catch {
+        result =
+          {};
+      }
+
+      if (
+        !response.ok
+      ) {
+        throw new Error(
+          result?.message ??
+            'Unable to load profile.',
+        );
+      }
+
+      return (
+        result?.data?.customer ??
+        result?.data?.user ??
+        result?.data?.profile ??
+        result?.data ??
+        result?.customer ??
+        result
+      );
+    };
+
+  /* =======================================================
+   * SYNC COMPLETE ADDRESS LIST TO PROFILE API
+   * ======================================================= */
+
+  const syncAddressesToServer =
+    async updatedAddresses => {
+      const token =
+        await AsyncStorage.getItem(
+          'token',
+        );
+
+      if (!token) {
+        throw new Error(
+          'Please login again.',
+        );
+      }
+
+      const profile =
+        await getProfile(
+          token,
+        );
+
+      const firstName =
+        profile?.first_name ??
+        (
+          profile?.name
+            ? String(
+                profile.name,
+              ).split(
+                ' ',
+              )[0]
+            : ''
+        );
+
+      const lastName =
+        profile?.last_name ??
+        (
+          profile?.name
+            ? String(
+                profile.name,
+              )
+                .split(
+                  ' ',
+                )
+                .slice(
+                  1,
+                )
+                .join(
+                  ' ',
+                )
+            : ''
+        );
+
+      const payload = {
+        first_name:
+          firstName,
+
+        last_name:
+          lastName,
+
+        phone:
+          profile?.phone ??
+          '',
+
+        email:
+          profile?.email ??
+          '',
+
+        addresses:
+          updatedAddresses.map(
+            addressToApi,
+          ),
+      };
+
+      console.log(
+        'ADDRESS LIST PROFILE PAYLOAD:',
+        JSON.stringify(
+          payload,
+          null,
+          2,
+        ),
+      );
+
+      const response =
+        await fetch(
+          PROFILE_EDIT_API_URL,
+          {
+            method:
+              'POST',
+
+            headers: {
+              Accept:
+                'application/json',
+
+              'Content-Type':
+                'application/json',
+
+              Authorization:
+                `Bearer ${token}`,
+            },
+
+            body:
+              JSON.stringify(
+                payload,
+              ),
+          },
+        );
+
+      const text =
+        await response.text();
+
+      let result =
+        {};
+
+      try {
+        result =
+          text
+            ? JSON.parse(
+                text,
+              )
+            : {};
+      } catch {
+        result =
+          {};
+      }
+
+      console.log(
+        'ADDRESS SYNC STATUS:',
+        response.status,
+      );
+
+      console.log(
+        'ADDRESS SYNC RESPONSE:',
+        text,
+      );
+
+      /*
+       * DO NOT redirect to login automatically.
+       */
+
+      if (
+        !response.ok ||
+        result?.success ===
+          false
+      ) {
+        throw new Error(
+          result?.message ??
+            result?.error ??
+            'Unable to update addresses.',
+        );
+      }
+
+      return true;
+    };
+
+  /* =======================================================
+   * SAVE LOCAL + SERVER
+   * ======================================================= */
+
+  const saveAndSync =
+    async updated => {
+      const normalized =
+        ensureDefault(
+          updated.map(
+            normalizeAddress,
+          ),
+        );
+
+      try {
+        setSyncing(
+          true,
+        );
+
+        /*
+         * First sync server.
+         *
+         * If server fails, do not permanently
+         * update local state.
+         */
+
+        await syncAddressesToServer(
+          normalized,
         );
 
         await AsyncStorage.setItem(
           ADDRESS_STORAGE_KEY,
-
           JSON.stringify(
-            updated,
+            normalized,
           ),
         );
+
+        setAddresses(
+          normalized,
+        );
+
+        return true;
       } catch (
-        error
+        syncError
       ) {
         console.log(
-          'SAVE ADDRESS LIST ERROR:',
-          error,
+          'SAVE ADDRESS ERROR:',
+          syncError,
+        );
+
+        Alert.alert(
+          'Address Update Failed',
+          syncError?.message ??
+            'Unable to update address.',
+        );
+
+        return false;
+      } finally {
+        setSyncing(
+          false,
         );
       }
     };
 
-  /* =====================================================
-   * Delete Address Press
-   * ===================================================== */
+  /* =======================================================
+   * DEFAULT
+   * ======================================================= */
 
-  const handleDeleteAddress =
+  const setDefaultAddress =
+    async id => {
+      const updated =
+        addresses.map(
+          item => ({
+            ...item,
+
+            isDefault:
+              String(
+                item.id,
+              ) ===
+              String(
+                id,
+              ),
+
+            is_default:
+              String(
+                item.id,
+              ) ===
+              String(
+                id,
+              ),
+          }),
+        );
+
+      await saveAndSync(
+        updated,
+      );
+    };
+
+  /* =======================================================
+   * DELETE
+   * ======================================================= */
+
+  const deleteAddress =
     address => {
-      if (!address) {
-        return;
-      }
-
-      /* =============================================
-       * Default cannot be deleted
-       * ============================================= */
-
       if (
         address.isDefault
       ) {
-        setSelectedAddress(
-          address,
-        );
-
-        setDefaultWarningVisible(
-          true,
+        Alert.alert(
+          'Default Address',
+          'Set another address as default before deleting this address.',
         );
 
         return;
       }
 
-      setSelectedAddress(
-        address,
-      );
+      Alert.alert(
+        'Delete Address',
+        'Are you sure you want to delete this address?',
+        [
+          {
+            text:
+              'Cancel',
 
-      setDeletePopupVisible(
-        true,
-      );
-    };
+            style:
+              'cancel',
+          },
 
-  /* =====================================================
-   * Close Delete Popup
-   * ===================================================== */
+          {
+            text:
+              'Delete',
 
-  const closeDeletePopup =
-    () => {
-      if (
-        deleting
-      ) {
-        return;
-      }
+            style:
+              'destructive',
 
-      setDeletePopupVisible(
-        false,
-      );
+            onPress:
+              async () => {
+                const updated =
+                  addresses.filter(
+                    item =>
+                      String(
+                        item.id,
+                      ) !==
+                      String(
+                        address.id,
+                      ),
+                  );
 
-      setSelectedAddress(
-        null,
-      );
-    };
-
-  /* =====================================================
-   * Confirm Delete
-   * ===================================================== */
-
-  const confirmDeleteAddress =
-    async () => {
-      if (
-        !selectedAddress ||
-        deleting
-      ) {
-        return;
-      }
-
-      try {
-        setDeleting(
-          true,
-        );
-
-        const updated =
-          addresses.filter(
-            item =>
-              String(
-                item.id,
-              ) !==
-              String(
-                selectedAddress.id,
-              ),
-          );
-
-        await saveAddresses(
-          updated,
-        );
-
-        setDeletePopupVisible(
-          false,
-        );
-
-        setSelectedAddress(
-          null,
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          'DELETE ADDRESS ERROR:',
-          error,
-        );
-      } finally {
-        setDeleting(
-          false,
-        );
-      }
-    };
-
-  /* =====================================================
-   * Set Default
-   * ===================================================== */
-
-  const handleSetDefault =
-    async id => {
-      try {
-        const updated =
-          addresses.map(
-            item => ({
-              ...item,
-
-              isDefault:
-                String(
-                  item.id,
-                ) ===
-                String(
-                  id,
-                ),
-            }),
-          );
-
-        await saveAddresses(
-          updated,
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          'SET DEFAULT ADDRESS ERROR:',
-          error,
-        );
-      }
-    };
-
-  /* =====================================================
-   * Edit Address
-   * ===================================================== */
-
-  const handleEditAddress =
-    address => {
-      navigation.navigate(
-        'AddAddress',
-        {
-          mode:
-            'edit',
-
-          address,
-        },
+                await saveAndSync(
+                  updated,
+                );
+              },
+          },
+        ],
       );
     };
 
-  /* =====================================================
-   * Add Address
-   * ===================================================== */
-
-  const handleAddAddress =
-    () => {
-      navigation.navigate(
-        'AddAddress',
-        {
-          mode:
-            'add',
-        },
-      );
-    };
-
-  /* =====================================================
-   * Loading
-   * ===================================================== */
+  /* =======================================================
+   * UI
+   * ======================================================= */
 
   if (
     loading
@@ -538,1077 +740,412 @@ const AddressList = ({
       <SafeAreaView
         style={
           styles.safeArea
-        }>
-
-        <StatusBar
-          barStyle="dark-content"
-
-          backgroundColor="#FFF9F6"
-        />
-
+        }
+      >
         <View
           style={
-            styles.loadingContainer
-          }>
-
+            styles.loading
+          }
+        >
           <ActivityIndicator
             size="large"
-
             color="#A00B0F"
           />
 
           <Text
             style={
-              styles.loadingTitle
-            }>
-            Loading Addresses
+              styles.loadingText
+            }
+          >
+            Loading Addresses...
           </Text>
-
-          <Text
-            style={
-              styles.loadingDescription
-            }>
-            Please wait...
-          </Text>
-
         </View>
-
       </SafeAreaView>
     );
   }
 
-  /* =====================================================
-   * UI
-   * ===================================================== */
-
   return (
-    <>
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }>
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#FFF9F6"
+      />
 
-        <StatusBar
-          barStyle="dark-content"
+      <View
+        style={[
+          styles.screen,
 
-          backgroundColor="#FFF9F6"
-        />
+          {
+            width:
+              responsive.width,
+          },
+        ]}
+      >
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal:
+              responsive.padding,
 
-        <View
-          style={[
-            styles.screenContainer,
+            paddingBottom:
+              100,
+          }}
+          showsVerticalScrollIndicator={
+            false
+          }
+        >
+          {/* HEADER */}
 
-            {
-              width:
-                responsive.contentWidth,
-            },
-          ]}>
-
-          <ScrollView
-            showsVerticalScrollIndicator={
-              false
+          <View
+            style={
+              styles.header
             }
+          >
+            <Pressable
+              style={
+                styles.backButton
+              }
+              onPress={() =>
+                navigation.goBack()
+              }
+            >
+              <Image
+                source={require('../assets/login-icons/back.png')}
+                style={
+                  styles.backIcon
+                }
+              />
+            </Pressable>
 
-            contentContainerStyle={[
-              styles.scrollContent,
+            <View>
+              <Text
+                style={
+                  styles.eyebrow
+                }
+              >
+                DELIVERY DETAILS
+              </Text>
 
-              {
-                paddingHorizontal:
-                  responsive.horizontalPadding,
-              },
-            ]}>
+              <Text
+                style={
+                  styles.title
+                }
+              >
+                My Addresses
+              </Text>
+            </View>
+          </View>
 
-            {/* ================================================= */}
-            {/* HEADER */}
-            {/* ================================================= */}
+          {/* INFO */}
+
+          <View
+            style={
+              styles.infoCard
+            }
+          >
+            <Image
+              source={require('../assets/login-icons/location-light.png')}
+              style={
+                styles.infoIcon
+              }
+            />
 
             <View
+              style={{
+                flex:
+                  1,
+              }}
+            >
+              <Text
+                style={
+                  styles.infoTitle
+                }
+              >
+                Delivery Addresses
+              </Text>
+
+              <Text
+                style={
+                  styles.infoText
+                }
+              >
+                All addresses here are synchronized with your profile.
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={
+              styles.sectionRow
+            }
+          >
+            <Text
               style={
-                styles.header
-              }>
+                styles.sectionTitle
+              }
+            >
+              Saved Addresses
+            </Text>
 
-              <Pressable
-                hitSlop={
-                  10
-                }
+            <Text
+              style={
+                styles.count
+              }
+            >
+              {addresses.length}
+            </Text>
+          </View>
 
+          {addresses.length ===
+          0 ? (
+            <View
+              style={
+                styles.empty
+              }
+            >
+              <Image
+                source={require('../assets/login-icons/location.png')}
                 style={
-                  styles.backButton
-                }
-
-                onPress={() =>
-                  navigation.goBack()
-                }>
-
-                <Image
-                  source={require('../assets/login-icons/back.png')}
-
-                  style={
-                    styles.backIcon
-                  }
-
-                  resizeMode="contain"
-                />
-
-              </Pressable>
-
-              <View
-                style={
-                  styles.headerTextContainer
-                }>
-
-                <Text
-                  style={
-                    styles.headerEyebrow
-                  }>
-                  DELIVERY DETAILS
-                </Text>
-
-                <Text
-                  style={
-                    styles.headerTitle
-                  }>
-                  My Addresses
-                </Text>
-
-              </View>
-
-              <View
-                style={
-                  styles.headerSpacer
+                  styles.emptyIcon
                 }
               />
 
-            </View>
-
-            {/* ================================================= */}
-            {/* INFO */}
-            {/* ================================================= */}
-
-            <View
-              style={
-                styles.infoCard
-              }>
-
-              <View
-                style={
-                  styles.infoIconContainer
-                }>
-
-                <Image
-                  source={require('../assets/login-icons/location-light.png')}
-
-                  style={
-                    styles.infoIcon
-                  }
-
-                  resizeMode="contain"
-                />
-
-              </View>
-
-              <View
-                style={
-                  styles.infoDetails
-                }>
-
-                <Text
-                  style={
-                    styles.infoTitle
-                  }>
-                  Delivery Addresses
-                </Text>
-
-                <Text
-                  style={
-                    styles.infoText
-                  }>
-                  Manage the addresses where you receive your tiffin deliveries.
-                </Text>
-
-              </View>
-
-            </View>
-
-            {/* ================================================= */}
-            {/* ADDRESS LIST */}
-            {/* ================================================= */}
-
-            <View
-              style={
-                styles.sectionHeader
-              }>
-
               <Text
                 style={
-                  styles.sectionTitle
-                }>
-                Saved Addresses
+                  styles.emptyTitle
+                }
+              >
+                No Address Added
               </Text>
-
-              <Text
-                style={
-                  styles.addressCount
-                }>
-
-                {addresses.length}{' '}
-
-                {addresses.length ===
-                1
-                  ? 'Address'
-                  : 'Addresses'}
-
-              </Text>
-
             </View>
-
-            {addresses.length >
-            0 ? (
-              addresses.map(
-                address => (
-                  <AddressCard
-                    key={
-                      String(
-                        address.id,
-                      )
-                    }
-
-                    address={
-                      address
-                    }
-
-                    onEdit={() =>
-                      handleEditAddress(
-                        address,
-                      )
-                    }
-
-                    onDelete={() =>
-                      handleDeleteAddress(
-                        address,
-                      )
-                    }
-
-                    onSetDefault={() =>
-                      handleSetDefault(
-                        address.id,
-                      )
-                    }
-                  />
-                ),
-              )
-            ) : (
-              <View
-                style={
-                  styles.emptyCard
-                }>
-
+          ) : (
+            addresses.map(
+              address => (
                 <View
-                  style={
-                    styles.emptyIconContainer
-                  }>
-
-                  <Image
-                    source={require('../assets/login-icons/location.png')}
-
-                    style={
-                      styles.emptyIcon
-                    }
-
-                    resizeMode="contain"
-                  />
-
-                </View>
-
-                <Text
-                  style={
-                    styles.emptyTitle
-                  }>
-                  No Address Added
-                </Text>
-
-                <Text
-                  style={
-                    styles.emptySubtitle
-                  }>
-                  Add your delivery address to start ordering your tiffin.
-                </Text>
-
-              </View>
-            )}
-
-            {/* ================================================= */}
-            {/* ADD NEW ADDRESS */}
-            {/* ================================================= */}
-
-            <TouchableOpacity
-              activeOpacity={
-                0.85
-              }
-
-              style={
-                styles.addButton
-              }
-
-              onPress={
-                handleAddAddress
-              }>
-
-              <Text
-                style={
-                  styles.addButtonPlus
-                }>
-                +
-              </Text>
-
-              <Text
-                style={
-                  styles.addButtonText
-                }>
-                Add New Address
-              </Text>
-
-            </TouchableOpacity>
-
-          </ScrollView>
-
-        </View>
-
-      </SafeAreaView>
-
-      {/* ================================================= */}
-      {/* DELETE ADDRESS CONFIRMATION POPUP */}
-      {/* ================================================= */}
-
-      <Modal
-        visible={
-          deletePopupVisible
-        }
-
-        transparent
-
-        animationType="fade"
-
-        statusBarTranslucent
-
-        onRequestClose={
-          closeDeletePopup
-        }>
-
-        <Pressable
-          style={
-            styles.modalOverlay
-          }
-
-          onPress={
-            closeDeletePopup
-          }>
-
-          <Pressable
-            style={
-              styles.deletePopupCard
-            }
-
-            onPress={() => {}}>
-
-            {/* =========================================== */}
-            {/* Icon */}
-            {/* =========================================== */}
-
-            <View
-              style={
-                styles.deletePopupIconOuter
-              }>
-
-              <View
-                style={
-                  styles.deletePopupIconInner
-                }>
-
-                <Text
-                  style={
-                    styles.deletePopupIcon
-                  }>
-                  ×
-                </Text>
-
-              </View>
-
-            </View>
-
-            {/* =========================================== */}
-            {/* Heading */}
-            {/* =========================================== */}
-
-            <Text
-              style={
-                styles.deletePopupTitle
-              }>
-              Delete Address?
-            </Text>
-
-            <Text
-              style={
-                styles.deletePopupDescription
-              }>
-              Are you sure you want to delete this saved address?
-            </Text>
-
-            {/* =========================================== */}
-            {/* Address Preview */}
-            {/* =========================================== */}
-
-            {!!selectedAddress && (
-              <View
-                style={
-                  styles.popupAddressPreview
-                }>
-
-                <Text
-                  style={
-                    styles.popupAddressType
-                  }>
-
-                  {
-                    selectedAddress.type
-                  }
-
-                </Text>
-
-                <Text
-                  style={
-                    styles.popupAddressName
-                  }>
-
-                  {
-                    selectedAddress.name
-                  }
-
-                </Text>
-
-                <Text
-                  style={
-                    styles.popupAddressText
-                  }>
-
-                  {[
-                    selectedAddress
-                      .addressLine1,
-
-                    selectedAddress
-                      .addressLine2,
-
-                    selectedAddress
-                      .suburb,
-
-                    selectedAddress
-                      .state,
-
-                    selectedAddress
-                      .postcode,
-
-                    selectedAddress
-                      .country,
-                  ]
-                    .filter(
-                      Boolean,
+                  key={
+                    String(
+                      address.id,
                     )
-                    .join(
-                      ', ',
+                  }
+                  style={
+                    styles.addressCard
+                  }
+                >
+                  <View
+                    style={
+                      styles.addressTop
+                    }
+                  >
+                    <View
+                      style={
+                        styles.addressTypeIcon
+                      }
+                    >
+                      <Image
+                        source={require('../assets/login-icons/home.png')}
+                        style={
+                          styles.homeIcon
+                        }
+                      />
+                    </View>
+
+                    <View
+                      style={
+                        styles.addressContent
+                      }
+                    >
+                      <View
+                        style={
+                          styles.typeRow
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.typeText
+                          }
+                        >
+                          {address.type}
+                        </Text>
+
+                        {address.isDefault && (
+                          <View
+                            style={
+                              styles.defaultBadge
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.defaultText
+                              }
+                            >
+                              DEFAULT
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {!!address.name && (
+                        <Text
+                          style={
+                            styles.name
+                          }
+                        >
+                          {address.name}
+                        </Text>
+                      )}
+
+                      <Text
+                        style={
+                          styles.addressText
+                        }
+                      >
+                        {getAddressLine(
+                          address,
+                        )}
+                      </Text>
+
+                      {!!address.postcode && (
+                        <Text
+                          style={
+                            styles.addressText
+                          }
+                        >
+                          {address.postcode}
+                        </Text>
+                      )}
+                    </View>
+
+                    <TouchableOpacity
+                      style={
+                        styles.editButton
+                      }
+                      onPress={() =>
+                        navigation.navigate(
+                          'AddAddress',
+                          {
+                            mode:
+                              'edit',
+
+                            address,
+                          },
+                        )
+                      }
+                    >
+                      <Image
+                        source={require('../assets/login-icons/edit.png')}
+                        style={
+                          styles.editIcon
+                        }
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View
+                    style={
+                      styles.actions
+                    }
+                  >
+                    {!address.isDefault && (
+                      <TouchableOpacity
+                        disabled={
+                          syncing
+                        }
+                        style={
+                          styles.defaultButton
+                        }
+                        onPress={() =>
+                          setDefaultAddress(
+                            address.id,
+                          )
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.defaultButtonText
+                          }
+                        >
+                          Set as Default
+                        </Text>
+                      </TouchableOpacity>
                     )}
 
-                </Text>
-
-              </View>
-            )}
-
-            {/* =========================================== */}
-            {/* Buttons */}
-            {/* =========================================== */}
-
-            <View
-              style={
-                styles.popupButtons
-              }>
-
-              <TouchableOpacity
-                disabled={
-                  deleting
-                }
-
-                activeOpacity={
-                  0.8
-                }
-
-                style={
-                  styles.popupCancelButton
-                }
-
-                onPress={
-                  closeDeletePopup
-                }>
-
-                <Text
-                  style={
-                    styles.popupCancelText
-                  }>
-                  Cancel
-                </Text>
-
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                disabled={
-                  deleting
-                }
-
-                activeOpacity={
-                  0.85
-                }
-
-                style={[
-                  styles.popupDeleteButton,
-
-                  deleting &&
-                    styles.popupButtonDisabled,
-                ]}
-
-                onPress={
-                  confirmDeleteAddress
-                }>
-
-                {deleting ? (
-                  <ActivityIndicator
-                    size="small"
-
-                    color="#FFFFFF"
-                  />
-                ) : (
-                  <Text
-                    style={
-                      styles.popupDeleteText
-                    }>
-                    Delete
-                  </Text>
-                )}
-
-              </TouchableOpacity>
-
-            </View>
-
-          </Pressable>
-
-        </Pressable>
-
-      </Modal>
-
-      {/* ================================================= */}
-      {/* DEFAULT ADDRESS WARNING POPUP */}
-      {/* ================================================= */}
-
-      <Modal
-        visible={
-          defaultWarningVisible
-        }
-
-        transparent
-
-        animationType="fade"
-
-        statusBarTranslucent
-
-        onRequestClose={() => {
-          setDefaultWarningVisible(
-            false,
-          );
-
-          setSelectedAddress(
-            null,
-          );
-        }}>
-
-        <Pressable
-          style={
-            styles.modalOverlay
-          }
-
-          onPress={() => {
-            setDefaultWarningVisible(
-              false,
-            );
-
-            setSelectedAddress(
-              null,
-            );
-          }}>
-
-          <Pressable
-            style={
-              styles.warningPopupCard
-            }
-
-            onPress={() => {}}>
-
-            {/* =========================================== */}
-            {/* Warning Icon */}
-            {/* =========================================== */}
-
-            <View
-              style={
-                styles.warningIconOuter
-              }>
-
-              <View
-                style={
-                  styles.warningIconInner
-                }>
-
-                <Text
-                  style={
-                    styles.warningIconText
-                  }>
-                  !
-                </Text>
-
-              </View>
-
-            </View>
-
-            <Text
-              style={
-                styles.warningPopupTitle
-              }>
-              Default Address
-            </Text>
-
-            <Text
-              style={
-                styles.warningPopupDescription
-              }>
-              You cannot delete your default address.
-            </Text>
-
-            <View
-              style={
-                styles.warningInfoBox
-              }>
-
-              <Text
-                style={
-                  styles.warningInfoText
-                }>
-                Set another saved address as default first, then you can delete this address.
-              </Text>
-
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={
-                0.85
-              }
-
-              style={
-                styles.warningDoneButton
-              }
-
-              onPress={() => {
-                setDefaultWarningVisible(
-                  false,
-                );
-
-                setSelectedAddress(
-                  null,
-                );
-              }}>
-
-              <Text
-                style={
-                  styles.warningDoneText
-                }>
-                OK
-              </Text>
-
-            </TouchableOpacity>
-
-          </Pressable>
-
-        </Pressable>
-
-      </Modal>
-    </>
-  );
-};
-
-/* =========================================================
- * Address Card
- * ========================================================= */
-
-const AddressCard = ({
-  address,
-  onEdit,
-  onDelete,
-  onSetDefault,
-}) => {
-  return (
-    <View
-      style={[
-        styles.addressCard,
-
-        address.isDefault &&
-          styles.defaultAddressCard,
-      ]}>
-
-      {/* ================================================= */}
-      {/* TOP */}
-      {/* ================================================= */}
-
-      <View
-        style={
-          styles.addressTopRow
-        }>
-
-        <View
-          style={
-            styles.addressTypeRow
-          }>
-
-          <View
-            style={[
-              styles.addressTypeIcon,
-
-              address.isDefault &&
-                styles.defaultTypeIcon,
-            ]}>
-
-            <Image
-              source={require('../assets/login-icons/home.png')}
-
-              style={
-                styles.addressIcon
-              }
-
-              resizeMode="contain"
-            />
-
-          </View>
-
-          <View
-            style={
-              styles.addressTopDetails
-            }>
-
-            <View
-              style={
-                styles.titleRow
-              }>
-
-              <Text
-                style={
-                  styles.addressType
-                }>
-                {address.type}
-              </Text>
-
-              {address.isDefault ? (
-                <View
-                  style={
-                    styles.defaultBadge
-                  }>
-
-                  <Text
-                    style={
-                      styles.defaultBadgeText
-                    }>
-                    Default
-                  </Text>
-
+                    <TouchableOpacity
+                      disabled={
+                        syncing
+                      }
+                      style={
+                        styles.deleteButton
+                      }
+                      onPress={() =>
+                        deleteAddress(
+                          address,
+                        )
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.deleteText
+                        }
+                      >
+                        Delete
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              ) : null}
-
-            </View>
-
-            <Text
-              numberOfLines={
-                1
-              }
-
-              style={
-                styles.addressName
-              }>
-              {address.name}
-            </Text>
-
-          </View>
-
-        </View>
-
-        {/* Edit */}
-
-        <Pressable
-          hitSlop={
-            10
-          }
-
-          style={
-            styles.editButton
-          }
-
-          onPress={
-            onEdit
-          }>
-
-          <Image
-            source={require('../assets/login-icons/edit.png')}
-
-            style={
-              styles.editIcon
-            }
-
-            resizeMode="contain"
-          />
-
-        </Pressable>
-
-      </View>
-
-      {/* ================================================= */}
-      {/* ADDRESS */}
-      {/* ================================================= */}
-
-      <View
-        style={
-          styles.addressContent
-        }>
-
-        {!!address.addressLine1 && (
-          <Text
-            style={
-              styles.addressLine
-            }>
-            {
-              address.addressLine1
-            }
-          </Text>
-        )}
-
-        {!!address.addressLine2 && (
-          <Text
-            style={
-              styles.addressLine
-            }>
-            {
-              address.addressLine2
-            }
-          </Text>
-        )}
-
-        <Text
-          style={
-            styles.addressLine
-          }>
-
-          {[
-            address.suburb,
-
-            address.state,
-
-            address.postcode,
-          ]
-            .filter(
-              Boolean,
+              ),
             )
-            .join(
-              ', ',
-            )}
+          )}
 
-        </Text>
+          {/* ADD */}
 
-        {!!address.country && (
-          <Text
-            style={
-              styles.addressLine
-            }>
-            {
-              address.country
-            }
-          </Text>
-        )}
-
-      </View>
-
-      {/* ================================================= */}
-      {/* PHONE */}
-      {/* ================================================= */}
-
-      {!!address.phone && (
-        <View
-          style={
-            styles.phoneRow
-          }>
-
-          <Text
-            style={
-              styles.phoneLabel
-            }>
-            Mobile:
-          </Text>
-
-          <Text
-            style={
-              styles.phoneText
-            }>
-            {
-              address.phone
-            }
-          </Text>
-
-        </View>
-      )}
-
-      {/* ================================================= */}
-      {/* DELIVERY INSTRUCTIONS */}
-      {/* ================================================= */}
-
-      {!!address.deliveryInstructions && (
-        <View
-          style={
-            styles.instructionsBox
-          }>
-
-          <Text
-            style={
-              styles.instructionsLabel
-            }>
-            Delivery Instructions
-          </Text>
-
-          <Text
-            style={
-              styles.instructionsText
-            }>
-
-            {
-              address.deliveryInstructions
-            }
-
-          </Text>
-
-        </View>
-      )}
-
-      {/* ================================================= */}
-      {/* ACTIONS */}
-      {/* ================================================= */}
-
-      <View
-        style={
-          styles.actionRow
-        }>
-
-        {!address.isDefault ? (
           <TouchableOpacity
             activeOpacity={
-              0.8
+              0.85
             }
-
             style={
-              styles.defaultButton
+              styles.addButton
             }
-
-            onPress={
-              onSetDefault
-            }>
-
+            onPress={() =>
+              navigation.navigate(
+                'AddAddress',
+                {
+                  mode:
+                    'add',
+                },
+              )
+            }
+          >
             <Text
               style={
-                styles.defaultButtonText
-              }>
-              Set as Default
-            </Text>
-
-          </TouchableOpacity>
-        ) : (
-          <View
-            style={
-              styles.currentDefault
-            }>
-
-            <View
-              style={
-                styles.defaultDot
+                styles.addButtonText
               }
+            >
+              + Add New Address
+            </Text>
+          </TouchableOpacity>
+
+          {syncing && (
+            <ActivityIndicator
+              color="#A00B0F"
+              style={{
+                marginTop:
+                  15,
+              }}
             />
-
-            <Text
-              style={
-                styles.currentDefaultText
-              }>
-              Default Delivery Address
-            </Text>
-
-          </View>
-        )}
-
-        {!address.isDefault ? (
-          <TouchableOpacity
-            activeOpacity={
-              0.8
-            }
-
-            style={
-              styles.deleteButton
-            }
-
-            onPress={
-              onDelete
-            }>
-
-            <Text
-              style={
-                styles.deleteButtonText
-              }>
-              Delete
-            </Text>
-
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            activeOpacity={
-              0.8
-            }
-
-            style={[
-              styles.deleteButton,
-
-              styles.disabledDeleteButton,
-            ]}
-
-            onPress={
-              onDelete
-            }>
-
-            <Text
-              style={[
-                styles.deleteButtonText,
-
-                styles.disabledDeleteText,
-              ]}>
-              Delete
-            </Text>
-
-          </TouchableOpacity>
-        )}
-
+          )}
+        </ScrollView>
       </View>
-
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default AddressList;
 
 /* =========================================================
- * Styles
+ * STYLES
  * ========================================================= */
 
 const styles =
@@ -1618,33 +1155,18 @@ const styles =
         1,
 
       backgroundColor:
-        '#F5F0ED',
+        '#FFF9F6',
     },
 
-    screenContainer: {
+    screen: {
       flex:
         1,
 
       alignSelf:
         'center',
-
-      backgroundColor:
-        '#FFF9F6',
     },
 
-    scrollContent: {
-      paddingTop:
-        10,
-
-      paddingBottom:
-        100,
-    },
-
-    /* =====================================================
-     * Loading
-     * ===================================================== */
-
-    loadingContainer: {
+    loading: {
       flex:
         1,
 
@@ -1653,55 +1175,25 @@ const styles =
 
       justifyContent:
         'center',
-
-      backgroundColor:
-        '#FFF9F6',
-
-      paddingHorizontal:
-        30,
     },
 
-    loadingTitle: {
-      color:
-        '#2B1D18',
-
-      fontSize:
-        15,
+    loadingText: {
+      marginTop:
+        10,
 
       fontWeight:
-        '900',
-
-      marginTop:
-        14,
+        '700',
     },
-
-    loadingDescription: {
-      color:
-        '#928079',
-
-      fontSize:
-        9,
-
-      marginTop:
-        5,
-    },
-
-    /* =====================================================
-     * Header
-     * ===================================================== */
 
     header: {
-      minHeight:
-        65,
-
       flexDirection:
         'row',
 
       alignItems:
         'center',
 
-      marginBottom:
-        14,
+      minHeight:
+        70,
     },
 
     backButton: {
@@ -1711,6 +1203,9 @@ const styles =
       height:
         42,
 
+      borderRadius:
+        12,
+
       alignItems:
         'center',
 
@@ -1724,64 +1219,47 @@ const styles =
         1,
 
       borderColor:
-        '#EFE5E0',
+        '#EEE4DF',
 
-      borderRadius:
-        14,
+      marginRight:
+        12,
     },
 
     backIcon: {
       width:
-        19,
+        20,
 
       height:
-        19,
+        20,
+
+      resizeMode:
+        'contain',
     },
 
-    headerTextContainer: {
-      flex:
-        1,
-
-      paddingHorizontal:
-        12,
-    },
-
-    headerEyebrow: {
+    eyebrow: {
       color:
         '#A00B0F',
 
       fontSize:
-        9,
+        8,
 
       fontWeight:
-        '800',
+        '900',
 
       letterSpacing:
         1,
     },
 
-    headerTitle: {
+    title: {
       color:
-        '#000000',
+        '#2C211D',
 
       fontSize:
-        24,
+        22,
 
       fontWeight:
         '900',
-
-      marginTop:
-        2,
     },
-
-    headerSpacer: {
-      width:
-        42,
-    },
-
-    /* =====================================================
-     * Info
-     * ===================================================== */
 
     infoCard: {
       flexDirection:
@@ -1791,90 +1269,55 @@ const styles =
         'center',
 
       backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        16,
+        '#A00B0F',
 
       padding:
         13,
 
-      marginBottom:
-        20,
-    },
-
-    infoIconContainer: {
-      width:
-        43,
-
-      height:
-        43,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#A00B0F',
-
       borderRadius:
-        12,
+        15,
 
-      marginRight:
-        11,
+      marginBottom:
+        18,
     },
 
     infoIcon: {
       width:
-        21,
+        28,
 
       height:
-        21,
-    },
+        28,
 
-    infoDetails: {
-      flex:
-        1,
+      tintColor:
+        '#FFFFFF',
+
+      marginRight:
+        12,
     },
 
     infoTitle: {
       color:
-        '#382720',
+        '#FFFFFF',
 
       fontSize:
         11,
 
       fontWeight:
-        '800',
+        '900',
     },
 
     infoText: {
       color:
-        '#8E7971',
+        '#F6DDDE',
 
       fontSize:
         8,
 
-      lineHeight:
-        12,
-
       marginTop:
-        4,
+        3,
     },
 
-    /* =====================================================
-     * Section
-     * ===================================================== */
-
-    sectionHeader: {
+    sectionRow: {
       flexDirection:
         'row',
 
@@ -1889,118 +1332,64 @@ const styles =
     },
 
     sectionTitle: {
-      color:
-        '#2B1D18',
-
       fontSize:
-        18,
+        16,
+
+      fontWeight:
+        '900',
+
+      color:
+        '#30231F',
+    },
+
+    count: {
+      color:
+        '#A00B0F',
 
       fontWeight:
         '900',
     },
-
-    addressCount: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '700',
-    },
-
-    /* =====================================================
-     * Address Card
-     * ===================================================== */
 
     addressCard: {
       backgroundColor:
         '#FFFFFF',
 
+      borderRadius:
+        16,
+
       borderWidth:
         1,
 
       borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        17,
+        '#EEE5E1',
 
       padding:
-        14,
+        13,
 
       marginBottom:
         12,
-
-      shadowColor:
-        '#503328',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          3,
-      },
-
-      shadowOpacity:
-        0.04,
-
-      shadowRadius:
-        8,
-
-      elevation:
-        2,
     },
 
-    defaultAddressCard: {
-      borderColor:
-        '#E6C1C3',
-
-      backgroundColor:
-        '#FFFCFA',
-    },
-
-    addressTopRow: {
+    addressTop: {
       flexDirection:
         'row',
 
       alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    addressTypeRow: {
-      flex:
-        1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      minWidth:
-        0,
-    },
-
-    addressTopDetails: {
-      flex:
-        1,
-
-      minWidth:
-        0,
+        'flex-start',
     },
 
     addressTypeIcon: {
       width:
-        43,
+        42,
 
       height:
-        43,
+        42,
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        '#FFF0F0',
 
       alignItems:
         'center',
@@ -2008,85 +1397,90 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#2D221D',
-
-      borderRadius:
-        12,
-
       marginRight:
-        11,
+        10,
     },
 
-    defaultTypeIcon: {
-      backgroundColor:
-        '#A00B0F',
-    },
-
-    addressIcon: {
+    homeIcon: {
       width:
-        21,
+        20,
 
       height:
-        21,
+        20,
+
+      resizeMode:
+        'contain',
     },
 
-    titleRow: {
+    addressContent: {
+      flex:
+        1,
+    },
+
+    typeRow: {
       flexDirection:
         'row',
 
       alignItems:
         'center',
-
-      flexWrap:
-        'wrap',
     },
 
-    addressType: {
+    typeText: {
+      fontWeight:
+        '900',
+
       color:
-        '#2D201B',
+        '#352824',
+    },
+
+    defaultBadge: {
+      backgroundColor:
+        '#FBE4E4',
+
+      paddingHorizontal:
+        6,
+
+      paddingVertical:
+        2,
+
+      borderRadius:
+        8,
+
+      marginLeft:
+        6,
+    },
+
+    defaultText: {
+      color:
+        '#A00B0F',
 
       fontSize:
-        13,
+        6,
 
       fontWeight:
         '900',
     },
 
-    defaultBadge: {
-      backgroundColor:
-        '#FBE4D8',
-
-      borderRadius:
-        10,
-
-      paddingHorizontal:
-        7,
-
-      paddingVertical:
-        3,
-
-      marginLeft:
-        7,
-    },
-
-    defaultBadgeText: {
-      color:
-        '#A00B0F',
-
+    name: {
       fontSize:
-        7,
+        9,
 
       fontWeight:
-        '800',
+        '700',
+
+      marginTop:
+        5,
     },
 
-    addressName: {
+    addressText: {
       color:
-        '#8C7972',
+        '#877972',
 
       fontSize:
-        8.5,
+        8,
+
+      lineHeight:
+        12,
 
       marginTop:
         3,
@@ -2094,167 +1488,44 @@ const styles =
 
     editButton: {
       width:
-        36,
+        34,
 
       height:
-        36,
+        34,
+
+      borderRadius:
+        10,
+
+      backgroundColor:
+        '#FFF0F0',
 
       alignItems:
         'center',
 
       justifyContent:
         'center',
-
-      backgroundColor:
-        '#FFF0E8',
-
-      borderRadius:
-        11,
-
-      marginLeft:
-        8,
     },
 
     editIcon: {
       width:
-        18,
+        17,
 
       height:
-        18,
+        17,
     },
 
-    addressContent: {
-      backgroundColor:
-        '#FFF9F6',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        12,
-
-      padding:
-        11,
-
-      marginTop:
-        13,
-    },
-
-    addressLine: {
-      color:
-        '#66534C',
-
-      fontSize:
-        9.5,
-
-      lineHeight:
-        15,
-    },
-
-    phoneRow: {
+    actions: {
       flexDirection:
         'row',
-
-      marginTop:
-        10,
-    },
-
-    phoneLabel: {
-      color:
-        '#9B8982',
-
-      fontSize:
-        8.5,
-    },
-
-    phoneText: {
-      color:
-        '#44332D',
-
-      fontSize:
-        8.5,
-
-      fontWeight:
-        '700',
-
-      marginLeft:
-        4,
-    },
-
-    /* =====================================================
-     * Instructions
-     * ===================================================== */
-
-    instructionsBox: {
-      backgroundColor:
-        '#FFF9F6',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        11,
-
-      padding:
-        10,
-
-      marginTop:
-        10,
-    },
-
-    instructionsLabel: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        7.5,
-
-      fontWeight:
-        '900',
-
-      marginBottom:
-        4,
-    },
-
-    instructionsText: {
-      color:
-        '#75645E',
-
-      fontSize:
-        8.5,
-
-      lineHeight:
-        13,
-    },
-
-    /* =====================================================
-     * Actions
-     * ===================================================== */
-
-    actionRow: {
-      minHeight:
-        43,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
 
       justifyContent:
-        'space-between',
+        'flex-end',
 
       borderTopWidth:
         1,
 
       borderTopColor:
-        '#F1E9E5',
+        '#F1EBE8',
 
       marginTop:
         12,
@@ -2264,20 +1535,20 @@ const styles =
     },
 
     defaultButton: {
-      minHeight:
-        34,
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF0E8',
-
-      borderRadius:
-        10,
-
       paddingHorizontal:
         12,
+
+      paddingVertical:
+        8,
+
+      backgroundColor:
+        '#FFF0F0',
+
+      borderRadius:
+        9,
+
+      marginRight:
+        7,
     },
 
     defaultButtonText: {
@@ -2285,182 +1556,49 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        8.5,
-
-      fontWeight:
-        '800',
-    },
-
-    deleteButton: {
-      minHeight:
-        34,
-
-      justifyContent:
-        'center',
-
-      paddingHorizontal:
-        10,
-    },
-
-    deleteButtonText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        8.5,
-
-      fontWeight:
-        '800',
-    },
-
-    disabledDeleteButton: {
-      opacity:
-        0.45,
-    },
-
-    disabledDeleteText: {
-      color:
-        '#A89B96',
-    },
-
-    currentDefault: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      flex:
-        1,
-    },
-
-    defaultDot: {
-      width:
-        7,
-
-      height:
-        7,
-
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        50,
-
-      marginRight:
-        6,
-    },
-
-    currentDefaultText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        8.5,
-
-      fontWeight:
-        '700',
-    },
-
-    /* =====================================================
-     * Empty
-     * ===================================================== */
-
-    emptyCard: {
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EFE5E0',
-
-      borderRadius:
-        17,
-
-      paddingVertical:
-        35,
-
-      paddingHorizontal:
-        20,
-
-      marginBottom:
-        14,
-    },
-
-    emptyIconContainer: {
-      width:
-        60,
-
-      height:
-        60,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF0E8',
-
-      borderRadius:
-        20,
-
-      marginBottom:
-        13,
-    },
-
-    emptyIcon: {
-      width:
-        27,
-
-      height:
-        27,
-    },
-
-    emptyTitle: {
-      color:
-        '#30231E',
-
-      fontSize:
-        14,
+        8,
 
       fontWeight:
         '900',
     },
 
-    emptySubtitle: {
-      color:
-        '#908079',
+    deleteButton: {
+      paddingHorizontal:
+        12,
 
-      fontSize:
+      paddingVertical:
+        8,
+
+      backgroundColor:
+        '#FFF1F1',
+
+      borderRadius:
         9,
-
-      lineHeight:
-        14,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        6,
     },
 
-    /* =====================================================
-     * Add Button
-     * ===================================================== */
+    deleteText: {
+      color:
+        '#D44646',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '900',
+    },
 
     addButton: {
       minHeight:
-        54,
+        52,
 
-      flexDirection:
-        'row',
+      borderRadius:
+        13,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#A00B0F',
 
       alignItems:
         'center',
@@ -2468,565 +1606,52 @@ const styles =
       justifyContent:
         'center',
 
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        14,
-
       marginTop:
-        5,
-    },
-
-    addButtonPlus: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        23,
-
-      fontWeight:
-        '500',
-
-      lineHeight:
-        26,
-
-      marginRight:
         8,
     },
 
     addButtonText: {
       color:
-        '#FFFFFF',
-
-      fontSize:
-        15,
-
-      fontWeight:
-        '800',
-    },
-
-    /* =====================================================
-     * Popup Common
-     * ===================================================== */
-
-    modalOverlay: {
-      flex:
-        1,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        'rgba(27, 19, 17, 0.62)',
-
-      paddingHorizontal:
-        22,
-    },
-
-    /* =====================================================
-     * Delete Popup
-     * ===================================================== */
-
-    deletePopupCard: {
-      width:
-        '100%',
-
-      maxWidth:
-        380,
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderRadius:
-        25,
-
-      paddingHorizontal:
-        22,
-
-      paddingTop:
-        27,
-
-      paddingBottom:
-        20,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          10,
-      },
-
-      shadowOpacity:
-        0.22,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        18,
-    },
-
-    deletePopupIconOuter: {
-      width:
-        82,
-
-      height:
-        82,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF0F0',
-
-      borderRadius:
-        41,
-
-      marginBottom:
-        15,
-    },
-
-    deletePopupIconInner: {
-      width:
-        56,
-
-      height:
-        56,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#D74A4A',
-
-      borderRadius:
-        28,
-    },
-
-    deletePopupIcon: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        32,
-
-      lineHeight:
-        34,
-
-      fontWeight:
-        '500',
-    },
-
-    deletePopupTitle: {
-      color:
-        '#281C19',
-
-      fontSize:
-        20,
-
-      fontWeight:
-        '900',
-
-      textAlign:
-        'center',
-    },
-
-    deletePopupDescription: {
-      maxWidth:
-        285,
-
-      color:
-        '#776B67',
-
-      fontSize:
-        10,
-
-      lineHeight:
-        16,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        7,
-    },
-
-    popupAddressPreview: {
-      width:
-        '100%',
-
-      backgroundColor:
-        '#FFF9F6',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EEE3DE',
-
-      borderRadius:
-        12,
-
-      padding:
-        11,
-
-      marginTop:
-        16,
-    },
-
-    popupAddressType: {
-      color:
         '#A00B0F',
 
-      fontSize:
-        8,
-
       fontWeight:
         '900',
-
-      textTransform:
-        'uppercase',
-    },
-
-    popupAddressName: {
-      color:
-        '#30231E',
 
       fontSize:
         10,
-
-      fontWeight:
-        '800',
-
-      marginTop:
-        5,
     },
 
-    popupAddressText: {
-      color:
-        '#80716B',
-
-      fontSize:
-        8.5,
-
-      lineHeight:
-        13,
-
-      marginTop:
-        4,
-    },
-
-    popupButtons: {
-      width:
-        '100%',
-
-      flexDirection:
-        'row',
-
-      marginTop:
-        19,
-    },
-
-    popupCancelButton: {
-      flex:
-        1,
-
-      minHeight:
-        48,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
+    empty: {
       backgroundColor:
-        '#F7F4F3',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#E6DEDB',
-
-      borderRadius:
-        12,
-
-      marginRight:
-        5,
-    },
-
-    popupCancelText: {
-      color:
-        '#70625E',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '900',
-    },
-
-    popupDeleteButton: {
-      flex:
-        1,
-
-      minHeight:
-        48,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#D74A4A',
-
-      borderRadius:
-        12,
-
-      marginLeft:
-        5,
-    },
-
-    popupDeleteText: {
-      color:
         '#FFFFFF',
 
-      fontSize:
-        9,
+      borderRadius:
+        16,
 
-      fontWeight:
-        '900',
+      alignItems:
+        'center',
+
+      paddingVertical:
+        40,
+
+      marginBottom:
+        10,
     },
 
-    popupButtonDisabled: {
+    emptyIcon: {
+      width:
+        38,
+
+      height:
+        38,
+
       opacity:
-        0.6,
+        0.5,
     },
 
-    /* =====================================================
-     * Warning Popup
-     * ===================================================== */
-
-    warningPopupCard: {
-      width:
-        '100%',
-
-      maxWidth:
-        370,
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderRadius:
-        25,
-
-      paddingHorizontal:
-        22,
-
-      paddingTop:
-        27,
-
-      paddingBottom:
-        20,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          10,
-      },
-
-      shadowOpacity:
-        0.22,
-
-      shadowRadius:
-        18,
-
-      elevation:
-        18,
-    },
-
-    warningIconOuter: {
-      width:
-        82,
-
-      height:
-        82,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF7E8',
-
-      borderRadius:
-        41,
-
-      marginBottom:
-        15,
-    },
-
-    warningIconInner: {
-      width:
-        56,
-
-      height:
-        56,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#D79833',
-
-      borderRadius:
-        28,
-    },
-
-    warningIconText: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        29,
-
-      fontWeight:
-        '900',
-    },
-
-    warningPopupTitle: {
-      color:
-        '#281C19',
-
-      fontSize:
-        20,
-
-      fontWeight:
-        '900',
-
-      textAlign:
-        'center',
-    },
-
-    warningPopupDescription: {
-      color:
-        '#766B67',
-
-      fontSize:
+    emptyTitle: {
+      marginTop:
         10,
-
-      lineHeight:
-        16,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        7,
-    },
-
-    warningInfoBox: {
-      width:
-        '100%',
-
-      backgroundColor:
-        '#FFF9EE',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#F0E1C4',
-
-      borderRadius:
-        11,
-
-      padding:
-        11,
-
-      marginTop:
-        16,
-    },
-
-    warningInfoText: {
-      color:
-        '#806A48',
-
-      fontSize:
-        8.5,
-
-      lineHeight:
-        14,
-
-      fontWeight:
-        '600',
-
-      textAlign:
-        'center',
-    },
-
-    warningDoneButton: {
-      width:
-        '100%',
-
-      minHeight:
-        48,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        12,
-
-      marginTop:
-        18,
-    },
-
-    warningDoneText: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        9,
 
       fontWeight:
         '900',

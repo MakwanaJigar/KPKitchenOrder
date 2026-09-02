@@ -30,6 +30,10 @@ import {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  io,
+} from 'socket.io-client';
+
 /* =========================================================
  * API
  * ========================================================= */
@@ -38,11 +42,44 @@ const NOTIFICATION_API =
   'https://replete-software.com/projects/kp_admin/api/customer/notifications';
 
 /* =========================================================
- * Polling
+ * SOCKET
+ *
+ * IMPORTANT:
+ *
+ * Replace this with your REAL Socket.IO server URL.
+ *
+ * Examples only:
+ *
+ * https://replete-software.com
+ * https://socket.yourdomain.com
+ *
+ * Do not put /api/customer/notifications here.
  * ========================================================= */
 
-const NOTIFICATION_POLL_INTERVAL =
-  15000;
+const SOCKET_URL =
+  'https://YOUR-SOCKET-SERVER-URL';
+
+/* =========================================================
+ * SOCKET EVENTS
+ *
+ * Your backend should emit:
+ *
+ * customer:notification
+ *
+ * Optional events:
+ *
+ * customer:order-status
+ * customer:weekly-invoice
+ * ========================================================= */
+
+const SOCKET_NOTIFICATION_EVENT =
+  'customer:notification';
+
+const SOCKET_ORDER_STATUS_EVENT =
+  'customer:order-status';
+
+const SOCKET_WEEKLY_INVOICE_EVENT =
+  'customer:weekly-invoice';
 
 /* =========================================================
  * Persistent Local Notification State
@@ -55,7 +92,7 @@ const DELETED_NOTIFICATION_IDS_KEY =
   'kp_deleted_notification_ids';
 
 /* =========================================================
- * Read Stored Notification IDs
+ * Read Stored IDs
  * ========================================================= */
 
 const getStoredIdList =
@@ -89,9 +126,7 @@ const getStoredIdList =
             value,
           ),
       );
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         `READ ${key} ERROR:`,
         error,
@@ -102,7 +137,7 @@ const getStoredIdList =
   };
 
 /* =========================================================
- * Save Notification IDs
+ * Save Stored IDs
  * ========================================================= */
 
 const saveStoredIdList =
@@ -111,17 +146,16 @@ const saveStoredIdList =
     ids,
   ) => {
     try {
-      const uniqueIds =
-        [
-          ...new Set(
-            ids.map(
-              value =>
-                String(
-                  value,
-                ),
-            ),
+      const uniqueIds = [
+        ...new Set(
+          ids.map(
+            value =>
+              String(
+                value,
+              ),
           ),
-        ];
+        ),
+      ];
 
       await AsyncStorage.setItem(
         key,
@@ -132,9 +166,7 @@ const saveStoredIdList =
       );
 
       return uniqueIds;
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.log(
         `SAVE ${key} ERROR:`,
         error,
@@ -145,132 +177,126 @@ const saveStoredIdList =
   };
 
 /* =========================================================
- * Notifications
+ * NOTIFICATIONS
  * ========================================================= */
 
 const Notifications = ({
   navigation,
 }) => {
   /* =======================================================
-   * Notification List
+   * LIST
    * ======================================================= */
 
   const [
     notifications,
     setNotifications,
-  ] = useState([]);
+  ] =
+    useState([]);
 
   const [
     loading,
     setLoading,
-  ] = useState(true);
+  ] =
+    useState(true);
 
   const [
     refreshing,
     setRefreshing,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     error,
     setError,
-  ] = useState(null);
+  ] =
+    useState(null);
 
   /* =======================================================
-   * Notification Detail Popup
+   * SOCKET STATE
+   * ======================================================= */
+
+  const [
+    socketConnected,
+    setSocketConnected,
+  ] =
+    useState(false);
+
+  /* =======================================================
+   * DETAIL POPUP
    * ======================================================= */
 
   const [
     selectedNotification,
     setSelectedNotification,
-  ] = useState(null);
+  ] =
+    useState(null);
 
   const [
     detailPopupVisible,
     setDetailPopupVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* =======================================================
-   * Incoming Notification Popup
+   * INCOMING POPUP
    * ======================================================= */
 
   const [
     incomingNotification,
     setIncomingNotification,
-  ] = useState(null);
+  ] =
+    useState(null);
 
   const [
     incomingPopupVisible,
     setIncomingPopupVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* =======================================================
-   * Bulk Actions
+   * BULK ACTIONS
    * ======================================================= */
 
   const [
     markingAllRead,
     setMarkingAllRead,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     deletingAll,
     setDeletingAll,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   const [
     deleteAllPopupVisible,
     setDeleteAllPopupVisible,
-  ] = useState(false);
+  ] =
+    useState(false);
 
   /* =======================================================
-   * References
+   * REFERENCES
    * ======================================================= */
 
-  const previousNotificationIdsRef =
-    useRef(new Set());
-
-  const initialFetchCompletedRef =
-    useRef(false);
+  const socketRef =
+    useRef(null);
 
   const incomingPopupTimerRef =
     useRef(null);
 
-  const pollingTimerRef =
-    useRef(null);
+  const mountedRef =
+    useRef(true);
 
   /* =======================================================
-   * Cleanup
-   * ======================================================= */
-
-  useEffect(() => {
-    return () => {
-      if (
-        incomingPopupTimerRef.current
-      ) {
-        clearTimeout(
-          incomingPopupTimerRef.current,
-        );
-      }
-
-      if (
-        pollingTimerRef.current
-      ) {
-        clearInterval(
-          pollingTimerRef.current,
-        );
-      }
-    };
-  }, []);
-
-  /* =======================================================
-   * Normalize Notification
+   * NORMALIZE NOTIFICATION
    * ======================================================= */
 
   const normalizeNotification =
     useCallback(
       (
         item,
-        index,
+        index = 0,
       ) => {
         const rawData =
           item?.data &&
@@ -299,7 +325,9 @@ const Notifications = ({
           item?.created_at ??
           item?.createdAt ??
           rawData?.created_at ??
-          null;
+          rawData?.createdAt ??
+          new Date()
+            .toISOString();
 
         const readAt =
           item?.read_at ??
@@ -324,13 +352,23 @@ const Notifications = ({
                 '1',
           );
 
+        /*
+         * Backend notification ID is strongly preferred.
+         */
+
+        const notificationId =
+          item?.id ??
+          item?.notification_id ??
+          rawData?.id ??
+          rawData?.notification_id ??
+          `socket-${Date.now()}-${index}`;
+
         return {
           ...item,
 
           id:
             String(
-              item?.id ??
-                `notification-${index}`,
+              notificationId,
             ),
 
           title:
@@ -348,13 +386,16 @@ const Notifications = ({
           readAt,
 
           isRead,
+
+          data:
+            rawData,
         };
       },
       [],
     );
 
   /* =======================================================
-   * Show Incoming Notification
+   * SHOW INCOMING POPUP
    * ======================================================= */
 
   const showIncomingNotification =
@@ -385,13 +426,17 @@ const Notifications = ({
         incomingPopupTimerRef.current =
           setTimeout(
             () => {
-              setIncomingPopupVisible(
-                false,
-              );
+              if (
+                mountedRef.current
+              ) {
+                setIncomingPopupVisible(
+                  false,
+                );
 
-              setIncomingNotification(
-                null,
-              );
+                setIncomingNotification(
+                  null,
+                );
+              }
             },
             5000,
           );
@@ -400,71 +445,165 @@ const Notifications = ({
     );
 
   /* =======================================================
-   * Detect New Notifications
+   * ADD SOCKET NOTIFICATION TO LIST
    * ======================================================= */
 
-  const detectNewNotifications =
+  const handleSocketNotification =
     useCallback(
-      normalizedNotifications => {
-        const currentIds =
-          new Set(
-            normalizedNotifications.map(
-              item =>
-                String(
-                  item.id,
-                ),
+      async rawNotification => {
+        try {
+          console.log(
+            '=====================================',
+          );
+
+          console.log(
+            'SOCKET NOTIFICATION:',
+            JSON.stringify(
+              rawNotification,
+              null,
+              2,
             ),
           );
 
-        /*
-         * First request:
-         *
-         * Save notification IDs only.
-         * Do not show all existing notifications
-         * as incoming.
-         */
-
-        if (
-          !initialFetchCompletedRef.current
-        ) {
-          previousNotificationIdsRef.current =
-            currentIds;
-
-          initialFetchCompletedRef.current =
-            true;
-
-          return;
-        }
-
-        const newNotifications =
-          normalizedNotifications.filter(
-            item =>
-              !previousNotificationIdsRef.current.has(
-                String(
-                  item.id,
-                ),
-              ),
+          console.log(
+            '=====================================',
           );
 
-        previousNotificationIdsRef.current =
-          currentIds;
+          if (
+            !rawNotification
+          ) {
+            return;
+          }
 
-        if (
-          newNotifications.length >
-          0
-        ) {
+          const notification =
+            normalizeNotification(
+              rawNotification,
+              0,
+            );
+
+          /* =============================================
+           * CHECK LOCAL DELETED STATE
+           * ============================================= */
+
+          const deletedIds =
+            await getStoredIdList(
+              DELETED_NOTIFICATION_IDS_KEY,
+            );
+
+          if (
+            deletedIds.includes(
+              String(
+                notification.id,
+              ),
+            )
+          ) {
+            return;
+          }
+
+          /* =============================================
+           * CHECK LOCAL READ STATE
+           * ============================================= */
+
+          const readIds =
+            await getStoredIdList(
+              READ_NOTIFICATION_IDS_KEY,
+            );
+
+          const finalNotification =
+            readIds.includes(
+              String(
+                notification.id,
+              ),
+            )
+              ? {
+                  ...notification,
+
+                  isRead:
+                    true,
+
+                  readAt:
+                    notification
+                      ?.readAt ??
+                    'local-read',
+                }
+              : notification;
+
+          /* =============================================
+           * ADD TO TOP
+           * ============================================= */
+
+          setNotifications(
+            current => {
+              const existingIndex =
+                current.findIndex(
+                  item =>
+                    String(
+                      item.id,
+                    ) ===
+                    String(
+                      finalNotification.id,
+                    ),
+                );
+
+              /*
+               * Existing notification:
+               * update instead of duplicating.
+               */
+
+              if (
+                existingIndex >=
+                0
+              ) {
+                return current.map(
+                  item =>
+                    String(
+                      item.id,
+                    ) ===
+                    String(
+                      finalNotification.id,
+                    )
+                      ? {
+                          ...item,
+
+                          ...finalNotification,
+                        }
+                      : item,
+                );
+              }
+
+              return [
+                finalNotification,
+                ...current,
+              ];
+            },
+          );
+
+          /* =============================================
+           * SHOW TOP POPUP
+           * ============================================= */
+
           showIncomingNotification(
-            newNotifications[0],
+            finalNotification,
+          );
+        } catch (socketError) {
+          console.log(
+            'SOCKET NOTIFICATION ERROR:',
+            socketError,
           );
         }
       },
       [
+        normalizeNotification,
         showIncomingNotification,
       ],
     );
 
   /* =======================================================
-   * Fetch Notifications
+   * FETCH NOTIFICATIONS
+   *
+   * REST API remains responsible for notification history.
+   *
+   * Socket only handles NEW real-time events.
    * ======================================================= */
 
   const fetchNotifications =
@@ -473,12 +612,13 @@ const Notifications = ({
         options = {},
       ) => {
         const {
-          isRefresh = false,
+          isRefresh =
+            false,
 
-          silent = false,
-
-          detectNew = true,
-        } = options;
+          silent =
+            false,
+        } =
+          options;
 
         try {
           if (
@@ -504,7 +644,7 @@ const Notifications = ({
           }
 
           /* =============================================
-           * Token
+           * TOKEN
            * ============================================= */
 
           const token =
@@ -512,7 +652,9 @@ const Notifications = ({
               'token',
             );
 
-          if (!token) {
+          if (
+            !token
+          ) {
             setNotifications(
               [],
             );
@@ -529,12 +671,13 @@ const Notifications = ({
           }
 
           /* =============================================
-           * Notification API
+           * API
            * ============================================= */
 
           const response =
             await fetch(
               NOTIFICATION_API,
+
               {
                 method:
                   'GET',
@@ -555,13 +698,16 @@ const Notifications = ({
           const responseText =
             await response.text();
 
-          let result;
+          let result =
+            {};
 
           try {
             result =
-              JSON.parse(
-                responseText,
-              );
+              responseText
+                ? JSON.parse(
+                    responseText,
+                  )
+                : {};
           } catch (
             parseError
           ) {
@@ -581,7 +727,7 @@ const Notifications = ({
           }
 
           /* =============================================
-           * Extract Notification Array
+           * EXTRACT ARRAY
            * ============================================= */
 
           let notificationData =
@@ -627,7 +773,8 @@ const Notifications = ({
               result.data.data;
           } else if (
             Array.isArray(
-              result?.notifications
+              result
+                ?.notifications
                 ?.data,
             )
           ) {
@@ -645,16 +792,23 @@ const Notifications = ({
           }
 
           /* =============================================
-           * Normalize
+           * NORMALIZE
            * ============================================= */
 
           let normalized =
             notificationData.map(
-              normalizeNotification,
+              (
+                notification,
+                index,
+              ) =>
+                normalizeNotification(
+                  notification,
+                  index,
+                ),
             );
 
           /* =============================================
-           * Persistent Read + Delete State
+           * LOCAL READ / DELETE STATE
            * ============================================= */
 
           const [
@@ -671,14 +825,14 @@ const Notifications = ({
               ),
             ]);
 
-          const readIdSet =
+          const readSet =
             new Set(
               storedReadIds.map(
                 String,
               ),
             );
 
-          const deletedIdSet =
+          const deletedSet =
             new Set(
               storedDeletedIds.map(
                 String,
@@ -686,13 +840,13 @@ const Notifications = ({
             );
 
           /* =============================================
-           * Hide Deleted
+           * REMOVE DELETED
            * ============================================= */
 
           normalized =
             normalized.filter(
               notification =>
-                !deletedIdSet.has(
+                !deletedSet.has(
                   String(
                     notification.id,
                   ),
@@ -700,14 +854,14 @@ const Notifications = ({
             );
 
           /* =============================================
-           * Apply Local Read State
+           * APPLY LOCAL READ
            * ============================================= */
 
           normalized =
             normalized.map(
               notification => {
                 if (
-                  readIdSet.has(
+                  readSet.has(
                     String(
                       notification.id,
                     ),
@@ -731,7 +885,7 @@ const Notifications = ({
             );
 
           /* =============================================
-           * Latest First
+           * LATEST FIRST
            * ============================================= */
 
           normalized.sort(
@@ -760,22 +914,6 @@ const Notifications = ({
             },
           );
 
-          /* =============================================
-           * Detect New
-           * ============================================= */
-
-          if (
-            detectNew
-          ) {
-            detectNewNotifications(
-              normalized,
-            );
-          }
-
-          /* =============================================
-           * Save
-           * ============================================= */
-
           setNotifications(
             normalized,
           );
@@ -791,7 +929,8 @@ const Notifications = ({
             !silent
           ) {
             setError(
-              apiError?.message ||
+              apiError
+                ?.message ||
                 'Unable to load notifications.',
             );
           }
@@ -810,90 +949,414 @@ const Notifications = ({
         }
       },
       [
-        detectNewNotifications,
         normalizeNotification,
       ],
     );
 
   /* =======================================================
-   * Initial Fetch
+   * SOCKET CONNECTION
    * ======================================================= */
 
-  useEffect(() => {
-    fetchNotifications({
-      silent:
-        false,
+  const connectSocket =
+    useCallback(
+      async () => {
+        try {
+          const token =
+            await AsyncStorage.getItem(
+              'token',
+            );
 
-      detectNew:
-        true,
-    });
-  }, [
-    fetchNotifications,
-  ]);
+          if (
+            !token
+          ) {
+            console.log(
+              'SOCKET: User not logged in.',
+            );
+
+            setSocketConnected(
+              false,
+            );
+
+            return;
+          }
+
+          /* =============================================
+           * REMOVE EXISTING SOCKET
+           * ============================================= */
+
+          if (
+            socketRef.current
+          ) {
+            socketRef.current
+              .removeAllListeners();
+
+            socketRef.current
+              .disconnect();
+
+            socketRef.current =
+              null;
+          }
+
+          console.log(
+            'SOCKET: Connecting...',
+          );
+
+          /* =============================================
+           * CONNECT
+           * ============================================= */
+
+          const socket =
+            io(
+              SOCKET_URL,
+
+              {
+                transports: [
+                  'websocket',
+                ],
+
+                autoConnect:
+                  true,
+
+                reconnection:
+                  true,
+
+                reconnectionAttempts:
+                  Infinity,
+
+                reconnectionDelay:
+                  1000,
+
+                reconnectionDelayMax:
+                  5000,
+
+                timeout:
+                  10000,
+
+                /*
+                 * Laravel/socket server should validate
+                 * this token server-side.
+                 */
+
+                auth: {
+                  token,
+                },
+
+                extraHeaders: {
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              },
+            );
+
+          socketRef.current =
+            socket;
+
+          /* =============================================
+           * CONNECTED
+           * ============================================= */
+
+          socket.on(
+            'connect',
+
+            () => {
+              console.log(
+                '=====================================',
+              );
+
+              console.log(
+                'SOCKET CONNECTED:',
+                socket.id,
+              );
+
+              console.log(
+                '=====================================',
+              );
+
+              setSocketConnected(
+                true,
+              );
+
+              /*
+               * Backend should determine customer identity
+               * using the authenticated token.
+               *
+               * Do not trust a customer ID coming freely
+               * from the client.
+               */
+
+              socket.emit(
+                'customer:subscribe',
+              );
+            },
+          );
+
+          /* =============================================
+           * CONNECTION ERROR
+           * ============================================= */
+
+          socket.on(
+            'connect_error',
+
+            socketError => {
+              console.log(
+                'SOCKET CONNECTION ERROR:',
+                socketError
+                  ?.message,
+              );
+
+              setSocketConnected(
+                false,
+              );
+            },
+          );
+
+          /* =============================================
+           * DISCONNECT
+           * ============================================= */
+
+          socket.on(
+            'disconnect',
+
+            reason => {
+              console.log(
+                'SOCKET DISCONNECTED:',
+                reason,
+              );
+
+              setSocketConnected(
+                false,
+              );
+            },
+          );
+
+          /* =============================================
+           * RECONNECT
+           * ============================================= */
+
+          socket.io.on(
+            'reconnect',
+
+            attempt => {
+              console.log(
+                'SOCKET RECONNECTED:',
+                attempt,
+              );
+
+              setSocketConnected(
+                true,
+              );
+
+              socket.emit(
+                'customer:subscribe',
+              );
+
+              /*
+               * Load anything missed while disconnected.
+               */
+
+              fetchNotifications({
+                silent:
+                  true,
+              });
+            },
+          );
+
+          /* =============================================
+           * NEW NOTIFICATION
+           * ============================================= */
+
+          socket.on(
+            SOCKET_NOTIFICATION_EVENT,
+
+            data => {
+              handleSocketNotification(
+                data,
+              );
+            },
+          );
+
+          /* =============================================
+           * ORDER STATUS
+           *
+           * If backend creates a DB notification for this
+           * event, refresh history.
+           * ============================================= */
+
+          socket.on(
+            SOCKET_ORDER_STATUS_EVENT,
+
+            data => {
+              console.log(
+                'SOCKET ORDER STATUS:',
+                data,
+              );
+
+              /*
+               * If backend sends complete notification
+               * details directly:
+               */
+
+              if (
+                data?.title ||
+                data?.message ||
+                data?.body
+              ) {
+                handleSocketNotification(
+                  data,
+                );
+              } else {
+                fetchNotifications({
+                  silent:
+                    true,
+                });
+              }
+            },
+          );
+
+          /* =============================================
+           * WEEKLY INVOICE
+           * ============================================= */
+
+          socket.on(
+            SOCKET_WEEKLY_INVOICE_EVENT,
+
+            data => {
+              console.log(
+                'SOCKET WEEKLY INVOICE:',
+                data,
+              );
+
+              if (
+                data?.title ||
+                data?.message ||
+                data?.body
+              ) {
+                handleSocketNotification(
+                  data,
+                );
+              } else {
+                fetchNotifications({
+                  silent:
+                    true,
+                });
+              }
+            },
+          );
+        } catch (
+          socketError
+        ) {
+          console.log(
+            'CONNECT SOCKET ERROR:',
+            socketError,
+          );
+
+          setSocketConnected(
+            false,
+          );
+        }
+      },
+      [
+        fetchNotifications,
+        handleSocketNotification,
+      ],
+    );
 
   /* =======================================================
-   * Screen Focus
+   * INITIAL HISTORY FETCH
    * ======================================================= */
 
-  useFocusEffect(
-    useCallback(() => {
+  useEffect(
+    () => {
       fetchNotifications({
         silent:
-          true,
-
-        detectNew:
-          true,
+          false,
       });
-    }, [
+    },
+    [
       fetchNotifications,
-    ]),
+    ],
   );
 
   /* =======================================================
-   * Poll Notifications
+   * START SOCKET
    * ======================================================= */
 
-  useEffect(() => {
-    if (
-      pollingTimerRef.current
-    ) {
-      clearInterval(
-        pollingTimerRef.current,
-      );
-    }
+  useEffect(
+    () => {
+      mountedRef.current =
+        true;
 
-    pollingTimerRef.current =
-      setInterval(
-        () => {
-          fetchNotifications({
-            silent:
-              true,
+      connectSocket();
 
-            detectNew:
-              true,
-          });
-        },
-        NOTIFICATION_POLL_INTERVAL,
-      );
+      return () => {
+        mountedRef.current =
+          false;
 
-    return () => {
-      if (
-        pollingTimerRef.current
-      ) {
-        clearInterval(
-          pollingTimerRef.current,
-        );
+        if (
+          incomingPopupTimerRef.current
+        ) {
+          clearTimeout(
+            incomingPopupTimerRef.current,
+          );
 
-        pollingTimerRef.current =
-          null;
-      }
-    };
-  }, [
-    fetchNotifications,
-  ]);
+          incomingPopupTimerRef.current =
+            null;
+        }
+
+        if (
+          socketRef.current
+        ) {
+          socketRef.current
+            .removeAllListeners();
+
+          socketRef.current
+            .disconnect();
+
+          socketRef.current =
+            null;
+        }
+      };
+    },
+    [
+      connectSocket,
+    ],
+  );
 
   /* =======================================================
-   * Format Date
+   * SCREEN FOCUS
+   *
+   * REST refresh ensures anything received while the app
+   * was backgrounded/killed is visible in history.
+   * ======================================================= */
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        fetchNotifications({
+          silent:
+            true,
+        });
+
+        /*
+         * Reconnect if socket disconnected.
+         */
+
+        if (
+          !socketRef.current
+            ?.connected
+        ) {
+          connectSocket();
+        }
+      },
+      [
+        connectSocket,
+        fetchNotifications,
+      ],
+    ),
+  );
+
+  /* =======================================================
+   * FORMAT DATE
    * ======================================================= */
 
   const formatDateTime =
@@ -922,6 +1385,7 @@ const Notifications = ({
 
         return date.toLocaleString(
           'en-AU',
+
           {
             day:
               '2-digit',
@@ -940,28 +1404,31 @@ const Notifications = ({
           },
         );
       } catch (
-        error
+        dateError
       ) {
         return '';
       }
     };
 
   /* =======================================================
-   * Unread Count
+   * UNREAD COUNT
    * ======================================================= */
 
   const unreadCount =
-    useMemo(() => {
-      return notifications.filter(
-        item =>
-          !item.isRead,
-      ).length;
-    }, [
-      notifications,
-    ]);
+    useMemo(
+      () =>
+        notifications.filter(
+          item =>
+            !item.isRead,
+        ).length,
+
+      [
+        notifications,
+      ],
+    );
 
   /* =======================================================
-   * Back
+   * BACK
    * ======================================================= */
 
   const handleBack =
@@ -980,13 +1447,14 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Login
+   * LOGIN
    * ======================================================= */
 
   const handleLogin =
     () => {
       navigation.navigate(
         'Login',
+
         {
           redirectTo:
             'Notifications',
@@ -995,7 +1463,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Open Notification Detail
+   * OPEN NOTIFICATION
    * ======================================================= */
 
   const openNotification =
@@ -1006,10 +1474,6 @@ const Notifications = ({
         return;
       }
 
-      /* =============================================
-       * Open Popup
-       * ============================================= */
-
       const updatedNotification = {
         ...notification,
 
@@ -1017,7 +1481,8 @@ const Notifications = ({
           true,
 
         readAt:
-          notification?.readAt ??
+          notification
+            ?.readAt ??
           new Date()
             .toISOString(),
       };
@@ -1031,7 +1496,7 @@ const Notifications = ({
       );
 
       /* =============================================
-       * Update UI
+       * UPDATE UI
        * ============================================= */
 
       setNotifications(
@@ -1050,7 +1515,7 @@ const Notifications = ({
       );
 
       /* =============================================
-       * Save Read ID
+       * PERSIST READ
        * ============================================= */
 
       try {
@@ -1074,23 +1539,22 @@ const Notifications = ({
 
             [
               ...storedReadIds,
-
               notificationId,
             ],
           );
         }
       } catch (
-        error
+        readError
       ) {
         console.log(
           'MARK NOTIFICATION READ ERROR:',
-          error,
+          readError,
         );
       }
     };
 
   /* =======================================================
-   * Close Notification Detail
+   * CLOSE DETAIL
    * ======================================================= */
 
   const closeDetailPopup =
@@ -1105,7 +1569,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Mark All As Read
+   * MARK ALL READ
    * ======================================================= */
 
   const handleMarkAllAsRead =
@@ -1123,10 +1587,6 @@ const Notifications = ({
           true,
         );
 
-        /* =============================================
-         * Current IDs
-         * ============================================= */
-
         const currentIds =
           notifications.map(
             notification =>
@@ -1135,32 +1595,19 @@ const Notifications = ({
               ),
           );
 
-        /* =============================================
-         * Existing IDs
-         * ============================================= */
-
         const storedReadIds =
           await getStoredIdList(
             READ_NOTIFICATION_IDS_KEY,
           );
-
-        /* =============================================
-         * Save All
-         * ============================================= */
 
         await saveStoredIdList(
           READ_NOTIFICATION_IDS_KEY,
 
           [
             ...storedReadIds,
-
             ...currentIds,
           ],
         );
-
-        /* =============================================
-         * Update UI
-         * ============================================= */
 
         const now =
           new Date()
@@ -1183,11 +1630,6 @@ const Notifications = ({
             ),
         );
 
-        /*
-         * Also update detail popup
-         * if one is currently open.
-         */
-
         setSelectedNotification(
           current =>
             current
@@ -1205,11 +1647,11 @@ const Notifications = ({
               : null,
         );
       } catch (
-        error
+        markError
       ) {
         console.log(
           'MARK ALL READ ERROR:',
-          error,
+          markError,
         );
       } finally {
         setMarkingAllRead(
@@ -1219,7 +1661,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Show Delete Confirmation
+   * DELETE ALL PRESS
    * ======================================================= */
 
   const handleDeleteAllPress =
@@ -1237,7 +1679,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Delete All
+   * DELETE ALL
    * ======================================================= */
 
   const handleDeleteAll =
@@ -1253,10 +1695,6 @@ const Notifications = ({
           true,
         );
 
-        /* =============================================
-         * Current IDs
-         * ============================================= */
-
         const currentIds =
           notifications.map(
             notification =>
@@ -1265,32 +1703,19 @@ const Notifications = ({
               ),
           );
 
-        /* =============================================
-         * Existing Deleted IDs
-         * ============================================= */
-
         const storedDeletedIds =
           await getStoredIdList(
             DELETED_NOTIFICATION_IDS_KEY,
           );
-
-        /* =============================================
-         * Persist Deleted IDs
-         * ============================================= */
 
         await saveStoredIdList(
           DELETED_NOTIFICATION_IDS_KEY,
 
           [
             ...storedDeletedIds,
-
             ...currentIds,
           ],
         );
-
-        /* =============================================
-         * Remove Those IDs From Read State
-         * ============================================= */
 
         const storedReadIds =
           await getStoredIdList(
@@ -1318,10 +1743,6 @@ const Notifications = ({
           remainingReadIds,
         );
 
-        /* =============================================
-         * Clear UI
-         * ============================================= */
-
         setNotifications(
           [],
         );
@@ -1345,25 +1766,12 @@ const Notifications = ({
         setIncomingNotification(
           null,
         );
-
-        /*
-         * Important:
-         *
-         * Keep old IDs in previousNotificationIdsRef
-         * so deleted notifications are not suddenly
-         * considered brand-new.
-         */
-
-        previousNotificationIdsRef.current =
-          new Set(
-            currentIds,
-          );
       } catch (
-        error
+        deleteError
       ) {
         console.log(
           'DELETE ALL ERROR:',
-          error,
+          deleteError,
         );
       } finally {
         setDeletingAll(
@@ -1373,7 +1781,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Open Incoming Notification
+   * OPEN INCOMING
    * ======================================================= */
 
   const openIncomingNotification =
@@ -1406,7 +1814,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Dismiss Incoming
+   * DISMISS INCOMING
    * ======================================================= */
 
   const dismissIncomingPopup =
@@ -1429,7 +1837,7 @@ const Notifications = ({
     };
 
   /* =======================================================
-   * Render Notification
+   * RENDER NOTIFICATION
    * ======================================================= */
 
   const renderNotification =
@@ -1443,7 +1851,6 @@ const Notifications = ({
               item,
             )
           }
-
           style={({
             pressed,
           }) => [
@@ -1454,59 +1861,46 @@ const Notifications = ({
 
             pressed &&
               styles.notificationCardPressed,
-          ]}>
-
-          {/* ============================================= */}
-          {/* Icon */}
-          {/* ============================================= */}
-
+          ]}
+        >
           <View
             style={[
               styles.iconContainer,
 
               !item.isRead &&
                 styles.unreadIconContainer,
-            ]}>
-
+            ]}
+          >
             <Image
               source={require('../assets/login-icons/notification.png')}
-
               style={
                 styles.notificationIcon
               }
-
               resizeMode="contain"
             />
-
           </View>
-
-          {/* ============================================= */}
-          {/* Content */}
-          {/* ============================================= */}
 
           <View
             style={
               styles.notificationContent
-            }>
-
+            }
+          >
             <View
               style={
                 styles.notificationTitleRow
-              }>
-
+              }
+            >
               <Text
                 numberOfLines={
                   2
                 }
-
                 style={
                   styles.notificationTitle
-                }>
-
+                }
+              >
                 {
                   item.title
                 }
-
               </Text>
 
               {!item.isRead && (
@@ -1516,7 +1910,6 @@ const Notifications = ({
                   }
                 />
               )}
-
             </View>
 
             {!!item.message && (
@@ -1524,55 +1917,48 @@ const Notifications = ({
                 numberOfLines={
                   2
                 }
-
                 style={
                   styles.notificationMessage
-                }>
-
+                }
+              >
                 {
                   item.message
                 }
-
               </Text>
             )}
 
             <View
               style={
                 styles.notificationBottomRow
-              }>
-
+              }
+            >
               {!!item.createdAt && (
                 <Text
                   style={
                     styles.notificationTime
-                  }>
-
-                  {
-                    formatDateTime(
-                      item.createdAt,
-                    )
                   }
-
+                >
+                  {formatDateTime(
+                    item.createdAt,
+                  )}
                 </Text>
               )}
 
               <Text
                 style={
                   styles.readMoreText
-                }>
+                }
+              >
                 Read more
               </Text>
-
             </View>
-
           </View>
-
         </Pressable>
       );
     };
 
   /* =======================================================
-   * Loading
+   * LOADING
    * ======================================================= */
 
   if (
@@ -1582,47 +1968,45 @@ const Notifications = ({
       <SafeAreaView
         style={
           styles.safeArea
-        }>
-
+        }
+      >
         <StatusBar
           barStyle="dark-content"
-
           backgroundColor="#FAF8FD"
         />
 
         <View
           style={
             styles.loadingContainer
-          }>
-
+          }
+        >
           <ActivityIndicator
             size="large"
-
             color="#A00B0F"
           />
 
           <Text
             style={
               styles.loadingTitle
-            }>
+            }
+          >
             Loading Notifications
           </Text>
 
           <Text
             style={
               styles.loadingDescription
-            }>
+            }
+          >
             Please wait...
           </Text>
-
         </View>
-
       </SafeAreaView>
     );
   }
 
   /* =======================================================
-   * Render
+   * UI
    * ======================================================= */
 
   return (
@@ -1630,11 +2014,10 @@ const Notifications = ({
       <SafeAreaView
         style={
           styles.safeArea
-        }>
-
+        }
+      >
         <StatusBar
           barStyle="dark-content"
-
           backgroundColor="#FAF8FD"
         />
 
@@ -1645,64 +2028,98 @@ const Notifications = ({
         <View
           style={
             styles.header
-          }>
-
+          }
+        >
           <Pressable
             hitSlop={
               10
             }
-
             onPress={
               handleBack
             }
-
             style={
               styles.backButton
-            }>
-
-            <Text
+            }
+          >
+            <Image
+              source={require('../assets/login-icons/back.png')}
               style={
-                styles.backIcon
-              }>
-              ‹
-            </Text>
-
+                styles.smallIcon
+              }
+              resizeMode="contain"
+            />
           </Pressable>
 
           <View
             style={
               styles.headerTextContainer
-            }>
-
-            <Text
+            }
+          >
+            <View
               style={
-                styles.headerTitle
-              }>
-              Notifications
-            </Text>
+                styles.headerTitleRow
+              }
+            >
+              <Text
+                style={
+                  styles.headerTitle
+                }
+              >
+                Notifications
+              </Text>
+
+              <View
+                style={[
+                  styles.socketStatus,
+
+                  socketConnected
+                    ? styles.socketConnected
+                    : styles.socketDisconnected,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.socketDot,
+
+                    socketConnected
+                      ? styles.socketDotConnected
+                      : styles.socketDotDisconnected,
+                  ]}
+                />
+
+                <Text
+                  style={[
+                    styles.socketStatusText,
+
+                    socketConnected
+                      ? styles.socketConnectedText
+                      : styles.socketDisconnectedText,
+                  ]}
+                >
+                  {socketConnected
+                    ? 'LIVE'
+                    : 'OFFLINE'}
+                </Text>
+              </View>
+            </View>
 
             <Text
               style={
                 styles.headerSubtitle
-              }>
-
-              {unreadCount >
-              0
+              }
+            >
+              {unreadCount > 0
                 ? `${unreadCount} unread notification${
-                    unreadCount ===
-                    1
+                    unreadCount === 1
                       ? ''
                       : 's'
                   }`
                 : notifications.length >
-                  0
+                    0
                   ? 'All notifications are read'
                   : 'Stay updated with your orders'}
-
             </Text>
-
           </View>
-
         </View>
 
         {/* ================================================= */}
@@ -1714,35 +2131,27 @@ const Notifications = ({
           <View
             style={
               styles.notificationActions
-            }>
-
-            {/* ============================================= */}
-            {/* Mark All Read */}
-            {/* ============================================= */}
-
+            }
+          >
             {unreadCount >
               0 && (
               <TouchableOpacity
                 disabled={
                   markingAllRead
                 }
-
                 activeOpacity={
                   0.8
                 }
-
                 onPress={
                   handleMarkAllAsRead
                 }
-
                 style={
                   styles.markAllButton
-                }>
-
+                }
+              >
                 {markingAllRead ? (
                   <ActivityIndicator
                     size="small"
-
                     color="#A00B0F"
                   />
                 ) : (
@@ -1750,68 +2159,62 @@ const Notifications = ({
                     <Text
                       style={
                         styles.markAllIcon
-                      }>
+                      }
+                    >
                       ✓
                     </Text>
 
                     <Text
                       style={
                         styles.markAllText
-                      }>
+                      }
+                    >
                       Mark all as read
                     </Text>
                   </>
                 )}
-
               </TouchableOpacity>
             )}
-
-            {/* ============================================= */}
-            {/* Delete All */}
-            {/* ============================================= */}
 
             <TouchableOpacity
               disabled={
                 deletingAll
               }
-
               activeOpacity={
                 0.8
               }
-
               onPress={
                 handleDeleteAllPress
               }
-
               style={[
                 styles.deleteAllButton,
 
                 unreadCount ===
                   0 &&
                   styles.deleteAllFullButton,
-              ]}>
-
+              ]}
+            >
               <Text
                 style={
                   styles.deleteAllIcon
-                }>
+                }
+              >
                 ×
               </Text>
 
               <Text
                 style={
                   styles.deleteAllText
-                }>
+                }
+              >
                 Delete all
               </Text>
-
             </TouchableOpacity>
-
           </View>
         )}
 
         {/* ================================================= */}
-        {/* ERROR */}
+        {/* ERROR / LIST */}
         {/* ================================================= */}
 
         {!!error &&
@@ -1820,36 +2223,35 @@ const Notifications = ({
           <View
             style={
               styles.emptyContainer
-            }>
-
+            }
+          >
             <View
               style={
                 styles.emptyIconContainer
-              }>
-
+              }
+            >
               <Image
                 source={require('../assets/login-icons/notification.png')}
-
                 style={
                   styles.emptyIcon
                 }
-
                 resizeMode="contain"
               />
-
             </View>
 
             <Text
               style={
                 styles.emptyTitle
-              }>
+              }
+            >
               Notifications Unavailable
             </Text>
 
             <Text
               style={
                 styles.emptyDescription
-              }>
+              }
+            >
               {error}
             </Text>
 
@@ -1862,57 +2264,51 @@ const Notifications = ({
                 activeOpacity={
                   0.85
                 }
-
                 onPress={
                   handleLogin
                 }
-
                 style={
                   styles.primaryButton
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.primaryButtonText
-                  }>
+                  }
+                >
                   SIGN IN
                 </Text>
-
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 activeOpacity={
                   0.85
                 }
-
                 onPress={() =>
                   fetchNotifications({
                     silent:
                       false,
                   })
                 }
-
                 style={
                   styles.primaryButton
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.primaryButtonText
-                  }>
+                  }
+                >
                   TRY AGAIN
                 </Text>
-
               </TouchableOpacity>
             )}
-
           </View>
         ) : (
           <FlatList
             data={
               notifications
             }
-
             keyExtractor={(
               item,
               index,
@@ -1925,15 +2321,12 @@ const Notifications = ({
                     index,
                   )
             }
-
             renderItem={
               renderNotification
             }
-
             showsVerticalScrollIndicator={
               false
             }
-
             contentContainerStyle={[
               styles.listContent,
 
@@ -1941,455 +2334,384 @@ const Notifications = ({
                 0 &&
                 styles.emptyListContent,
             ]}
-
             refreshControl={
               <RefreshControl
                 refreshing={
                   refreshing
                 }
-
                 onRefresh={() =>
                   fetchNotifications({
                     isRefresh:
                       true,
-
-                    detectNew:
-                      true,
                   })
                 }
-
                 tintColor="#A00B0F"
-
                 colors={[
                   '#A00B0F',
                 ]}
               />
             }
-
             ListEmptyComponent={
               <View
                 style={
                   styles.emptyContainer
-                }>
-
+                }
+              >
                 <View
                   style={
                     styles.emptyIconContainer
-                  }>
-
+                  }
+                >
                   <Image
                     source={require('../assets/login-icons/notification.png')}
-
                     style={
                       styles.emptyIcon
                     }
-
                     resizeMode="contain"
                   />
-
                 </View>
 
                 <Text
                   style={
                     styles.emptyTitle
-                  }>
+                  }
+                >
                   No Notifications
                 </Text>
 
                 <Text
                   style={
                     styles.emptyDescription
-                  }>
+                  }
+                >
                   You don&apos;t have any notifications right now.
                 </Text>
-
               </View>
             }
           />
         )}
-
       </SafeAreaView>
 
       {/* ================================================= */}
-      {/* NEW NOTIFICATION TOP POPUP */}
+      {/* INCOMING SOCKET NOTIFICATION */}
       {/* ================================================= */}
 
       <Modal
         visible={
           incomingPopupVisible
         }
-
         transparent
-
         animationType="fade"
-
         statusBarTranslucent
-
         onRequestClose={
           dismissIncomingPopup
-        }>
-
+        }
+      >
         <View
           pointerEvents="box-none"
-
           style={
             styles.incomingModalOverlay
-          }>
-
+          }
+        >
           <Pressable
             onPress={
               openIncomingNotification
             }
-
             style={
               styles.incomingNotificationCard
-            }>
-
+            }
+          >
             <View
               style={
                 styles.incomingIconContainer
-              }>
-
+              }
+            >
               <Image
                 source={require('../assets/login-icons/notification.png')}
-
                 style={
                   styles.incomingIcon
                 }
-
                 resizeMode="contain"
               />
-
             </View>
 
             <View
               style={
                 styles.incomingContent
-              }>
-
+              }
+            >
               <View
                 style={
                   styles.incomingTopRow
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.incomingAppName
-                  }>
+                  }
+                >
                   KP Cloud Kitchen
                 </Text>
 
                 <Text
                   style={
                     styles.incomingNow
-                  }>
+                  }
+                >
                   now
                 </Text>
-
               </View>
 
               <Text
                 numberOfLines={
                   1
                 }
-
                 style={
                   styles.incomingTitle
-                }>
-
+                }
+              >
                 {
                   incomingNotification
                     ?.title
                 }
-
               </Text>
 
               <Text
                 numberOfLines={
                   2
                 }
-
                 style={
                   styles.incomingMessage
-                }>
-
+                }
+              >
                 {
                   incomingNotification
                     ?.message
                 }
-
               </Text>
-
             </View>
 
             <Pressable
               hitSlop={
                 10
               }
+              onPress={event => {
+                event
+                  ?.stopPropagation
+                  ?.();
 
-              onPress={
-                event => {
-                  event
-                    ?.stopPropagation
-                    ?.();
-
-                  dismissIncomingPopup();
-                }
-              }
-
+                dismissIncomingPopup();
+              }}
               style={
                 styles.incomingCloseButton
-              }>
-
+              }
+            >
               <Text
                 style={
                   styles.incomingCloseText
-                }>
+                }
+              >
                 ×
               </Text>
-
             </Pressable>
-
           </Pressable>
-
         </View>
-
       </Modal>
 
       {/* ================================================= */}
-      {/* DELETE ALL CONFIRMATION POPUP */}
+      {/* DELETE ALL */}
       {/* ================================================= */}
 
       <Modal
         visible={
           deleteAllPopupVisible
         }
-
         transparent
-
         animationType="fade"
-
         statusBarTranslucent
-
         onRequestClose={() =>
           setDeleteAllPopupVisible(
             false,
           )
-        }>
-
+        }
+      >
         <Pressable
           style={
             styles.deleteOverlay
           }
-
           onPress={() =>
             setDeleteAllPopupVisible(
               false,
             )
-          }>
-
+          }
+        >
           <Pressable
             style={
               styles.deletePopupCard
             }
-
-            onPress={() => {}}>
-
-            {/* =========================================== */}
-            {/* Delete Icon */}
-            {/* =========================================== */}
-
+            onPress={() => {}}
+          >
             <View
               style={
                 styles.deletePopupIconOuter
-              }>
-
+              }
+            >
               <View
                 style={
                   styles.deletePopupIconInner
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.deletePopupIcon
-                  }>
+                  }
+                >
                   ×
                 </Text>
-
               </View>
-
             </View>
-
-            {/* =========================================== */}
-            {/* Heading */}
-            {/* =========================================== */}
 
             <Text
               style={
                 styles.deletePopupTitle
-              }>
+              }
+            >
               Delete All Notifications?
             </Text>
 
             <Text
               style={
                 styles.deletePopupDescription
-              }>
+              }
+            >
               All current notifications will be removed from this device.
             </Text>
-
-            {/* =========================================== */}
-            {/* Buttons */}
-            {/* =========================================== */}
 
             <View
               style={
                 styles.deletePopupButtons
-              }>
-
+              }
+            >
               <TouchableOpacity
                 disabled={
                   deletingAll
                 }
-
                 activeOpacity={
                   0.8
                 }
-
                 onPress={() =>
                   setDeleteAllPopupVisible(
                     false,
                   )
                 }
-
                 style={
                   styles.deleteCancelButton
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.deleteCancelText
-                  }>
+                  }
+                >
                   Cancel
                 </Text>
-
               </TouchableOpacity>
 
               <TouchableOpacity
                 disabled={
                   deletingAll
                 }
-
                 activeOpacity={
                   0.85
                 }
-
                 onPress={
                   handleDeleteAll
                 }
-
                 style={[
                   styles.deleteConfirmButton,
 
                   deletingAll &&
                     styles.deleteButtonDisabled,
-                ]}>
-
+                ]}
+              >
                 {deletingAll ? (
                   <ActivityIndicator
                     size="small"
-
                     color="#FFFFFF"
                   />
                 ) : (
                   <Text
                     style={
                       styles.deleteConfirmText
-                    }>
+                    }
+                  >
                     Delete All
                   </Text>
                 )}
-
               </TouchableOpacity>
-
             </View>
-
           </Pressable>
-
         </Pressable>
-
       </Modal>
 
       {/* ================================================= */}
-      {/* NOTIFICATION DETAIL POPUP */}
+      {/* DETAIL POPUP */}
       {/* ================================================= */}
 
       <Modal
         visible={
           detailPopupVisible
         }
-
         transparent
-
         animationType="fade"
-
         statusBarTranslucent
-
         onRequestClose={
           closeDetailPopup
-        }>
-
+        }
+      >
         <Pressable
           style={
             styles.detailOverlay
           }
-
           onPress={
             closeDetailPopup
-          }>
-
+          }
+        >
           <Pressable
             onPress={() => {}}
-
             style={
               styles.detailCard
-            }>
-
-            {/* =========================================== */}
-            {/* Detail Header */}
-            {/* =========================================== */}
-
+            }
+          >
             <View
               style={
                 styles.detailHeader
-              }>
-
+              }
+            >
               <View
                 style={
                   styles.detailIconContainer
-                }>
-
+                }
+              >
                 <Image
                   source={require('../assets/login-icons/notification.png')}
-
                   style={
                     styles.detailIcon
                   }
-
                   resizeMode="contain"
                 />
-
               </View>
 
               <View
                 style={
                   styles.detailHeaderContent
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.detailSmallTitle
-                  }>
+                  }
+                >
                   NOTIFICATION
                 </Text>
 
@@ -2398,42 +2720,34 @@ const Notifications = ({
                   <Text
                     style={
                       styles.detailDate
-                    }>
-
-                    {
-                      formatDateTime(
-                        selectedNotification
-                          .createdAt,
-                      )
                     }
-
+                  >
+                    {formatDateTime(
+                      selectedNotification.createdAt,
+                    )}
                   </Text>
                 )}
-
               </View>
 
               <Pressable
                 hitSlop={
                   10
                 }
-
                 onPress={
                   closeDetailPopup
                 }
-
                 style={
                   styles.detailCloseButton
-                }>
-
+                }
+              >
                 <Text
                   style={
                     styles.detailCloseText
-                  }>
+                  }
+                >
                   ×
                 </Text>
-
               </Pressable>
-
             </View>
 
             <View
@@ -2442,20 +2756,15 @@ const Notifications = ({
               }
             />
 
-            {/* =========================================== */}
-            {/* Full Notification */}
-            {/* =========================================== */}
-
             <Text
               style={
                 styles.detailTitle
-              }>
-
+              }
+            >
               {
                 selectedNotification
                   ?.title
               }
-
             </Text>
 
             {!!selectedNotification
@@ -2463,13 +2772,12 @@ const Notifications = ({
               <Text
                 style={
                   styles.detailMessage
-                }>
-
+                }
+              >
                 {
                   selectedNotification
                     .message
                 }
-
               </Text>
             )}
 
@@ -2477,28 +2785,23 @@ const Notifications = ({
               activeOpacity={
                 0.85
               }
-
               onPress={
                 closeDetailPopup
               }
-
               style={
                 styles.detailDoneButton
-              }>
-
+              }
+            >
               <Text
                 style={
                   styles.detailDoneText
-                }>
+                }
+              >
                 Done
               </Text>
-
             </TouchableOpacity>
-
           </Pressable>
-
         </Pressable>
-
       </Modal>
     </>
   );
@@ -2507,30 +2810,24 @@ const Notifications = ({
 export default Notifications;
 
 /* =========================================================
- * Styles
+ * STYLES
  * ========================================================= */
 
 const styles =
   StyleSheet.create({
-    /* =====================================================
-     * Screen
-     * ===================================================== */
-
     safeArea: {
-      flex:
-        1,
+      flex: 1,
 
       backgroundColor:
         '#FAF8FD',
     },
 
     /* =====================================================
-     * Header
+     * HEADER
      * ===================================================== */
 
     header: {
-      minHeight:
-        76,
+      minHeight: 76,
 
       flexDirection:
         'row',
@@ -2552,11 +2849,9 @@ const styles =
     },
 
     backButton: {
-      width:
-        40,
+      width: 40,
 
-      height:
-        40,
+      height: 40,
 
       alignItems:
         'center',
@@ -2580,26 +2875,22 @@ const styles =
         12,
     },
 
-    backIcon: {
-      color:
-        '#A00B0F',
+    smallIcon: {
+      width: 20,
 
-      fontSize:
-        31,
-
-      lineHeight:
-        32,
-
-      fontWeight:
-        '400',
-
-      marginTop:
-        -2,
+      height: 20,
     },
 
     headerTextContainer: {
-      flex:
-        1,
+      flex: 1,
+    },
+
+    headerTitleRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
     },
 
     headerTitle: {
@@ -2628,7 +2919,86 @@ const styles =
     },
 
     /* =====================================================
-     * Bulk Actions
+     * SOCKET STATUS
+     * ===================================================== */
+
+    socketStatus: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      borderRadius:
+        20,
+
+      paddingHorizontal:
+        7,
+
+      paddingVertical:
+        3,
+
+      marginLeft:
+        9,
+    },
+
+    socketConnected: {
+      backgroundColor:
+        '#EAF7EE',
+    },
+
+    socketDisconnected: {
+      backgroundColor:
+        '#F7EFF0',
+    },
+
+    socketDot: {
+      width:
+        5,
+
+      height:
+        5,
+
+      borderRadius:
+        3,
+
+      marginRight:
+        4,
+    },
+
+    socketDotConnected: {
+      backgroundColor:
+        '#278850',
+    },
+
+    socketDotDisconnected: {
+      backgroundColor:
+        '#A9A0A4',
+    },
+
+    socketStatusText: {
+      fontSize:
+        6.5,
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        0.4,
+    },
+
+    socketConnectedText: {
+      color:
+        '#278850',
+    },
+
+    socketDisconnectedText: {
+      color:
+        '#8B8085',
+    },
+
+    /* =====================================================
+     * BULK ACTIONS
      * ===================================================== */
 
     notificationActions: {
@@ -2652,8 +3022,7 @@ const styles =
     },
 
     markAllButton: {
-      flex:
-        1,
+      flex: 1,
 
       minHeight:
         39,
@@ -2712,8 +3081,7 @@ const styles =
     },
 
     deleteAllButton: {
-      flex:
-        1,
+      flex: 1,
 
       minHeight:
         39,
@@ -2780,7 +3148,7 @@ const styles =
     },
 
     /* =====================================================
-     * List
+     * LIST
      * ===================================================== */
 
     listContent: {
@@ -2798,10 +3166,6 @@ const styles =
       flexGrow:
         1,
     },
-
-    /* =====================================================
-     * Notification Card
-     * ===================================================== */
 
     notificationCard: {
       flexDirection:
@@ -2909,8 +3273,7 @@ const styles =
     },
 
     notificationContent: {
-      flex:
-        1,
+      flex: 1,
     },
 
     notificationTitleRow: {
@@ -2922,8 +3285,7 @@ const styles =
     },
 
     notificationTitle: {
-      flex:
-        1,
+      flex: 1,
 
       color:
         '#17121E',
@@ -2987,8 +3349,7 @@ const styles =
     },
 
     notificationTime: {
-      flex:
-        1,
+      flex: 1,
 
       color:
         '#AAA1AE',
@@ -3015,12 +3376,11 @@ const styles =
     },
 
     /* =====================================================
-     * Loading
+     * LOADING / EMPTY
      * ===================================================== */
 
     loadingContainer: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -3057,13 +3417,8 @@ const styles =
         6,
     },
 
-    /* =====================================================
-     * Empty
-     * ===================================================== */
-
     emptyContainer: {
-      flex:
-        1,
+      flex: 1,
 
       minHeight:
         420,
@@ -3190,7 +3545,7 @@ const styles =
     },
 
     /* =====================================================
-     * Incoming Notification Popup
+     * INCOMING POPUP
      * ===================================================== */
 
     incomingModalOverlay: {
@@ -3397,12 +3752,11 @@ const styles =
     },
 
     /* =====================================================
-     * Delete All Popup
+     * DELETE POPUP
      * ===================================================== */
 
     deleteOverlay: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -3441,23 +3795,6 @@ const styles =
 
       paddingBottom:
         20,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          10,
-      },
-
-      shadowOpacity:
-        0.22,
-
-      shadowRadius:
-        18,
 
       elevation:
         16,
@@ -3566,8 +3903,7 @@ const styles =
     },
 
     deleteCancelButton: {
-      flex:
-        1,
+      flex: 1,
 
       minHeight:
         47,
@@ -3606,8 +3942,7 @@ const styles =
     },
 
     deleteConfirmButton: {
-      flex:
-        1,
+      flex: 1,
 
       minHeight:
         47,
@@ -3645,12 +3980,11 @@ const styles =
     },
 
     /* =====================================================
-     * Notification Detail Popup
+     * DETAIL POPUP
      * ===================================================== */
 
     detailOverlay: {
-      flex:
-        1,
+      flex: 1,
 
       alignItems:
         'center',
@@ -3682,23 +4016,6 @@ const styles =
         24,
 
       padding:
-        20,
-
-      shadowColor:
-        '#000000',
-
-      shadowOffset: {
-        width:
-          0,
-
-        height:
-          10,
-      },
-
-      shadowOpacity:
-        0.25,
-
-      shadowRadius:
         20,
 
       elevation:

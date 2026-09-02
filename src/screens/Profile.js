@@ -1,24 +1,43 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
 import {
   ActivityIndicator,
   Alert,
   Image,
   Modal,
+  PermissionsAndroid,
+  Platform,
   Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+} from 'react-native-safe-area-context';
+
+import {
+  useFocusEffect,
+} from '@react-navigation/native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  launchCamera,
+  launchImageLibrary,
+} from 'react-native-image-picker';
 
 /* =========================================================
  * APIs
@@ -27,1920 +46,4355 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const PROFILE_API_URL =
   'https://replete-software.com/projects/kp_admin/api/customer/profile';
 
+const PROFILE_EDIT_API_URL =
+  'https://replete-software.com/projects/kp_admin/api/customer/profile/edit';
+
 const LOGOUT_API_URL =
   'https://replete-software.com/projects/kp_admin/api/customer/logout';
 
 /* =========================================================
- * Profile
+ * STORAGE
  * ========================================================= */
 
-const Profile = ({ navigation }) => {
-  const { width } = useWindowDimensions();
+const ADDRESS_STORAGE_KEY =
+  'kp_customer_addresses';
 
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+const PROFILE_IMAGE_STORAGE_KEY =
+  'kp_customer_profile_image';
 
-  const [autoRenewEnabled, setAutoRenewEnabled] = useState(false);
+/* =========================================================
+ * EMPTY ADDRESS
+ * ========================================================= */
 
-  const [profile, setProfile] = useState(null);
+const createEmptyAddress = index => ({
+  id:
+    `profile-address-${Date.now()}-${index}`,
 
-  const [loading, setLoading] = useState(true);
+  type:
+    index === 0
+      ? 'Home'
+      : 'Work',
 
-  const [error, setError] = useState(null);
+  address_line:
+    '',
 
-  const [logoutLoading, setLogoutLoading] = useState(false);
+  pincode:
+    '',
 
-  const [logoutPopupVisible, setLogoutPopupVisible] = useState(false);
+  is_default:
+    index === 0,
+});
 
-  /* =====================================================
-   * Responsive
-   * ===================================================== */
+/* =========================================================
+ * ADDRESS HELPERS
+ * ========================================================= */
 
-  const responsive = useMemo(() => {
-    const isTablet = width >= 768;
+const addressToFullLine = address => {
+  if (!address) {
+    return '';
+  }
 
-    return {
-      isTablet,
+  if (address.address_line) {
+    return String(
+      address.address_line,
+    ).trim();
+  }
 
-      contentWidth: isTablet ? Math.min(width - 80, 720) : width,
+  return [
+    address.addressLine1 ??
+      address.address_line_1,
 
-      horizontalPadding: isTablet ? 28 : 14,
+    address.addressLine2 ??
+      address.address_line_2,
 
-      avatarSize: isTablet ? 105 : 82,
+    address.suburb ??
+      address.city,
+
+    address.state,
+
+    address.country,
+  ]
+    .filter(Boolean)
+    .map(value =>
+      String(value).trim(),
+    )
+    .filter(Boolean)
+    .join(', ');
+};
+
+/* =========================================================
+ * CONVERT LOCAL ADDRESS -> API ADDRESS
+ * ========================================================= */
+
+const localAddressToApiAddress =
+  address => ({
+    type:
+      String(
+        address?.type ??
+          address?.address_type ??
+          'Home',
+      ).trim(),
+
+    address_line:
+      addressToFullLine(
+        address,
+      ),
+
+    pincode:
+      String(
+        address?.pincode ??
+          address?.postcode ??
+          '',
+      ).trim(),
+
+    is_default:
+      Boolean(
+        address?.is_default ??
+          address?.isDefault ??
+          false,
+      ),
+  });
+
+/* =========================================================
+ * CONVERT API ADDRESS -> LOCAL ADDRESS
+ * ========================================================= */
+
+const apiAddressToLocalAddress = (
+  address,
+  index,
+  profile = {},
+) => ({
+  id:
+    String(
+      address?.id ??
+        `address-${Date.now()}-${index}`,
+    ),
+
+  type:
+    address?.type ??
+    address?.address_type ??
+    (
+      index === 0
+        ? 'Home'
+        : 'Work'
+    ),
+
+  name:
+    address?.name ??
+    address?.full_name ??
+    profile?.name ??
+    `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim(),
+
+  phone:
+    address?.phone ??
+    address?.mobile ??
+    profile?.phone ??
+    '',
+
+  addressLine1:
+    address?.addressLine1 ??
+    address?.address_line_1 ??
+    address?.address_line ??
+    address?.address ??
+    '',
+
+  addressLine2:
+    address?.addressLine2 ??
+    address?.address_line_2 ??
+    '',
+
+  suburb:
+    address?.suburb ??
+    address?.city ??
+    '',
+
+  city:
+    address?.city ??
+    address?.suburb ??
+    '',
+
+  state:
+    address?.state ??
+    '',
+
+  postcode:
+    String(
+      address?.postcode ??
+        address?.pincode ??
+        '',
+    ),
+
+  pincode:
+    String(
+      address?.pincode ??
+        address?.postcode ??
+        '',
+    ),
+
+  country:
+    address?.country ??
+    'Australia',
+
+  deliveryInstructions:
+    address?.deliveryInstructions ??
+    address?.delivery_instructions ??
+    '',
+
+  isDefault:
+    Boolean(
+      address?.isDefault ??
+        address?.is_default ??
+        false,
+    ),
+
+  is_default:
+    Boolean(
+      address?.is_default ??
+        address?.isDefault ??
+        false,
+    ),
+
+  address_line:
+    addressToFullLine(
+      address,
+    ),
+});
+
+/* =========================================================
+ * ENSURE ONE DEFAULT
+ * ========================================================= */
+
+const ensureOneDefaultAddress =
+  addresses => {
+    if (
+      !Array.isArray(addresses) ||
+      addresses.length === 0
+    ) {
+      return [];
+    }
+
+    const hasDefault =
+      addresses.some(
+        item =>
+          Boolean(
+            item?.isDefault ??
+              item?.is_default,
+          ),
+      );
+
+    if (hasDefault) {
+      return addresses.map(item => ({
+        ...item,
+
+        isDefault:
+          Boolean(
+            item?.isDefault ??
+              item?.is_default,
+          ),
+
+        is_default:
+          Boolean(
+            item?.is_default ??
+              item?.isDefault,
+          ),
+      }));
+    }
+
+    return addresses.map(
+      (
+        item,
+        index,
+      ) => ({
+        ...item,
+
+        isDefault:
+          index === 0,
+
+        is_default:
+          index === 0,
+      }),
+    );
+  };
+
+/* =========================================================
+ * PROFILE
+ * ========================================================= */
+
+const Profile = ({
+  navigation,
+}) => {
+  const {
+    width,
+  } = useWindowDimensions();
+
+  /* =======================================================
+   * PROFILE
+   * ======================================================= */
+
+  const [
+    profile,
+    setProfile,
+  ] = useState(null);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState(null);
+
+  /* =======================================================
+   * ADDRESS LIST USED BY PROFILE UI
+   * ======================================================= */
+
+  const [
+    localAddresses,
+    setLocalAddresses,
+  ] = useState([]);
+
+  /* =======================================================
+   * LOGOUT
+   * ======================================================= */
+
+  const [
+    logoutLoading,
+    setLogoutLoading,
+  ] = useState(false);
+
+  const [
+    logoutPopupVisible,
+    setLogoutPopupVisible,
+  ] = useState(false);
+
+  /* =======================================================
+   * EDIT PROFILE
+   * ======================================================= */
+
+  const [
+    editProfileVisible,
+    setEditProfileVisible,
+  ] = useState(false);
+
+  const [
+    updatingProfile,
+    setUpdatingProfile,
+  ] = useState(false);
+
+  const [
+    updateSuccessVisible,
+    setUpdateSuccessVisible,
+  ] = useState(false);
+
+  /* =======================================================
+   * IMAGE
+   * ======================================================= */
+
+  const [
+    photoOptionVisible,
+    setPhotoOptionVisible,
+  ] = useState(false);
+
+  const [
+    selectedProfileImage,
+    setSelectedProfileImage,
+  ] = useState(null);
+
+  const [
+    selectingPhoto,
+    setSelectingPhoto,
+  ] = useState(false);
+
+  /* =======================================================
+   * FORM
+   * ======================================================= */
+
+  const [
+    firstName,
+    setFirstName,
+  ] = useState('');
+
+  const [
+    lastName,
+    setLastName,
+  ] = useState('');
+
+  const [
+    phone,
+    setPhone,
+  ] = useState('');
+
+  const [
+    email,
+    setEmail,
+  ] = useState('');
+
+  const [
+    oldPassword,
+    setOldPassword,
+  ] = useState('');
+
+  const [
+    newPassword,
+    setNewPassword,
+  ] = useState('');
+
+  const [
+    confirmPassword,
+    setConfirmPassword,
+  ] = useState('');
+
+  const [
+    showOldPassword,
+    setShowOldPassword,
+  ] = useState(false);
+
+  const [
+    showNewPassword,
+    setShowNewPassword,
+  ] = useState(false);
+
+  const [
+    showConfirmPassword,
+    setShowConfirmPassword,
+  ] = useState(false);
+
+  const [
+    editAddresses,
+    setEditAddresses,
+  ] = useState([
+    createEmptyAddress(
+      0,
+    ),
+  ]);
+
+  /* =======================================================
+   * RESPONSIVE
+   * ======================================================= */
+
+  const responsive =
+    useMemo(
+      () => {
+        const isTablet =
+          width >= 768;
+
+        return {
+          isTablet,
+
+          contentWidth:
+            isTablet
+              ? Math.min(
+                  width - 80,
+                  720,
+                )
+              : width,
+
+          padding:
+            isTablet
+              ? 28
+              : 14,
+
+          avatarSize:
+            isTablet
+              ? 105
+              : 82,
+        };
+      },
+      [
+        width,
+      ],
+    );
+
+  /* =======================================================
+   * EXTRACT PROFILE
+   * ======================================================= */
+
+  const extractProfile =
+    result =>
+      result?.data?.customer ??
+      result?.data?.user ??
+      result?.data?.profile ??
+      result?.data ??
+      result?.customer ??
+      result?.user ??
+      result?.profile ??
+      result;
+
+  /* =======================================================
+   * READ LOCAL ADDRESSES
+   * ======================================================= */
+
+  const loadLocalAddresses =
+    useCallback(
+      async (
+        profileData = profile,
+      ) => {
+        try {
+          const stored =
+            await AsyncStorage.getItem(
+              ADDRESS_STORAGE_KEY,
+            );
+
+          if (!stored) {
+            setLocalAddresses(
+              [],
+            );
+
+            return [];
+          }
+
+          const parsed =
+            JSON.parse(
+              stored,
+            );
+
+          if (
+            !Array.isArray(
+              parsed,
+            )
+          ) {
+            setLocalAddresses(
+              [],
+            );
+
+            return [];
+          }
+
+          const normalized =
+            ensureOneDefaultAddress(
+              parsed.map(
+                (
+                  item,
+                  index,
+                ) =>
+                  apiAddressToLocalAddress(
+                    item,
+                    index,
+                    profileData ?? {},
+                  ),
+              ),
+            );
+
+          setLocalAddresses(
+            normalized,
+          );
+
+          return normalized;
+        } catch (
+          addressError
+        ) {
+          console.log(
+            'LOAD LOCAL ADDRESS ERROR:',
+            addressError,
+          );
+
+          setLocalAddresses(
+            [],
+          );
+
+          return [];
+        }
+      },
+      [
+        profile,
+      ],
+    );
+
+  /* =======================================================
+   * SAVE ADDRESSES TO SHARED STORAGE
+   * ======================================================= */
+
+  const saveAddressesToStorage =
+    async (
+      addresses,
+      profileData = profile,
+    ) => {
+      const normalized =
+        ensureOneDefaultAddress(
+          addresses.map(
+            (
+              address,
+              index,
+            ) =>
+              apiAddressToLocalAddress(
+                address,
+                index,
+                profileData ?? {},
+              ),
+          ),
+        );
+
+      await AsyncStorage.setItem(
+        ADDRESS_STORAGE_KEY,
+        JSON.stringify(
+          normalized,
+        ),
+      );
+
+      setLocalAddresses(
+        normalized,
+      );
+
+      return normalized;
     };
-  }, [width]);
 
-  /* =====================================================
-   * Fetch Profile
-   * ===================================================== */
+  /* =======================================================
+   * PROFILE IMAGE STORAGE
+   * ======================================================= */
 
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
+  const loadStoredProfileImage =
+    async () => {
+      try {
+        const stored =
+          await AsyncStorage.getItem(
+            PROFILE_IMAGE_STORAGE_KEY,
+          );
 
-      setError(null);
+        if (!stored) {
+          return;
+        }
 
-      const token = await AsyncStorage.getItem('token');
+        const parsed =
+          JSON.parse(
+            stored,
+          );
 
-      console.log('==============================');
+        if (
+          parsed?.uri
+        ) {
+          setSelectedProfileImage(
+            parsed,
+          );
+        }
+      } catch (
+        imageError
+      ) {
+        console.log(
+          'PROFILE IMAGE STORAGE ERROR:',
+          imageError,
+        );
+      }
+    };
 
-      console.log('PROFILE API CALL');
+  /* =======================================================
+   * FETCH PROFILE
+   * ======================================================= */
 
-      console.log('URL:', PROFILE_API_URL);
+  const fetchProfile =
+    useCallback(
+      async ({
+        showLoader = true,
+      } = {}) => {
+        try {
+          if (
+            showLoader
+          ) {
+            setLoading(
+              true,
+            );
+          }
 
-      console.log('TOKEN:', token);
+          setError(
+            null,
+          );
 
-      console.log('==============================');
+          const token =
+            await AsyncStorage.getItem(
+              'token',
+            );
 
-      if (!token) {
-        throw new Error('Authentication token not found. Please login again.');
+          if (!token) {
+            throw new Error(
+              'Authentication token not found.',
+            );
+          }
+
+          const response =
+            await fetch(
+              PROFILE_API_URL,
+              {
+                method:
+                  'GET',
+
+                headers: {
+                  Accept:
+                    'application/json',
+
+                  Authorization:
+                    `Bearer ${token}`,
+                },
+              },
+            );
+
+          const text =
+            await response.text();
+
+          let result =
+            {};
+
+          try {
+            result =
+              text
+                ? JSON.parse(
+                    text,
+                  )
+                : {};
+          } catch {
+            throw new Error(
+              'Invalid profile response.',
+            );
+          }
+
+          console.log(
+            'PROFILE STATUS:',
+            response.status,
+          );
+
+          console.log(
+            'PROFILE RESPONSE:',
+            JSON.stringify(
+              result,
+              null,
+              2,
+            ),
+          );
+
+          if (
+            !response.ok
+          ) {
+            /*
+             * Do not automatically delete token here
+             * unless we explicitly know the session
+             * has expired.
+             */
+
+            throw new Error(
+              result?.message ??
+                result?.error ??
+                'Unable to load profile.',
+            );
+          }
+
+          const profileData =
+            extractProfile(
+              result,
+            );
+
+          setProfile(
+            profileData,
+          );
+
+          /* =============================================
+           * If local storage already has addresses,
+           * preserve local source because all 3 screens
+           * use it.
+           * ============================================= */
+
+          const stored =
+            await AsyncStorage.getItem(
+              ADDRESS_STORAGE_KEY,
+            );
+
+          let storedAddresses =
+            [];
+
+          try {
+            storedAddresses =
+              stored
+                ? JSON.parse(
+                    stored,
+                  )
+                : [];
+          } catch {
+            storedAddresses =
+              [];
+          }
+
+          if (
+            Array.isArray(
+              storedAddresses,
+            ) &&
+            storedAddresses.length > 0
+          ) {
+            await loadLocalAddresses(
+              profileData,
+            );
+          } else if (
+            Array.isArray(
+              profileData?.addresses,
+            ) &&
+            profileData.addresses.length > 0
+          ) {
+            await saveAddressesToStorage(
+              profileData.addresses,
+              profileData,
+            );
+          } else {
+            await loadLocalAddresses(
+              profileData,
+            );
+          }
+        } catch (
+          fetchError
+        ) {
+          console.log(
+            'PROFILE ERROR:',
+            fetchError,
+          );
+
+          setError(
+            fetchError?.message ??
+              'Unable to load profile.',
+          );
+        } finally {
+          if (
+            showLoader
+          ) {
+            setLoading(
+              false,
+            );
+          }
+        }
+      },
+      [
+        loadLocalAddresses,
+      ],
+    );
+
+  /* =======================================================
+   * INITIAL
+   * ======================================================= */
+
+  useEffect(
+    () => {
+      fetchProfile();
+
+      loadStoredProfileImage();
+    },
+    [],
+  );
+
+  /* =======================================================
+   * RELOAD WHEN COMING BACK FROM ADDRESS PAGE
+   * ======================================================= */
+
+  useFocusEffect(
+    useCallback(
+      () => {
+        loadLocalAddresses();
+        loadStoredProfileImage();
+      },
+      [
+        loadLocalAddresses,
+      ],
+    ),
+  );
+
+  /* =======================================================
+   * POPULATE EDIT FORM
+   * ======================================================= */
+
+  const populateEditForm =
+    async () => {
+      let resolvedFirstName =
+        profile?.first_name ??
+        profile?.firstName ??
+        '';
+
+      let resolvedLastName =
+        profile?.last_name ??
+        profile?.lastName ??
+        '';
+
+      if (
+        !resolvedFirstName &&
+        profile?.name
+      ) {
+        const parts =
+          String(
+            profile.name,
+          )
+            .trim()
+            .split(
+              /\s+/,
+            );
+
+        resolvedFirstName =
+          parts[0] ??
+          '';
+
+        resolvedLastName =
+          parts
+            .slice(
+              1,
+            )
+            .join(
+              ' ',
+            );
       }
 
-      const response = await fetch(PROFILE_API_URL, {
-        method: 'GET',
+      setFirstName(
+        String(
+          resolvedFirstName,
+        ),
+      );
 
-        headers: {
-          Accept: 'application/json',
+      setLastName(
+        String(
+          resolvedLastName,
+        ),
+      );
 
-          'Content-Type': 'application/json',
+      setPhone(
+        String(
+          profile?.phone ??
+            profile?.mobile ??
+            '',
+        ),
+      );
 
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      setEmail(
+        String(
+          profile?.email ??
+            '',
+        ),
+      );
 
-      const responseText = await response.text();
+      const stored =
+        await loadLocalAddresses();
 
-      console.log('PROFILE STATUS:', response.status);
+      const sourceAddresses =
+        stored.length > 0
+          ? stored
+          : (
+              Array.isArray(
+                profile?.addresses,
+              )
+                ? profile.addresses
+                : []
+            );
 
-      console.log('RAW PROFILE RESPONSE:', responseText);
+      if (
+        sourceAddresses.length > 0
+      ) {
+        setEditAddresses(
+          sourceAddresses.map(
+            (
+              address,
+              index,
+            ) => ({
+              id:
+                address?.id ??
+                `profile-${index}`,
 
-      let result;
+              type:
+                address?.type ??
+                'Home',
+
+              address_line:
+                addressToFullLine(
+                  address,
+                ),
+
+              pincode:
+                String(
+                  address?.pincode ??
+                    address?.postcode ??
+                    '',
+                ),
+
+              is_default:
+                Boolean(
+                  address?.is_default ??
+                    address?.isDefault ??
+                    index === 0,
+                ),
+            }),
+          ),
+        );
+      } else {
+        setEditAddresses([
+          createEmptyAddress(
+            0,
+          ),
+        ]);
+      }
+
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+
+      setEditProfileVisible(
+        true,
+      );
+    };
+
+  /* =======================================================
+   * EDIT ADDRESS
+   * ======================================================= */
+
+  const updateAddressField =
+    (
+      index,
+      field,
+      value,
+    ) => {
+      setEditAddresses(
+        current =>
+          current.map(
+            (
+              item,
+              itemIndex,
+            ) =>
+              itemIndex === index
+                ? {
+                    ...item,
+                    [field]:
+                      value,
+                  }
+                : item,
+          ),
+      );
+    };
+
+  const setDefaultAddress =
+    index => {
+      setEditAddresses(
+        current =>
+          current.map(
+            (
+              item,
+              itemIndex,
+            ) => ({
+              ...item,
+
+              is_default:
+                itemIndex === index,
+            }),
+          ),
+      );
+    };
+
+  const addAddressInProfile =
+    () => {
+      setEditAddresses(
+        current => [
+          ...current,
+
+          createEmptyAddress(
+            current.length,
+          ),
+        ],
+      );
+    };
+
+  const removeAddressInProfile =
+    index => {
+      if (
+        editAddresses.length <=
+        1
+      ) {
+        Alert.alert(
+          'Address Required',
+          'At least one address is required.',
+        );
+
+        return;
+      }
+
+      let updated =
+        editAddresses.filter(
+          (
+            _,
+            itemIndex,
+          ) =>
+            itemIndex !== index,
+        );
+
+      if (
+        !updated.some(
+          item =>
+            item.is_default,
+        )
+      ) {
+        updated =
+          updated.map(
+            (
+              item,
+              itemIndex,
+            ) => ({
+              ...item,
+
+              is_default:
+                itemIndex === 0,
+            }),
+          );
+      }
+
+      setEditAddresses(
+        updated,
+      );
+    };
+
+  /* =======================================================
+   * VALIDATE
+   * ======================================================= */
+
+  const validate =
+    () => {
+      if (
+        !firstName.trim()
+      ) {
+        Alert.alert(
+          'Required',
+          'Please enter your first name.',
+        );
+
+        return false;
+      }
+
+      if (
+        !lastName.trim()
+      ) {
+        Alert.alert(
+          'Required',
+          'Please enter your last name.',
+        );
+
+        return false;
+      }
+
+      if (
+        !phone.trim()
+      ) {
+        Alert.alert(
+          'Required',
+          'Please enter your phone.',
+        );
+
+        return false;
+      }
+
+      if (
+        !email.trim()
+      ) {
+        Alert.alert(
+          'Required',
+          'Please enter your email.',
+        );
+
+        return false;
+      }
+
+      for (
+        let index = 0;
+        index < editAddresses.length;
+        index += 1
+      ) {
+        const address =
+          editAddresses[index];
+
+        if (
+          !String(
+            address?.address_line ??
+              '',
+          ).trim()
+        ) {
+          Alert.alert(
+            'Address Required',
+            `Please enter address ${
+              index + 1
+            }.`,
+          );
+
+          return false;
+        }
+
+        if (
+          !String(
+            address?.pincode ??
+              '',
+          ).trim()
+        ) {
+          Alert.alert(
+            'Pincode Required',
+            `Please enter pincode for address ${
+              index + 1
+            }.`,
+          );
+
+          return false;
+        }
+      }
+
+      if (
+        newPassword ||
+        oldPassword ||
+        confirmPassword
+      ) {
+        if (
+          !oldPassword
+        ) {
+          Alert.alert(
+            'Password',
+            'Please enter your current password.',
+          );
+
+          return false;
+        }
+
+        if (
+          !newPassword
+        ) {
+          Alert.alert(
+            'Password',
+            'Please enter a new password.',
+          );
+
+          return false;
+        }
+
+        if (
+          newPassword !==
+          confirmPassword
+        ) {
+          Alert.alert(
+            'Password',
+            'Password confirmation does not match.',
+          );
+
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+  /* =======================================================
+   * UPDATE PROFILE
+   * ======================================================= */
+
+  const handleUpdateProfile =
+    async () => {
+      if (
+        updatingProfile ||
+        !validate()
+      ) {
+        return;
+      }
 
       try {
-        result = JSON.parse(responseText);
-      } catch (jsonError) {
-        throw new Error('Invalid response received from server.');
-      }
+        setUpdatingProfile(
+          true,
+        );
 
-      console.log('PROFILE RESPONSE:', JSON.stringify(result, null, 2));
+        const token =
+          await AsyncStorage.getItem(
+            'token',
+          );
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          await AsyncStorage.removeItem('token');
-
-          navigation.reset({
-            index: 0,
-
-            routes: [
-              {
-                name: 'Login',
-              },
-            ],
-          });
+        if (!token) {
+          Alert.alert(
+            'Login Required',
+            'Please login again.',
+          );
 
           return;
         }
 
-        throw new Error(
-          result?.message ||
-            result?.error ||
-            `Unable to load profile. Status: ${response.status}`,
+        const addressesPayload =
+          editAddresses.map(
+            address => ({
+              type:
+                String(
+                  address?.type ??
+                    'Home',
+                ).trim(),
+
+              address_line:
+                String(
+                  address?.address_line ??
+                    '',
+                ).trim(),
+
+              pincode:
+                String(
+                  address?.pincode ??
+                    '',
+                ).trim(),
+
+              is_default:
+                Boolean(
+                  address?.is_default,
+                ),
+            }),
+          );
+
+        const payload = {
+          first_name:
+            firstName.trim(),
+
+          last_name:
+            lastName.trim(),
+
+          phone:
+            phone.trim(),
+
+          email:
+            email.trim(),
+
+          addresses:
+            addressesPayload,
+        };
+
+        if (
+          oldPassword ||
+          newPassword ||
+          confirmPassword
+        ) {
+          payload.old_password =
+            oldPassword;
+
+          payload.new_password =
+            newPassword;
+
+          payload.new_password_confirmation =
+            confirmPassword;
+        }
+
+        console.log(
+          'PROFILE EDIT PAYLOAD:',
+          JSON.stringify(
+            {
+              ...payload,
+
+              old_password:
+                payload.old_password
+                  ? '********'
+                  : undefined,
+
+              new_password:
+                payload.new_password
+                  ? '********'
+                  : undefined,
+
+              new_password_confirmation:
+                payload.new_password_confirmation
+                  ? '********'
+                  : undefined,
+            },
+            null,
+            2,
+          ),
+        );
+
+        const response =
+          await fetch(
+            PROFILE_EDIT_API_URL,
+            {
+              method:
+                'POST',
+
+              headers: {
+                Accept:
+                  'application/json',
+
+                'Content-Type':
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+
+              body:
+                JSON.stringify(
+                  payload,
+                ),
+            },
+          );
+
+        const text =
+          await response.text();
+
+        let result =
+          {};
+
+        try {
+          result =
+            text
+              ? JSON.parse(
+                  text,
+                )
+              : {};
+        } catch {
+          result = {};
+        }
+
+        console.log(
+          'PROFILE EDIT STATUS:',
+          response.status,
+        );
+
+        console.log(
+          'PROFILE EDIT RESPONSE:',
+          text,
+        );
+
+        /*
+         * IMPORTANT CHANGE:
+         *
+         * DO NOT delete the token
+         * DO NOT redirect to Login
+         * merely because this edit endpoint
+         * returns 401/403.
+         */
+
+        if (
+          response.status ===
+            401 ||
+          response.status ===
+            403
+        ) {
+          throw new Error(
+            result?.message ??
+              'Profile update was not authorized. Please verify the profile edit API authentication.',
+          );
+        }
+
+        if (
+          response.status ===
+            422
+        ) {
+          const messages =
+            result?.errors
+              ? Object.values(
+                  result.errors,
+                ).reduce(
+                  (
+                    all,
+                    item,
+                  ) =>
+                    all.concat(
+                      Array.isArray(
+                        item,
+                      )
+                        ? item
+                        : [
+                            item,
+                          ],
+                    ),
+                  [],
+                )
+              : [];
+
+          throw new Error(
+            messages[0] ??
+              result?.message ??
+              'Please check your profile data.',
+          );
+        }
+
+        if (
+          !response.ok ||
+          result?.success ===
+            false
+        ) {
+          throw new Error(
+            result?.message ??
+              result?.error ??
+              'Unable to update profile.',
+          );
+        }
+
+        /* =============================================
+         * SAVE SAME ADDRESSES FOR ADDRESS LIST
+         * ============================================= */
+
+        const localList =
+          addressesPayload.map(
+            (
+              item,
+              index,
+            ) => ({
+              id:
+                editAddresses[index]
+                  ?.id ??
+                `address-${Date.now()}-${index}`,
+
+              type:
+                item.type,
+
+              name:
+                `${firstName.trim()} ${lastName.trim()}`.trim(),
+
+              phone:
+                phone.trim(),
+
+              addressLine1:
+                item.address_line,
+
+              addressLine2:
+                '',
+
+              suburb:
+                '',
+
+              city:
+                '',
+
+              state:
+                '',
+
+              postcode:
+                item.pincode,
+
+              pincode:
+                item.pincode,
+
+              country:
+                'Australia',
+
+              deliveryInstructions:
+                '',
+
+              isDefault:
+                item.is_default,
+
+              is_default:
+                item.is_default,
+
+              address_line:
+                item.address_line,
+            }),
+          );
+
+        await saveAddressesToStorage(
+          localList,
+          {
+            ...profile,
+
+            first_name:
+              firstName.trim(),
+
+            last_name:
+              lastName.trim(),
+
+            phone:
+              phone.trim(),
+          },
+        );
+
+        const defaultAddress =
+          addressesPayload.find(
+            item =>
+              item.is_default,
+          ) ??
+          addressesPayload[0];
+
+        setProfile(
+          current => ({
+            ...current,
+
+            first_name:
+              firstName.trim(),
+
+            last_name:
+              lastName.trim(),
+
+            name:
+              `${firstName.trim()} ${lastName.trim()}`.trim(),
+
+            phone:
+              phone.trim(),
+
+            email:
+              email.trim(),
+
+            addresses:
+              addressesPayload,
+
+            address:
+              defaultAddress?.address_line ??
+              '',
+
+            pincode:
+              defaultAddress?.pincode ??
+              '',
+          }),
+        );
+
+        setEditProfileVisible(
+          false,
+        );
+
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+
+        setUpdateSuccessVisible(
+          true,
+        );
+      } catch (
+        updateError
+      ) {
+        console.log(
+          'PROFILE UPDATE ERROR:',
+          updateError,
+        );
+
+        Alert.alert(
+          'Profile Update Failed',
+          updateError?.message ??
+            'Unable to update profile.',
+        );
+      } finally {
+        setUpdatingProfile(
+          false,
         );
       }
+    };
 
-      const profileData =
-        result?.data ?? result?.customer ?? result?.user ?? result;
+  /* =======================================================
+   * CAMERA
+   * ======================================================= */
 
-      setProfile(profileData);
-    } catch (err) {
-      console.log('PROFILE API ERROR:', err);
-
-      setError(err?.message || 'Unable to load profile.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* =====================================================
-   * Initial Profile Load
-   * ===================================================== */
-
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  /* =====================================================
-   * Logout API
-   * ===================================================== */
-
-  const performLogout = async () => {
-    try {
-      setLogoutLoading(true);
-
-      const token = await AsyncStorage.getItem('token');
-
-      console.log('==============================');
-
-      console.log('LOGOUT API CALL');
-
-      console.log('URL:', LOGOUT_API_URL);
-
-      console.log('TOKEN:', token);
-
-      console.log('==============================');
-
-      if (token) {
-        const response = await fetch(LOGOUT_API_URL, {
-          method: 'POST',
-
-          headers: {
-            Accept: 'application/json',
-
-            'Content-Type': 'application/json',
-
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const responseText = await response.text();
-
-        console.log('LOGOUT STATUS:', response.status);
-
-        console.log('LOGOUT RESPONSE:', responseText);
+  const requestCameraPermission =
+    async () => {
+      if (
+        Platform.OS !==
+        'android'
+      ) {
+        return true;
       }
 
-      await AsyncStorage.removeItem('token');
+      const result =
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+        );
 
-      await AsyncStorage.removeItem('user');
+      return (
+        result ===
+        PermissionsAndroid.RESULTS.GRANTED
+      );
+    };
 
-      navigation.reset({
-        index: 0,
+  const saveSelectedImage =
+    async response => {
+      if (
+        response?.didCancel
+      ) {
+        return;
+      }
 
-        routes: [
-          {
-            name: 'Login',
-          },
-        ],
-      });
-    } catch (err) {
-      console.log('LOGOUT ERROR:', err);
+      if (
+        response?.errorCode
+      ) {
+        Alert.alert(
+          'Image Error',
+          response?.errorMessage ??
+            'Unable to select image.',
+        );
 
-      await AsyncStorage.removeItem('token');
+        return;
+      }
 
-      await AsyncStorage.removeItem('user');
+      const asset =
+        response?.assets?.[0];
 
-      navigation.reset({
-        index: 0,
+      if (
+        !asset?.uri
+      ) {
+        return;
+      }
 
-        routes: [
-          {
-            name: 'Login',
-          },
-        ],
-      });
-    } finally {
-      setLogoutLoading(false);
-    }
-  };
+      const imageData = {
+        uri:
+          asset.uri,
 
-  /* =====================================================
-   * Logout Confirmation Popup
-   * ===================================================== */
+        type:
+          asset.type ??
+          'image/jpeg',
 
-  const handleLogout = () => {
-    if (logoutLoading) {
-      return;
-    }
+        fileName:
+          asset.fileName ??
+          `profile-${Date.now()}.jpg`,
+      };
 
-    setLogoutPopupVisible(true);
-  };
+      setSelectedProfileImage(
+        imageData,
+      );
 
-  const handleCancelLogout = () => {
-    if (logoutLoading) {
-      return;
-    }
+      /*
+       * Persist photo locally because
+       * supplied edit API has no image field.
+       */
 
-    setLogoutPopupVisible(false);
-  };
+      await AsyncStorage.setItem(
+        PROFILE_IMAGE_STORAGE_KEY,
+        JSON.stringify(
+          imageData,
+        ),
+      );
+    };
 
-  const handleConfirmLogout = async () => {
-    if (logoutLoading) {
-      return;
-    }
+  const takePhoto =
+    async () => {
+      if (
+        selectingPhoto
+      ) {
+        return;
+      }
 
-    await performLogout();
+      try {
+        setSelectingPhoto(
+          true,
+        );
 
-    setLogoutPopupVisible(false);
-  };
+        const allowed =
+          await requestCameraPermission();
 
-  /* =====================================================
-   * Profile Values
-   * ===================================================== */
+        if (!allowed) {
+          Alert.alert(
+            'Permission Required',
+            'Camera permission is required.',
+          );
 
-  const userName = profile?.name ?? profile?.full_name ?? 'Customer';
+          return;
+        }
 
-  const userEmail = profile?.email ?? 'No email';
+        setPhotoOptionVisible(
+          false,
+        );
 
-  const userPhone = profile?.phone ?? profile?.mobile ?? 'Not provided';
+        const response =
+          await launchCamera({
+            mediaType:
+              'photo',
 
-  const userPincode = profile?.pincode ?? '';
+            cameraType:
+              'front',
 
-  const userAddress = profile?.address ?? 'No address available';
+            quality:
+              0.8,
 
-  const dietaryPreference =
-    profile?.dietary_preference ?? profile?.dietaryPreference ?? 'Standard';
+            saveToPhotos:
+              false,
+          });
 
-  const profileImage =
-    profile?.profile_image ?? profile?.image ?? profile?.avatar ?? null;
+        await saveSelectedImage(
+          response,
+        );
+      } finally {
+        setSelectingPhoto(
+          false,
+        );
+      }
+    };
 
-  /* =====================================================
-   * Loading
-   * ===================================================== */
+  const chooseGallery =
+    async () => {
+      if (
+        selectingPhoto
+      ) {
+        return;
+      }
 
-  if (loading) {
+      try {
+        setSelectingPhoto(
+          true,
+        );
+
+        setPhotoOptionVisible(
+          false,
+        );
+
+        const response =
+          await launchImageLibrary({
+            mediaType:
+              'photo',
+
+            selectionLimit:
+              1,
+
+            quality:
+              0.8,
+          });
+
+        await saveSelectedImage(
+          response,
+        );
+      } catch (
+        galleryError
+      ) {
+        Alert.alert(
+          'Gallery Error',
+          galleryError?.message ??
+            'Unable to open gallery.',
+        );
+      } finally {
+        setSelectingPhoto(
+          false,
+        );
+      }
+    };
+
+  /* =======================================================
+   * LOGOUT
+   * ======================================================= */
+
+  const performLogout =
+    async () => {
+      try {
+        setLogoutLoading(
+          true,
+        );
+
+        const token =
+          await AsyncStorage.getItem(
+            'token',
+          );
+
+        if (token) {
+          await fetch(
+            LOGOUT_API_URL,
+            {
+              method:
+                'POST',
+
+              headers: {
+                Accept:
+                  'application/json',
+
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            },
+          );
+        }
+      } catch (
+        logoutError
+      ) {
+        console.log(
+          'LOGOUT ERROR:',
+          logoutError,
+        );
+      } finally {
+        await AsyncStorage.removeItem(
+          'token',
+        );
+
+        await AsyncStorage.removeItem(
+          'user',
+        );
+
+        setLogoutLoading(
+          false,
+        );
+
+        setLogoutPopupVisible(
+          false,
+        );
+
+        navigation.reset({
+          index:
+            0,
+
+          routes: [
+            {
+              name:
+                'Login',
+            },
+          ],
+        });
+      }
+    };
+
+  /* =======================================================
+   * DISPLAY
+   * ======================================================= */
+
+  const displayFirstName =
+    profile?.first_name ??
+    '';
+
+  const displayLastName =
+    profile?.last_name ??
+    '';
+
+  const userName =
+    `${displayFirstName} ${displayLastName}`.trim() ||
+    profile?.name ||
+    'Customer';
+
+  const userEmail =
+    profile?.email ??
+    'No email';
+
+  const userPhone =
+    profile?.phone ??
+    'Not provided';
+
+  const defaultAddress =
+    localAddresses.find(
+      item =>
+        item.isDefault,
+    ) ??
+    localAddresses[0];
+
+  const userAddress =
+    defaultAddress
+      ? addressToFullLine(
+          defaultAddress,
+        )
+      : (
+          typeof profile?.address ===
+            'string'
+            ? profile.address
+            : 'No address available'
+        );
+
+  const userPincode =
+    defaultAddress?.postcode ??
+    defaultAddress?.pincode ??
+    profile?.pincode ??
+    '';
+
+  const serverImage =
+    profile?.profile_image ??
+    profile?.image ??
+    profile?.avatar ??
+    null;
+
+  const profileImageSource =
+    selectedProfileImage?.uri
+      ? {
+          uri:
+            selectedProfileImage.uri,
+        }
+      : serverImage
+        ? {
+            uri:
+              serverImage,
+          }
+        : require('../assets/user-profile.jpg');
+
+  /* =======================================================
+   * LOADING
+   * ======================================================= */
+
+  if (
+    loading
+  ) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+      >
+        <View
+          style={
+            styles.center
+          }
+        >
+          <ActivityIndicator
+            size="large"
+            color="#A00B0F"
+          />
 
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#A00B0F" />
-
-          <Text style={styles.loadingTitle}>Loading Profile...</Text>
+          <Text
+            style={
+              styles.loadingText
+            }
+          >
+            Loading Profile...
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
-
-  /* =====================================================
-   * Error
-   * ===================================================== */
-
-  if (error && !profile) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
-
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorTitle}>Unable to Load Profile</Text>
-
-          <Text style={styles.errorText}>{error}</Text>
-
-          <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
-            <Text style={styles.retryButtonText}>TRY AGAIN</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  /* =====================================================
-   * UI
-   * ===================================================== */
 
   return (
     <>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+      >
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#FFF9F6"
+        />
 
         <View
           style={[
-            styles.screenContainer,
+            styles.screen,
 
             {
-              width: responsive.contentWidth,
+              width:
+                responsive.contentWidth,
             },
           ]}
         >
           <ScrollView
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={
+              false
+            }
             contentContainerStyle={[
-              styles.scrollContent,
+              styles.scroll,
 
               {
-                paddingHorizontal: responsive.horizontalPadding,
+                paddingHorizontal:
+                  responsive.padding,
               },
             ]}
           >
-            {/* =================================================
-             * Header
-             * ================================================= */}
+            {/* HEADER */}
 
-            <View style={styles.header}>
-              <View>
-                <Text style={styles.headerEyebrow}>MY ACCOUNT</Text>
-
-                <Text style={styles.headerTitle}>Profile</Text>
-              </View>
-
+            <View
+              style={
+                styles.header
+              }
+            >
               <Pressable
-                hitSlop={10}
-                style={styles.notificationButton}
-                onPress={() => navigation.navigate('Notification')}
+                style={
+                  styles.backButton
+                }
+                onPress={() =>
+                  navigation.canGoBack()
+                    ? navigation.goBack()
+                    : navigation.navigate(
+                        'Home',
+                      )
+                }
               >
                 <Image
-                  source={require('../assets/login-icons/notification.png')}
-                  style={styles.smallIcon}
-                  resizeMode="contain"
+                  source={require('../assets/login-icons/back.png')}
+                  style={
+                    styles.icon
+                  }
                 />
-
-                <View style={styles.notificationDot} />
               </Pressable>
+
+              <View>
+                <Text
+                  style={
+                    styles.eyebrow
+                  }
+                >
+                  MY ACCOUNT
+                </Text>
+
+                <Text
+                  style={
+                    styles.title
+                  }
+                >
+                  Profile
+                </Text>
+              </View>
             </View>
 
-            {/* =================================================
-             * Profile
-             * ================================================= */}
+            {/* PROFILE CARD */}
 
-            <View style={styles.profileSection}>
+            <View
+              style={
+                styles.profileCard
+              }
+            >
               <View>
-                {profileImage ? (
-                  <Image
-                    source={{
-                      uri: profileImage,
-                    }}
-                    style={[
-                      styles.profileImage,
+                <Image
+                  source={
+                    profileImageSource
+                  }
+                  style={{
+                    width:
+                      responsive.avatarSize,
 
-                      {
-                        width: responsive.avatarSize,
+                    height:
+                      responsive.avatarSize,
 
-                        height: responsive.avatarSize,
-
-                        borderRadius: responsive.avatarSize / 2,
-                      },
-                    ]}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Image
-                    source={require('../assets/user-profile.jpg')}
-                    style={[
-                      styles.profileImage,
-
-                      {
-                        width: responsive.avatarSize,
-
-                        height: responsive.avatarSize,
-
-                        borderRadius: responsive.avatarSize / 2,
-                      },
-                    ]}
-                    resizeMode="cover"
-                  />
-                )}
+                    borderRadius:
+                      responsive.avatarSize /
+                      2,
+                  }}
+                />
 
                 <TouchableOpacity
-                  activeOpacity={0.8}
-                  style={styles.cameraButton}
-                  onPress={() => console.log('Change photo pressed')}
+                  style={
+                    styles.cameraButton
+                  }
+                  onPress={() =>
+                    setPhotoOptionVisible(
+                      true,
+                    )
+                  }
                 >
                   <Image
                     source={require('../assets/login-icons/camera.png')}
-                    style={styles.smallIcon}
-                    resizeMode="contain"
+                    style={
+                      styles.cameraIcon
+                    }
                   />
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.profileDetails}>
-                <Text numberOfLines={1} style={styles.userName}>
+              <View
+                style={
+                  styles.profileText
+                }
+              >
+                <Text
+                  style={
+                    styles.name
+                  }
+                >
                   {userName}
                 </Text>
 
-                <Text numberOfLines={1} style={styles.userEmail}>
+                <Text
+                  style={
+                    styles.email
+                  }
+                >
                   {userEmail}
+                </Text>
+
+                <Text
+                  style={
+                    styles.phone
+                  }
+                >
+                  {userPhone}
                 </Text>
               </View>
 
-              <Pressable
-                hitSlop={10}
-                style={styles.editProfileButton}
-                onPress={() =>
-                  navigation.navigate('EditProfile', {
-                    profile,
-                  })
+              <TouchableOpacity
+                style={
+                  styles.editButton
+                }
+                onPress={
+                  populateEditForm
                 }
               >
                 <Image
                   source={require('../assets/login-icons/edit.png')}
-                  style={styles.smallIcon}
-                  resizeMode="contain"
+                  style={
+                    styles.icon
+                  }
                 />
-              </Pressable>
+              </TouchableOpacity>
             </View>
 
-            {/* =================================================
-             * Personal Details
-             * ================================================= */}
+            {/* DETAILS */}
 
-            <SectionCard title="Personal Details">
-              <ProfileInformationRow label="Full Name" value={userName} />
-
-              <ProfileInformationRow label="Email Address" value={userEmail} />
-
-              <ProfileInformationRow label="Mobile Number" value={userPhone} />
-
-              <ProfileInformationRow
-                label="Dietary Preference"
-                value={dietaryPreference}
-                showBorder={false}
+            <Section
+              title="Personal Details"
+            >
+              <InfoRow
+                label="Full Name"
+                value={
+                  userName
+                }
               />
-            </SectionCard>
 
-            {/* =================================================
-             * Delivery Addresses
-             * ================================================= */}
+              <InfoRow
+                label="Email Address"
+                value={
+                  userEmail
+                }
+              />
 
-            <SectionCard
+              <InfoRow
+                label="Mobile Number"
+                value={
+                  userPhone
+                }
+              />
+            </Section>
+
+            {/* ADDRESS */}
+
+            <Section
               title="Delivery Addresses"
               rightText="Manage"
-              onRightPress={() => navigation.navigate('AddressList')}
+              onRightPress={() =>
+                navigation.navigate(
+                  'AddressList',
+                )
+              }
             >
-              <Pressable
-                style={styles.addressContainer}
-                onPress={() => navigation.navigate('AddressList')}
-              >
-                <View style={styles.addressIconContainer}>
-                  <Image
-                    source={require('../assets/login-icons/home-1.png')}
-                    style={styles.smallIcon}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={styles.addressDetails}>
-                  <View style={styles.addressTitleRow}>
-                    <Text style={styles.addressTitle}>Home</Text>
-
-                    <View style={styles.defaultBadge}>
-                      <Text style={styles.defaultBadgeText}>Default</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.addressText}>{userAddress}</Text>
-
-                  {!!userPincode && (
-                    <Text style={styles.addressText}>{userPincode}</Text>
-                  )}
-                </View>
-
-                <Image
-                  source={require('../assets/login-icons/location.png')}
-                  style={styles.smallIcon}
-                  resizeMode="contain"
-                />
-              </Pressable>
-            </SectionCard>
-
-            {/* =================================================
-             * Payment Methods
-             * ================================================= */}
-
-            <SectionCard
-              title="Payment Methods"
-              rightText="Manage"
-              onRightPress={() => navigation.navigate('PaymentDetails')}
-            >
-              <Pressable
-                style={styles.paymentContainer}
-                onPress={() => navigation.navigate('PaymentDetails')}
-              >
-                <View style={styles.paymentIconContainer}>
-                  <Image
-                    source={require('../assets/login-icons/wallet.png')}
-                    style={styles.smallIcon}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={styles.paymentDetails}>
-                  <Text style={styles.paymentTitle}>Payment Methods</Text>
-
-                  <Text style={styles.paymentSubtitle}>
-                    Manage your saved payment options
-                  </Text>
-                </View>
-              </Pressable>
-              
-              {/* =================================================
-               * NEW - Weekly Order Invoices
-               * ================================================= */}
-
               <TouchableOpacity
-                activeOpacity={0.8}
-                style={styles.previousOrderRow}
-                onPress={() => navigation.navigate('WeeklyInvoice')}
+                style={
+                  styles.addressCard
+                }
+                onPress={() =>
+                  navigation.navigate(
+                    'AddressList',
+                  )
+                }
               >
-                <View style={styles.weeklyInvoiceIconContainer}>
-                  <Image
-                    source={require('../assets/login-icons/wallet.png')}
-                    style={styles.previousOrderIcon}
-                    resizeMode="contain"
-                  />
-                </View>
+                <Image
+                  source={require('../assets/login-icons/home-1.png')}
+                  style={
+                    styles.addressIcon
+                  }
+                />
 
-                <View style={styles.previousOrderDetails}>
-                  <View style={styles.weeklyInvoiceTitleRow}>
-                    <Text style={styles.previousOrderTitle}>
-                      Weekly Order Invoices
+                <View
+                  style={{
+                    flex:
+                      1,
+                  }}
+                >
+                  <View
+                    style={
+                      styles.addressTitleRow
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.addressType
+                      }
+                    >
+                      {defaultAddress?.type ??
+                        'Home'}
                     </Text>
 
-                    <View style={styles.weeklyBadge}>
-                      <Text style={styles.weeklyBadgeText}>WEEKLY</Text>
+                    <View
+                      style={
+                        styles.defaultBadge
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.defaultText
+                        }
+                      >
+                        Default
+                      </Text>
                     </View>
                   </View>
 
-                  <Text style={styles.previousOrderSubtitle}>
-                    Monday-to-Monday orders & weekly payment
+                  <Text
+                    style={
+                      styles.addressText
+                    }
+                  >
+                    {userAddress}
                   </Text>
-                </View>
 
-                <Image
-                  source={require('../assets/login-icons/next.png')}
-                  style={styles.previousOrderArrow}
-                  resizeMode="contain"
-                />
+                  {!!userPincode && (
+                    <Text
+                      style={
+                        styles.addressText
+                      }
+                    >
+                      {userPincode}
+                    </Text>
+                  )}
+                </View>
               </TouchableOpacity>
-            </SectionCard>
+            </Section>
 
-            {/* =================================================
-             * Orders
-             * ================================================= */}
+            {/* PAYMENT */}
 
-            <SectionCard title="Orders">
-              {/* Previous Orders */}
-
-              <TouchableOpacity
-                activeOpacity={0.8}
-                style={[styles.previousOrderRow, styles.orderMenuWithBorder]}
-                onPress={() => navigation.navigate('PreviousOrder')}
-              >
-                <View style={styles.previousOrderIconContainer}>
-                  <Image
-                    source={require('../assets/login-icons/spoon-and-fork-crossed.png')}
-                    style={styles.previousOrderIcon}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={styles.previousOrderDetails}>
-                  <Text style={styles.previousOrderTitle}>Your Orders</Text>
-
-                  <Text style={styles.previousOrderSubtitle}>
-                    View your previous tiffin orders
-                  </Text>
-                </View>
-
-                <Image
-                  source={require('../assets/login-icons/next.png')}
-                  style={styles.previousOrderArrow}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-
-            </SectionCard>
-
-            {/* =================================================
-             * Account Preferences
-             * ================================================= */}
-
-            {/*
-            <SectionCard
-              title="Account Preferences"
+            <Section
+              title="Payment & Billing"
             >
-              <PreferenceRow
-                image={require('../assets/login-icons/back.png')}
-                title="Push Notifications"
-                subtitle="Receive order and delivery updates"
-                showSwitch={true}
-                switchValue={notificationsEnabled}
-                onSwitchChange={setNotificationsEnabled}
+              <MenuRow
+                title="Payment Details"
+                subtitle="View current weekly total"
+                image={require('../assets/login-icons/wallet.png')}
+                onPress={() =>
+                  navigation.navigate(
+                    'PaymentDetails',
+                  )
+                }
               />
 
-              <PreferenceRow
-                image={require('../assets/login-icons/back.png')}
-                title="Auto-Renew Subscription"
-                subtitle="Automatically renew your weekly plan"
-                showSwitch={true}
-                switchValue={autoRenewEnabled}
-                onSwitchChange={setAutoRenewEnabled}
-                showBorder={false}
+              <MenuRow
+                title="Weekly Invoices"
+                subtitle="View generated weekly invoices"
+                image={require('../assets/login-icons/invoice.png')}
+                onPress={() =>
+                  navigation.navigate(
+                    'WeeklyInvoice',
+                  )
+                }
               />
-            </SectionCard>
-            */}
+            </Section>
 
-            {/* =================================================
-             * Logout
-             * ================================================= */}
+            {/* ORDERS */}
+
+            <Section
+              title="Orders"
+            >
+              <MenuRow
+                title="Your Orders"
+                subtitle="View your previous tiffin orders"
+                image={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+                onPress={() =>
+                  navigation.navigate(
+                    'PreviousOrder',
+                  )
+                }
+              />
+            </Section>
+
+            {/* LOGOUT */}
 
             <TouchableOpacity
-              activeOpacity={0.8}
-              disabled={logoutLoading}
-              style={[
-                styles.logoutButton,
-
-                logoutLoading && {
-                  opacity: 0.6,
-                },
-              ]}
-              onPress={handleLogout}
+              style={
+                styles.logoutButton
+              }
+              onPress={() =>
+                setLogoutPopupVisible(
+                  true,
+                )
+              }
             >
-              {logoutLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Image
-                    source={require('../assets/login-icons/logout-light.png')}
-                    style={styles.logoutIcon}
-                    resizeMode="contain"
-                  />
+              <Image
+                source={require('../assets/login-icons/logout-light.png')}
+                style={
+                  styles.logoutIcon
+                }
+              />
 
-                  <Text style={styles.logoutText}>Log Out</Text>
-                </>
-              )}
+              <Text
+                style={
+                  styles.logoutText
+                }
+              >
+                Log Out
+              </Text>
             </TouchableOpacity>
-
-            <Text style={styles.versionText}>App Version 1.0.0</Text>
           </ScrollView>
         </View>
       </SafeAreaView>
 
-      {/* =====================================================
-       * CUSTOM LOGOUT CONFIRMATION POPUP
-       * ===================================================== */}
+      {/* ================================================= */}
+      {/* PHOTO MODAL */}
+      {/* ================================================= */}
 
       <Modal
-        visible={logoutPopupVisible}
+        visible={
+          photoOptionVisible
+        }
         transparent
         animationType="fade"
-        statusBarTranslucent
-        onRequestClose={handleCancelLogout}
+        onRequestClose={() =>
+          setPhotoOptionVisible(
+            false,
+          )
+        }
       >
         <Pressable
-          style={styles.logoutPopupOverlay}
-          onPress={handleCancelLogout}
+          style={
+            styles.overlay
+          }
+          onPress={() =>
+            setPhotoOptionVisible(
+              false,
+            )
+          }
         >
-          <Pressable style={styles.logoutPopupCard} onPress={() => {}}>
-            {/* Logout Icon */}
-
-            <View style={styles.logoutPopupIconOuter}>
-              <View style={styles.logoutPopupIconInner}>
-                <Image
-                  source={require('../assets/login-icons/logout-light.png')}
-                  style={styles.logoutPopupIcon}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
-
-            {/* Heading */}
-
-            <Text style={styles.logoutPopupTitle}>Log Out?</Text>
-
-            <Text style={styles.logoutPopupDescription}>
-              Are you sure you want to log out of your account?
+          <Pressable
+            style={
+              styles.photoModal
+            }
+            onPress={() => {}}
+          >
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              Profile Photo
             </Text>
 
-            {/* Information */}
+            <TouchableOpacity
+              style={
+                styles.photoOption
+              }
+              onPress={
+                takePhoto
+              }
+            >
+              <Image
+                source={require('../assets/login-icons/camera.png')}
+                style={
+                  styles.photoIcon
+                }
+              />
 
-            <View style={styles.logoutInfoBox}>
-              <Text style={styles.logoutInfoIcon}>i</Text>
-
-              <Text style={styles.logoutInfoText}>
-                You will need to sign in again to access your account.
-              </Text>
-            </View>
-
-            {/* Buttons */}
-
-            <View style={styles.logoutPopupButtons}>
-              <TouchableOpacity
-                disabled={logoutLoading}
-                activeOpacity={0.8}
-                onPress={handleCancelLogout}
-                style={styles.logoutCancelButton}
+              <Text
+                style={
+                  styles.photoOptionText
+                }
               >
-                <Text style={styles.logoutCancelText}>Cancel</Text>
+                Take Photo
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.photoOption
+              }
+              onPress={
+                chooseGallery
+              }
+            >
+              <Text
+                style={
+                  styles.galleryEmoji
+                }
+              >
+                ▣
+              </Text>
+
+              <Text
+                style={
+                  styles.photoOptionText
+                }
+              >
+                Choose from Gallery
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={
+                styles.cancelModalButton
+              }
+              onPress={() =>
+                setPhotoOptionVisible(
+                  false,
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.cancelModalText
+                }
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ================================================= */}
+      {/* EDIT PROFILE */}
+      {/* ================================================= */}
+
+      <Modal
+        visible={
+          editProfileVisible
+        }
+        animationType="slide"
+        transparent
+        onRequestClose={() =>
+          setEditProfileVisible(
+            false,
+          )
+        }
+      >
+        <View
+          style={
+            styles.editOverlay
+          }
+        >
+          <SafeAreaView
+            style={
+              styles.editSafeArea
+            }
+          >
+            <View
+              style={
+                styles.editContainer
+              }
+            >
+              <View
+                style={
+                  styles.editHeader
+                }
+              >
+                <TouchableOpacity
+                  style={
+                    styles.closeButton
+                  }
+                  onPress={() =>
+                    setEditProfileVisible(
+                      false,
+                    )
+                  }
+                >
+                  <Text
+                    style={
+                      styles.closeText
+                    }
+                  >
+                    ×
+                  </Text>
+                </TouchableOpacity>
+
+                <View>
+                  <Text
+                    style={
+                      styles.eyebrow
+                    }
+                  >
+                    ACCOUNT SETTINGS
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.editHeaderTitle
+                    }
+                  >
+                    Edit Profile
+                  </Text>
+                </View>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={
+                  false
+                }
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={
+                  styles.editScroll
+                }
+              >
+                <EditInput
+                  label="First Name"
+                  value={
+                    firstName
+                  }
+                  onChangeText={
+                    setFirstName
+                  }
+                />
+
+                <EditInput
+                  label="Last Name"
+                  value={
+                    lastName
+                  }
+                  onChangeText={
+                    setLastName
+                  }
+                />
+
+                <EditInput
+                  label="Phone"
+                  value={
+                    phone
+                  }
+                  onChangeText={
+                    setPhone
+                  }
+                  keyboardType="phone-pad"
+                />
+
+                <EditInput
+                  label="Email"
+                  value={
+                    email
+                  }
+                  onChangeText={
+                    setEmail
+                  }
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+
+                <View
+                  style={
+                    styles.addressEditHeader
+                  }
+                >
+                  <Text
+                    style={
+                      styles.sectionHeading
+                    }
+                  >
+                    Addresses
+                  </Text>
+
+                  <TouchableOpacity
+                    style={
+                      styles.addSmallButton
+                    }
+                    onPress={
+                      addAddressInProfile
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.addSmallText
+                      }
+                    >
+                      + Add Address
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {editAddresses.map(
+                  (
+                    address,
+                    index,
+                  ) => (
+                    <View
+                      key={
+                        String(
+                          address.id ??
+                            index,
+                        )
+                      }
+                      style={
+                        styles.editAddressCard
+                      }
+                    >
+                      <View
+                        style={
+                          styles.editAddressTop
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.editAddressTitle
+                          }
+                        >
+                          Address {index + 1}
+                        </Text>
+
+                        {editAddresses.length >
+                          1 && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              removeAddressInProfile(
+                                index,
+                              )
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.removeText
+                              }
+                            >
+                              Remove
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      <EditInput
+                        label="Type"
+                        value={
+                          address.type
+                        }
+                        onChangeText={value =>
+                          updateAddressField(
+                            index,
+                            'type',
+                            value,
+                          )
+                        }
+                      />
+
+                      <EditInput
+                        label="Address"
+                        value={
+                          address.address_line
+                        }
+                        onChangeText={value =>
+                          updateAddressField(
+                            index,
+                            'address_line',
+                            value,
+                          )
+                        }
+                        multiline
+                      />
+
+                      <EditInput
+                        label="Pincode"
+                        value={
+                          address.pincode
+                        }
+                        onChangeText={value =>
+                          updateAddressField(
+                            index,
+                            'pincode',
+                            value,
+                          )
+                        }
+                        keyboardType="number-pad"
+                      />
+
+                      <View
+                        style={
+                          styles.defaultRow
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.defaultRowText
+                          }
+                        >
+                          Default Address
+                        </Text>
+
+                        <Switch
+                          value={
+                            address.is_default
+                          }
+                          onValueChange={() =>
+                            setDefaultAddress(
+                              index,
+                            )
+                          }
+                        />
+                      </View>
+                    </View>
+                  ),
+                )}
+
+                <Text
+                  style={
+                    styles.sectionHeading
+                  }
+                >
+                  Change Password
+                </Text>
+
+                <PasswordInput
+                  label="Current Password"
+                  value={
+                    oldPassword
+                  }
+                  onChangeText={
+                    setOldPassword
+                  }
+                  visible={
+                    showOldPassword
+                  }
+                  onToggle={() =>
+                    setShowOldPassword(
+                      value =>
+                        !value,
+                    )
+                  }
+                />
+
+                <PasswordInput
+                  label="New Password"
+                  value={
+                    newPassword
+                  }
+                  onChangeText={
+                    setNewPassword
+                  }
+                  visible={
+                    showNewPassword
+                  }
+                  onToggle={() =>
+                    setShowNewPassword(
+                      value =>
+                        !value,
+                    )
+                  }
+                />
+
+                <PasswordInput
+                  label="Confirm Password"
+                  value={
+                    confirmPassword
+                  }
+                  onChangeText={
+                    setConfirmPassword
+                  }
+                  visible={
+                    showConfirmPassword
+                  }
+                  onToggle={() =>
+                    setShowConfirmPassword(
+                      value =>
+                        !value,
+                    )
+                  }
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+
+                    updatingProfile && {
+                      opacity:
+                        0.6,
+                    },
+                  ]}
+                  disabled={
+                    updatingProfile
+                  }
+                  onPress={
+                    handleUpdateProfile
+                  }
+                >
+                  {updatingProfile ? (
+                    <ActivityIndicator
+                      color="#FFFFFF"
+                    />
+                  ) : (
+                    <Text
+                      style={
+                        styles.saveText
+                      }
+                    >
+                      Save Changes
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* SUCCESS */}
+
+      <Modal
+        visible={
+          updateSuccessVisible
+        }
+        transparent
+        animationType="fade"
+      >
+        <View
+          style={
+            styles.overlay
+          }
+        >
+          <View
+            style={
+              styles.successModal
+            }
+          >
+            <Text
+              style={
+                styles.successIcon
+              }
+            >
+              ✓
+            </Text>
+
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              Profile Updated
+            </Text>
+
+            <Text
+              style={
+                styles.modalDescription
+              }
+            >
+              Your details and addresses have been updated successfully.
+            </Text>
+
+            <TouchableOpacity
+              style={
+                styles.saveButton
+              }
+              onPress={() =>
+                setUpdateSuccessVisible(
+                  false,
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.saveText
+                }
+              >
+                Done
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* LOGOUT */}
+
+      <Modal
+        visible={
+          logoutPopupVisible
+        }
+        transparent
+        animationType="fade"
+      >
+        <View
+          style={
+            styles.overlay
+          }
+        >
+          <View
+            style={
+              styles.successModal
+            }
+          >
+            <Text
+              style={
+                styles.modalTitle
+              }
+            >
+              Log Out?
+            </Text>
+
+            <Text
+              style={
+                styles.modalDescription
+              }
+            >
+              Are you sure you want to log out?
+            </Text>
+
+            <View
+              style={
+                styles.modalActions
+              }
+            >
+              <TouchableOpacity
+                style={
+                  styles.modalCancel
+                }
+                onPress={() =>
+                  setLogoutPopupVisible(
+                    false,
+                  )
+                }
+              >
+                <Text>
+                  Cancel
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                disabled={logoutLoading}
-                activeOpacity={0.85}
-                onPress={handleConfirmLogout}
-                style={[
-                  styles.logoutConfirmButton,
-
-                  logoutLoading && styles.logoutConfirmButtonDisabled,
-                ]}
+                style={
+                  styles.modalLogout
+                }
+                onPress={
+                  performLogout
+                }
               >
                 {logoutLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator
+                    color="#FFFFFF"
+                  />
                 ) : (
-                  <>
-                    <Image
-                      source={require('../assets/login-icons/logout.png')}
-                      style={styles.logoutConfirmIcon}
-                      resizeMode="contain"
-                    />
-
-                    <Text style={styles.logoutConfirmText}>Log Out</Text>
-                  </>
+                  <Text
+                    style={
+                      styles.saveText
+                    }
+                  >
+                    Log Out
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </>
   );
 };
 
 /* =========================================================
- * Section Card
+ * COMPONENTS
  * ========================================================= */
 
-const SectionCard = ({ title, children, rightText, onRightPress }) => {
-  return (
-    <View style={styles.sectionCard}>
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionHeaderTitle}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-        </View>
-
-        {rightText ? (
-          <Pressable hitSlop={10} onPress={onRightPress}>
-            <Text style={styles.sectionRightText}>{rightText}</Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {children}
-    </View>
-  );
-};
-
-/* =========================================================
- * Profile Row
- * ========================================================= */
-
-const ProfileInformationRow = ({ label, value, showBorder = true }) => {
-  return (
-    <View style={[styles.informationRow, !showBorder && styles.noBorder]}>
-      <Text style={styles.informationLabel}>{label}</Text>
-
-      <Text numberOfLines={2} style={styles.informationValue}>
-        {String(value ?? '')}
+const Section = ({
+  title,
+  children,
+  rightText,
+  onRightPress,
+}) => (
+  <View
+    style={
+      styles.section
+    }
+  >
+    <View
+      style={
+        styles.sectionTitleRow
+      }
+    >
+      <Text
+        style={
+          styles.sectionHeading
+        }
+      >
+        {title}
       </Text>
+
+      {!!rightText && (
+        <TouchableOpacity
+          onPress={
+            onRightPress
+          }
+        >
+          <Text
+            style={
+              styles.manageText
+            }
+          >
+            {rightText}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
-  );
-};
 
-/* =========================================================
- * Preference
- * ========================================================= */
+    {children}
+  </View>
+);
 
-const PreferenceRow = ({
-  image,
+const InfoRow = ({
+  label,
+  value,
+}) => (
+  <View
+    style={
+      styles.infoRow
+    }
+  >
+    <Text
+      style={
+        styles.infoLabel
+      }
+    >
+      {label}
+    </Text>
+
+    <Text
+      style={
+        styles.infoValue
+      }
+    >
+      {value}
+    </Text>
+  </View>
+);
+
+const MenuRow = ({
   title,
   subtitle,
+  image,
   onPress,
-  showSwitch = false,
-  switchValue,
-  onSwitchChange,
-  showBorder = true,
-}) => {
-  const content = (
-    <>
-      <View style={styles.preferenceIcon}>
-        <Image
-          source={image}
-          style={styles.preferenceImage}
-          resizeMode="contain"
-        />
-      </View>
-
-      <View style={styles.preferenceDetails}>
-        <Text style={styles.preferenceTitle}>{title}</Text>
-
-        <Text style={styles.preferenceSubtitle}>{subtitle}</Text>
-      </View>
-
-      {showSwitch ? (
-        <Switch
-          value={switchValue}
-          onValueChange={onSwitchChange}
-          trackColor={{
-            false: '#DDD7D2',
-
-            true: '#E6A27E',
-          }}
-          thumbColor={switchValue ? '#B64D19' : '#FFFFFF'}
-        />
-      ) : (
-        <Image
-          source={require('../assets/login-icons/back.png')}
-          style={styles.preferenceArrow}
-          resizeMode="contain"
-        />
-      )}
-    </>
-  );
-
-  if (showSwitch) {
-    return (
-      <View style={[styles.preferenceRow, !showBorder && styles.noBorder]}>
-        {content}
-      </View>
-    );
-  }
-
-  return (
-    <Pressable
-      style={[styles.preferenceRow, !showBorder && styles.noBorder]}
-      onPress={onPress}
+}) => (
+  <TouchableOpacity
+    style={
+      styles.menuRow
+    }
+    onPress={
+      onPress
+    }
+  >
+    <View
+      style={
+        styles.menuIconBox
+      }
     >
-      {content}
-    </Pressable>
-  );
-};
+      <Image
+        source={
+          image
+        }
+        style={
+          styles.icon
+        }
+      />
+    </View>
+
+    <View
+      style={{
+        flex:
+          1,
+      }}
+    >
+      <Text
+        style={
+          styles.menuTitle
+        }
+      >
+        {title}
+      </Text>
+
+      <Text
+        style={
+          styles.menuSubtitle
+        }
+      >
+        {subtitle}
+      </Text>
+    </View>
+
+    <Image
+      source={require('../assets/login-icons/next.png')}
+      style={
+        styles.arrow
+      }
+    />
+  </TouchableOpacity>
+);
+
+const EditInput = ({
+  label,
+  value,
+  onChangeText,
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
+  multiline = false,
+}) => (
+  <View
+    style={
+      styles.field
+    }
+  >
+    <Text
+      style={
+        styles.fieldLabel
+      }
+    >
+      {label}
+    </Text>
+
+    <TextInput
+      value={
+        value
+      }
+      onChangeText={
+        onChangeText
+      }
+      keyboardType={
+        keyboardType
+      }
+      autoCapitalize={
+        autoCapitalize
+      }
+      multiline={
+        multiline
+      }
+      textAlignVertical={
+        multiline
+          ? 'top'
+          : 'center'
+      }
+      style={[
+        styles.input,
+
+        multiline && {
+          minHeight:
+            80,
+        },
+      ]}
+    />
+  </View>
+);
+
+const PasswordInput = ({
+  label,
+  value,
+  onChangeText,
+  visible,
+  onToggle,
+}) => (
+  <View
+    style={
+      styles.field
+    }
+  >
+    <Text
+      style={
+        styles.fieldLabel
+      }
+    >
+      {label}
+    </Text>
+
+    <View
+      style={
+        styles.passwordWrap
+      }
+    >
+      <TextInput
+        value={
+          value
+        }
+        onChangeText={
+          onChangeText
+        }
+        secureTextEntry={
+          !visible
+        }
+        style={
+          styles.passwordInput
+        }
+      />
+
+      <TouchableOpacity
+        onPress={
+          onToggle
+        }
+      >
+        <Text
+          style={
+            styles.showText
+          }
+        >
+          {visible
+            ? 'HIDE'
+            : 'SHOW'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+);
 
 export default Profile;
 
 /* =========================================================
- * Styles
+ * STYLES
  * ========================================================= */
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-
-    backgroundColor: '#F5F0ED',
-  },
-
-  screenContainer: {
-    flex: 1,
-
-    alignSelf: 'center',
-
-    backgroundColor: '#FFF9F6',
-  },
-
-  scrollContent: {
-    paddingTop: 12,
-
-    paddingBottom: 120,
-  },
-
-  centerContainer: {
-    flex: 1,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    paddingHorizontal: 30,
-  },
-
-  loadingTitle: {
-    marginTop: 14,
-
-    color: '#231815',
-
-    fontSize: 14,
-
-    fontWeight: '700',
-  },
-
-  errorTitle: {
-    color: '#231815',
-
-    fontSize: 18,
-
-    fontWeight: '800',
-
-    textAlign: 'center',
-  },
-
-  errorText: {
-    color: '#8B7770',
-
-    fontSize: 12,
-
-    marginTop: 8,
-
-    textAlign: 'center',
-  },
-
-  retryButton: {
-    marginTop: 18,
-
-    backgroundColor: '#A00B0F',
-
-    borderRadius: 10,
-
-    paddingHorizontal: 22,
-
-    paddingVertical: 12,
-  },
-
-  retryButtonText: {
-    color: '#FFFFFF',
-
-    fontSize: 11,
-
-    fontWeight: '800',
-  },
-
-  /* =====================================================
-   * Header
-   * ===================================================== */
-
-  header: {
-    minHeight: 56,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-
-    marginBottom: 14,
-  },
-
-  headerEyebrow: {
-    color: '#A84B20',
-
-    fontSize: 9,
-
-    fontWeight: '800',
-
-    letterSpacing: 1,
-  },
-
-  headerTitle: {
-    color: '#231815',
-
-    fontSize: 24,
-
-    fontWeight: '900',
-
-    marginTop: 2,
-  },
-
-  notificationButton: {
-    width: 40,
-
-    height: 40,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 14,
-  },
-
-  notificationDot: {
-    position: 'absolute',
-
-    top: 8,
-
-    right: 9,
-
-    width: 6,
-
-    height: 6,
-
-    backgroundColor: '#A84B20',
-
-    borderWidth: 1,
-
-    borderColor: '#FFFFFF',
-
-    borderRadius: 3,
-  },
-
-  smallIcon: {
-    width: 20,
-
-    height: 20,
-  },
-
-  /* =====================================================
-   * Profile
-   * ===================================================== */
-
-  profileSection: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 18,
-
-    padding: 14,
-
-    marginBottom: 13,
-
-    shadowColor: '#583829',
-
-    shadowOffset: {
-      width: 0,
-
-      height: 4,
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex:
+        1,
+
+      backgroundColor:
+        '#FFF9F6',
     },
 
-    shadowOpacity: 0.06,
+    screen: {
+      flex:
+        1,
 
-    shadowRadius: 10,
-
-    elevation: 2,
-  },
-
-  profileImage: {
-    backgroundColor: '#E8DDD7',
-  },
-
-  cameraButton: {
-    position: 'absolute',
-
-    right: -8,
-
-    bottom: -10,
-
-    width: 37,
-
-    height: 37,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderRadius: 50,
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-  },
-
-  profileDetails: {
-    flex: 1,
-
-    marginLeft: 13,
-
-    paddingRight: 8,
-  },
-
-  userName: {
-    color: '#221714',
-
-    fontSize: 17,
-
-    fontWeight: '900',
-  },
-
-  userEmail: {
-    color: '#8B7770',
-
-    fontSize: 10,
-
-    marginTop: 4,
-  },
-
-  editProfileButton: {
-    width: 36,
-
-    height: 36,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF1E9',
-
-    borderRadius: 12,
-  },
-
-  /* =====================================================
-   * Section Card
-   * ===================================================== */
-
-  sectionCard: {
-    width: '100%',
-
-    backgroundColor: '#FFFFFF',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE5E0',
-
-    borderRadius: 17,
-
-    paddingHorizontal: 13,
-
-    paddingTop: 13,
-
-    paddingBottom: 3,
-
-    marginBottom: 13,
-
-    shadowColor: '#503328',
-
-    shadowOffset: {
-      width: 0,
-
-      height: 3,
+      alignSelf:
+        'center',
     },
 
-    shadowOpacity: 0.04,
-
-    shadowRadius: 8,
-
-    elevation: 2,
-  },
-
-  sectionHeader: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-
-    marginBottom: 8,
-  },
-
-  sectionHeaderTitle: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  sectionTitle: {
-    color: '#2B1D18',
-
-    fontSize: 20,
-
-    fontWeight: '800',
-  },
-
-  sectionRightText: {
-    color: '#A84B20',
-
-    fontSize: 10,
-
-    fontWeight: '700',
-  },
-
-  /* =====================================================
-   * Information
-   * ===================================================== */
-
-  informationRow: {
-    minHeight: 49,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'space-between',
-
-    borderBottomWidth: 1,
-
-    borderBottomColor: '#F0E8E4',
-  },
-
-  informationLabel: {
-    flex: 0.42,
-
-    color: '#8A7670',
-
-    fontSize: 10,
-  },
-
-  informationValue: {
-    flex: 0.58,
-
-    color: '#32231E',
-
-    fontSize: 10,
-
-    fontWeight: '600',
-
-    textAlign: 'right',
-  },
-
-  noBorder: {
-    borderBottomWidth: 0,
-  },
-
-  /* =====================================================
-   * Address
-   * ===================================================== */
-
-  addressContainer: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFF9F6',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE4DE',
-
-    borderRadius: 13,
-
-    padding: 11,
-
-    marginBottom: 11,
-  },
-
-  addressIconContainer: {
-    width: 40,
-
-    height: 40,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 11,
-
-    marginRight: 11,
-  },
-
-  addressDetails: {
-    flex: 1,
-  },
-
-  addressTitleRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-  },
-
-  addressTitle: {
-    color: '#2C201B',
-
-    fontSize: 11,
-
-    fontWeight: '800',
-  },
-
-  defaultBadge: {
-    backgroundColor: '#FBE4D8',
-
-    borderRadius: 12,
-
-    paddingHorizontal: 6,
-
-    paddingVertical: 3,
-
-    marginLeft: 6,
-  },
-
-  defaultBadgeText: {
-    color: '#A00B0F',
-
-    fontSize: 7,
-
-    fontWeight: '700',
-  },
-
-  addressText: {
-    color: '#87766F',
-
-    fontSize: 9,
-
-    lineHeight: 13,
-
-    marginTop: 2,
-  },
-
-  /* =====================================================
-   * Payment
-   * ===================================================== */
-
-  paymentContainer: {
-    minHeight: 61,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFF9F6',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE4DE',
-
-    borderRadius: 13,
-
-    padding: 10,
-
-    marginBottom: 11,
-  },
-
-  paymentIconContainer: {
-    width: 40,
-
-    height: 40,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 11,
-
-    marginRight: 11,
-  },
-
-  paymentDetails: {
-    flex: 1,
-  },
-
-  paymentTitle: {
-    color: '#2D201B',
-
-    fontSize: 11,
-
-    fontWeight: '800',
-  },
-
-  paymentSubtitle: {
-    color: '#897871',
-
-    fontSize: 8,
-
-    marginTop: 3,
-  },
-
-  /* =====================================================
-   * Order Menus
-   * ===================================================== */
-
-  previousOrderRow: {
-    width: '100%',
-
-    minHeight: 66,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFF9F6',
-
-    borderWidth: 1,
-
-    borderColor: '#EFE4DE',
-
-    borderRadius: 13,
-
-    paddingHorizontal: 11,
-
-    paddingVertical: 10,
-
-    marginBottom: 11,
-  },
-
-  orderMenuWithBorder: {
-    marginBottom: 8,
-  },
-
-  previousOrderIconContainer: {
-    width: 40,
-
-    height: 40,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 11,
-
-    marginRight: 11,
-  },
-
-  previousOrderIcon: {
-    width: 21,
-
-    height: 21,
-  },
-
-  previousOrderDetails: {
-    flex: 1,
-
-    paddingRight: 10,
-  },
-
-  previousOrderTitle: {
-    color: '#30231E',
-
-    fontSize: 11,
-
-    fontWeight: '800',
-  },
-
-  previousOrderSubtitle: {
-    color: '#908079',
-
-    fontSize: 8.5,
-
-    marginTop: 4,
-  },
-
-  previousOrderArrow: {
-    width: 17,
-
-    height: 17,
-
-    opacity: 0.65,
-  },
-
-  /* =====================================================
-   * NEW Weekly Invoice Menu
-   * ===================================================== */
-
-  weeklyInvoiceIconContainer: {
-    width: 40,
-
-    height: 40,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FDE8E8',
-
-    borderRadius: 11,
-
-    marginRight: 11,
-  },
-
-  weeklyInvoiceTitleRow: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    flexWrap: 'wrap',
-  },
-
-  weeklyBadge: {
-    marginLeft: 7,
-
-    backgroundColor: '#FBE4D8',
-
-    borderRadius: 10,
-
-    paddingHorizontal: 6,
-
-    paddingVertical: 2,
-  },
-
-  weeklyBadgeText: {
-    color: '#A00B0F',
-
-    fontSize: 6,
-
-    fontWeight: '900',
-
-    letterSpacing: 0.4,
-  },
-
-  /* =====================================================
-   * Preferences
-   * ===================================================== */
-
-  preferenceRow: {
-    minHeight: 61,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    borderBottomWidth: 1,
-
-    borderBottomColor: '#F0E8E4',
-  },
-
-  preferenceIcon: {
-    width: 36,
-
-    height: 36,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0E8',
-
-    borderRadius: 11,
-
-    marginRight: 10,
-  },
-
-  preferenceImage: {
-    width: 19,
-
-    height: 19,
-  },
-
-  preferenceDetails: {
-    flex: 1,
-
-    paddingRight: 8,
-  },
-
-  preferenceTitle: {
-    color: '#30231E',
-
-    fontSize: 10,
-
-    fontWeight: '700',
-  },
-
-  preferenceSubtitle: {
-    color: '#908079',
-
-    fontSize: 8,
-
-    marginTop: 3,
-  },
-
-  preferenceArrow: {
-    width: 17,
-
-    height: 17,
-
-    opacity: 0.65,
-  },
-
-  /* =====================================================
-   * Logout
-   * ===================================================== */
-
-  logoutButton: {
-    minHeight: 52,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#A00B0F',
-
-    borderRadius: 14,
-
-    marginBottom: 14,
-  },
-
-  logoutIcon: {
-    width: 19,
-
-    height: 19,
-  },
-
-  logoutText: {
-    color: '#FFFFFF',
-
-    fontSize: 16,
-
-    fontWeight: '800',
-
-    marginLeft: 7,
-  },
-
-  versionText: {
-    color: '#AA9C96',
-
-    fontSize: 9,
-
-    textAlign: 'center',
-
-    marginBottom: 8,
-  },
-
-  /* =====================================================
-   * Custom Logout Popup
-   * ===================================================== */
-
-  logoutPopupOverlay: {
-    flex: 1,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: 'rgba(28, 19, 17, 0.62)',
-
-    paddingHorizontal: 22,
-  },
-
-  logoutPopupCard: {
-    width: '100%',
-
-    maxWidth: 380,
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFFFFF',
-
-    borderRadius: 26,
-
-    paddingHorizontal: 22,
-
-    paddingTop: 28,
-
-    paddingBottom: 21,
-
-    shadowColor: '#000000',
-
-    shadowOffset: {
-      width: 0,
-
-      height: 10,
+    scroll: {
+      paddingTop:
+        10,
+
+      paddingBottom:
+        110,
     },
 
-    shadowOpacity: 0.24,
-
-    shadowRadius: 20,
-
-    elevation: 18,
-  },
-
-  logoutPopupIconOuter: {
-    width: 84,
-
-    height: 84,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#FFF0F0',
-
-    borderRadius: 42,
-
-    marginBottom: 15,
-  },
-
-  logoutPopupIconInner: {
-    width: 58,
-
-    height: 58,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#F9DCDD',
-
-    borderRadius: 29,
-
-    borderWidth: 1,
-
-    borderColor: '#EFC4C6',
-  },
-
-  logoutPopupIcon: {
-    width: 26,
-
-    height: 26,
-
-    tintColor: '#A00B0F',
-  },
-
-  logoutPopupTitle: {
-    color: '#281C19',
-
-    fontSize: 21,
-
-    lineHeight: 27,
-
-    fontWeight: '900',
-
-    textAlign: 'center',
-  },
-
-  logoutPopupDescription: {
-    maxWidth: 290,
-
-    color: '#766B67',
-
-    fontSize: 10.5,
-
-    lineHeight: 17,
-
-    textAlign: 'center',
-
-    marginTop: 7,
-  },
-
-  logoutInfoBox: {
-    width: '100%',
-
-    minHeight: 50,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    backgroundColor: '#FFF7F4',
-
-    borderWidth: 1,
-
-    borderColor: '#F0E3DE',
-
-    borderRadius: 12,
-
-    paddingHorizontal: 11,
-
-    paddingVertical: 9,
-
-    marginTop: 18,
-  },
-
-  logoutInfoIcon: {
-    width: 22,
-
-    height: 22,
-
-    lineHeight: 22,
-
-    textAlign: 'center',
-
-    color: '#A00B0F',
-
-    backgroundColor: '#F9E2E0',
-
-    borderRadius: 11,
-
-    fontSize: 11,
-
-    fontWeight: '900',
-
-    marginRight: 8,
-  },
-
-  logoutInfoText: {
-    flex: 1,
-
-    color: '#796B67',
-
-    fontSize: 8.5,
-
-    lineHeight: 13,
-
-    fontWeight: '600',
-  },
-
-  logoutPopupButtons: {
-    width: '100%',
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    marginTop: 20,
-  },
-
-  logoutCancelButton: {
-    flex: 1,
-
-    minHeight: 49,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#F8F5F4',
-
-    borderWidth: 1,
-
-    borderColor: '#E8E0DD',
-
-    borderRadius: 12,
-
-    marginRight: 5,
-  },
-
-  logoutCancelText: {
-    color: '#6E625E',
-
-    fontSize: 10,
-
-    fontWeight: '900',
-  },
-
-  logoutConfirmButton: {
-    flex: 1,
-
-    minHeight: 49,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-
-    backgroundColor: '#A00B0F',
-
-    borderRadius: 12,
-
-    marginLeft: 5,
-
-    shadowColor: '#A00B0F',
-
-    shadowOffset: {
-      width: 0,
-
-      height: 4,
+    center: {
+      flex:
+        1,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
     },
 
-    shadowOpacity: 0.2,
+    loadingText: {
+      marginTop:
+        10,
 
-    shadowRadius: 7,
+      fontWeight:
+        '700',
+    },
 
-    elevation: 4,
-  },
+    header: {
+      flexDirection:
+        'row',
 
-  logoutConfirmButtonDisabled: {
-    opacity: 0.6,
-  },
+      alignItems:
+        'center',
 
-  logoutConfirmIcon: {
-    width: 17,
+      marginBottom:
+        14,
+    },
 
-    height: 17,
+    backButton: {
+      width:
+        42,
 
-    tintColor: '#FFFFFF',
+      height:
+        42,
 
-    marginRight: 6,
-  },
+      borderRadius:
+        12,
 
-  logoutConfirmText: {
-    color: '#FFFFFF',
+      backgroundColor:
+        '#FFFFFF',
 
-    fontSize: 10,
+      alignItems:
+        'center',
 
-    fontWeight: '900',
-  },
-});
+      justifyContent:
+        'center',
+
+      marginRight:
+        12,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E1',
+    },
+
+    icon: {
+      width:
+        20,
+
+      height:
+        20,
+
+      resizeMode:
+        'contain',
+    },
+
+    eyebrow: {
+      fontSize:
+        8,
+
+      color:
+        '#A00B0F',
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        1,
+    },
+
+    title: {
+      fontSize:
+        23,
+
+      fontWeight:
+        '900',
+
+      color:
+        '#2B201B',
+    },
+
+    profileCard: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        18,
+
+      padding:
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E1',
+
+      marginBottom:
+        14,
+    },
+
+    cameraButton: {
+      position:
+        'absolute',
+
+      right:
+        -6,
+
+      bottom:
+        -5,
+
+      width:
+        35,
+
+      height:
+        35,
+
+      borderRadius:
+        18,
+
+      backgroundColor:
+        '#A00B0F',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      borderWidth:
+        3,
+
+      borderColor:
+        '#FFFFFF',
+    },
+
+    cameraIcon: {
+      width:
+        17,
+
+      height:
+        17,
+
+      tintColor:
+        '#FFFFFF',
+    },
+
+    profileText: {
+      flex:
+        1,
+
+      marginLeft:
+        15,
+    },
+
+    name: {
+      fontSize:
+        17,
+
+      fontWeight:
+        '900',
+
+      color:
+        '#2D211C',
+    },
+
+    email: {
+      fontSize:
+        9,
+
+      color:
+        '#8E817B',
+
+      marginTop:
+        4,
+    },
+
+    phone: {
+      fontSize:
+        8,
+
+      color:
+        '#A00B0F',
+
+      marginTop:
+        3,
+    },
+
+    editButton: {
+      width:
+        38,
+
+      height:
+        38,
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        '#FFF0F0',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    section: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        16,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E1',
+
+      padding:
+        13,
+
+      marginBottom:
+        14,
+    },
+
+    sectionTitleRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems:
+        'center',
+
+      marginBottom:
+        8,
+    },
+
+    sectionHeading: {
+      fontSize:
+        15,
+
+      fontWeight:
+        '900',
+
+      color:
+        '#332721',
+
+      marginVertical:
+        8,
+    },
+
+    manageText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '900',
+    },
+
+    infoRow: {
+      minHeight:
+        48,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        '#F2ECE9',
+    },
+
+    infoLabel: {
+      color:
+        '#8C7C76',
+
+      fontSize:
+        9,
+    },
+
+    infoValue: {
+      color:
+        '#3A2D28',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '700',
+    },
+
+    addressCard: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      padding:
+        11,
+
+      backgroundColor:
+        '#FFF9F6',
+
+      borderRadius:
+        13,
+    },
+
+    addressIcon: {
+      width:
+        28,
+
+      height:
+        28,
+
+      marginRight:
+        10,
+
+      resizeMode:
+        'contain',
+    },
+
+    addressTitleRow: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+    },
+
+    addressType: {
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    defaultBadge: {
+      backgroundColor:
+        '#FBE2E2',
+
+      marginLeft:
+        7,
+
+      borderRadius:
+        8,
+
+      paddingHorizontal:
+        6,
+
+      paddingVertical:
+        2,
+    },
+
+    defaultText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        6,
+
+      fontWeight:
+        '900',
+    },
+
+    addressText: {
+      color:
+        '#867871',
+
+      fontSize:
+        8,
+
+      lineHeight:
+        12,
+
+      marginTop:
+        3,
+    },
+
+    menuRow: {
+      minHeight:
+        62,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      padding:
+        10,
+
+      backgroundColor:
+        '#FFF9F6',
+
+      borderRadius:
+        12,
+
+      marginBottom:
+        9,
+    },
+
+    menuIconBox: {
+      width:
+        40,
+
+      height:
+        40,
+
+      borderRadius:
+        11,
+
+      backgroundColor:
+        '#FFF0EA',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginRight:
+        10,
+    },
+
+    menuTitle: {
+      fontSize:
+        10,
+
+      fontWeight:
+        '900',
+    },
+
+    menuSubtitle: {
+      fontSize:
+        8,
+
+      color:
+        '#92837C',
+
+      marginTop:
+        3,
+    },
+
+    arrow: {
+      width:
+        17,
+
+      height:
+        17,
+
+      opacity:
+        0.6,
+    },
+
+    logoutButton: {
+      minHeight:
+        52,
+
+      borderRadius:
+        13,
+
+      backgroundColor:
+        '#A00B0F',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    logoutIcon: {
+      width:
+        18,
+
+      height:
+        18,
+    },
+
+    logoutText: {
+      color:
+        '#FFFFFF',
+
+      fontWeight:
+        '900',
+
+      marginLeft:
+        8,
+    },
+
+    overlay: {
+      flex:
+        1,
+
+      backgroundColor:
+        'rgba(0,0,0,0.60)',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      padding:
+        20,
+    },
+
+    photoModal: {
+      width:
+        '100%',
+
+      maxWidth:
+        380,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        22,
+
+      padding:
+        20,
+    },
+
+    modalTitle: {
+      fontSize:
+        19,
+
+      fontWeight:
+        '900',
+
+      textAlign:
+        'center',
+
+      color:
+        '#2D211C',
+    },
+
+    modalDescription: {
+      color:
+        '#82736D',
+
+      fontSize:
+        9,
+
+      textAlign:
+        'center',
+
+      marginTop:
+        7,
+    },
+
+    photoOption: {
+      minHeight:
+        54,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      backgroundColor:
+        '#FFF9F6',
+
+      borderRadius:
+        12,
+
+      paddingHorizontal:
+        12,
+
+      marginTop:
+        10,
+    },
+
+    photoIcon: {
+      width:
+        22,
+
+      height:
+        22,
+
+      tintColor:
+        '#A00B0F',
+
+      marginRight:
+        10,
+    },
+
+    galleryEmoji: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        22,
+
+      marginRight:
+        10,
+    },
+
+    photoOptionText: {
+      fontWeight:
+        '800',
+    },
+
+    cancelModalButton: {
+      minHeight:
+        46,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginTop:
+        12,
+
+      backgroundColor:
+        '#F5F1EF',
+
+      borderRadius:
+        12,
+    },
+
+    cancelModalText: {
+      fontWeight:
+        '800',
+    },
+
+    editOverlay: {
+      flex:
+        1,
+
+      justifyContent:
+        'flex-end',
+
+      backgroundColor:
+        'rgba(0,0,0,0.60)',
+    },
+
+    editSafeArea: {
+      flex:
+        1,
+
+      justifyContent:
+        'flex-end',
+
+      backgroundColor:
+        'transparent',
+    },
+
+    editContainer: {
+      height:
+        '94%',
+
+      backgroundColor:
+        '#FFF9F6',
+
+      borderTopLeftRadius:
+        26,
+
+      borderTopRightRadius:
+        26,
+
+      overflow:
+        'hidden',
+    },
+
+    editHeader: {
+      minHeight:
+        70,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingHorizontal:
+        14,
+
+      borderBottomWidth:
+        1,
+
+      borderBottomColor:
+        '#EEE5E1',
+    },
+
+    closeButton: {
+      width:
+        40,
+
+      height:
+        40,
+
+      borderRadius:
+        12,
+
+      backgroundColor:
+        '#F6F2F0',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginRight:
+        12,
+    },
+
+    closeText: {
+      fontSize:
+        24,
+
+      color:
+        '#6E625D',
+    },
+
+    editHeaderTitle: {
+      fontSize:
+        19,
+
+      fontWeight:
+        '900',
+    },
+
+    editScroll: {
+      padding:
+        14,
+
+      paddingBottom:
+        50,
+    },
+
+    field: {
+      marginBottom:
+        12,
+    },
+
+    fieldLabel: {
+      color:
+        '#574943',
+
+      fontSize:
+        9,
+
+      fontWeight:
+        '800',
+
+      marginBottom:
+        6,
+    },
+
+    input: {
+      minHeight:
+        47,
+
+      borderRadius:
+        11,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EAE1DD',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      paddingHorizontal:
+        11,
+
+      fontSize:
+        10,
+    },
+
+    passwordWrap: {
+      minHeight:
+        47,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EAE1DD',
+
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        11,
+
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      paddingRight:
+        12,
+    },
+
+    passwordInput: {
+      flex:
+        1,
+
+      paddingHorizontal:
+        11,
+    },
+
+    showText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        7,
+
+      fontWeight:
+        '900',
+    },
+
+    addressEditHeader: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    addSmallButton: {
+      paddingHorizontal:
+        10,
+
+      paddingVertical:
+        8,
+
+      borderRadius:
+        9,
+
+      backgroundColor:
+        '#FFF0F0',
+    },
+
+    addSmallText: {
+      color:
+        '#A00B0F',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '900',
+    },
+
+    editAddressCard: {
+      backgroundColor:
+        '#FFFFFF',
+
+      borderRadius:
+        14,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        '#EEE5E1',
+
+      padding:
+        12,
+
+      marginBottom:
+        12,
+    },
+
+    editAddressTop: {
+      flexDirection:
+        'row',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+    },
+
+    editAddressTitle: {
+      fontWeight:
+        '900',
+    },
+
+    removeText: {
+      color:
+        '#D34444',
+
+      fontSize:
+        8,
+
+      fontWeight:
+        '900',
+    },
+
+    defaultRow: {
+      flexDirection:
+        'row',
+
+      justifyContent:
+        'space-between',
+
+      alignItems:
+        'center',
+    },
+
+    defaultRowText: {
+      fontWeight:
+        '800',
+
+      fontSize:
+        9,
+    },
+
+    saveButton: {
+      minHeight:
+        50,
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        12,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      marginTop:
+        15,
+    },
+
+    saveText: {
+      color:
+        '#FFFFFF',
+
+      fontWeight:
+        '900',
+    },
+
+    successModal: {
+      width:
+        '100%',
+
+      maxWidth:
+        360,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        '#FFFFFF',
+
+      padding:
+        22,
+    },
+
+    successIcon: {
+      width:
+        65,
+
+      height:
+        65,
+
+      lineHeight:
+        65,
+
+      borderRadius:
+        33,
+
+      alignSelf:
+        'center',
+
+      textAlign:
+        'center',
+
+      backgroundColor:
+        '#2F975D',
+
+      color:
+        '#FFFFFF',
+
+      fontSize:
+        30,
+
+      fontWeight:
+        '900',
+
+      marginBottom:
+        12,
+    },
+
+    modalActions: {
+      flexDirection:
+        'row',
+
+      marginTop:
+        15,
+    },
+
+    modalCancel: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#F5F1EF',
+
+      borderRadius:
+        11,
+
+      marginRight:
+        5,
+    },
+
+    modalLogout: {
+      flex:
+        1,
+
+      minHeight:
+        48,
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+
+      backgroundColor:
+        '#A00B0F',
+
+      borderRadius:
+        11,
+
+      marginLeft:
+        5,
+    },
+  });

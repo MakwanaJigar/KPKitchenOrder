@@ -1627,7 +1627,7 @@ const PreviousOrders = ({
 
           </View>
 
-          <Pressable
+          {/* <Pressable
             hitSlop={12}
             style={
               styles.headerIconButton
@@ -1652,7 +1652,7 @@ const PreviousOrders = ({
               }
             />
 
-          </Pressable>
+          </Pressable> */}
 
         </View>
 
