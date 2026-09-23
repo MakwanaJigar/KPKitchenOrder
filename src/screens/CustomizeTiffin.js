@@ -22,8 +22,6 @@ import {
   SafeAreaView,
 } from 'react-native-safe-area-context';
 
-import Ionicons from 'react-native-vector-icons/Ionicons';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /* =========================================================
@@ -46,690 +44,472 @@ const SHIPPING_CHARGE =
  * HELPERS
  * ========================================================= */
 
-const normalizeMoney = value => {
-  const number =
-    Number(
-      String(
-        value ?? 0,
-      ).replace(
-        '$',
-        '',
-      ),
-    );
-
-  return Number.isFinite(
-    number,
-  )
-    ? number
-    : 0;
-};
-
-/* =========================================================
- * NORMALIZE INCLUDED ITEM
- * ========================================================= */
-
-const normalizeIncludedItem = (
-  item,
-  index,
-) => {
-  if (
-    typeof item ===
-    'string'
-  ) {
-    return {
-      id:
-        `included-${index}`,
-
-      name:
-        item,
-
-      price:
-        0,
-    };
-  }
-
-  if (
-    item &&
-    typeof item ===
-      'object'
-  ) {
-    return {
-      ...item,
-
-      id:
-        item?.id ??
-        item?.item_id ??
-        `included-${index}`,
-
-      name:
-        item?.name ??
-        item?.item_name ??
-        item?.title ??
-        item?.food_name ??
-        `Item ${index + 1}`,
-
-      price:
-        normalizeMoney(
-          item?.price ??
-          item?.pivot?.price ??
-          0,
+const normalizeMoney =
+  value => {
+    const number =
+      Number(
+        String(
+          value ?? 0,
+        ).replace(
+          /[^\d.-]/g,
+          '',
         ),
-    };
-  }
+      );
 
-  return null;
-};
+    return Number.isFinite(
+      number,
+    )
+      ? number
+      : 0;
+  };
 
-/* =========================================================
- * NORMALIZE ADD-ON
- * ========================================================= */
+const normalizeIncludedItem =
+  (
+    item,
+    index,
+  ) => {
+    if (
+      typeof item ===
+      'string'
+    ) {
+      return {
+        id:
+          `included-${index}`,
 
-const normalizeAddon = (
-  addon,
-  index,
-  groupName = 'Add-ons',
-) => {
-  if (
-    !addon
-  ) {
+        name:
+          item,
+
+        price:
+          0,
+      };
+    }
+
+    if (
+      item &&
+      typeof item ===
+        'object'
+    ) {
+      return {
+        ...item,
+
+        id:
+          item?.id ??
+          item?.item_id ??
+          `included-${index}`,
+
+        name:
+          item?.name ??
+          item?.item_name ??
+          item?.title ??
+          item?.food_name ??
+          `Item ${index + 1}`,
+
+        price:
+          normalizeMoney(
+            item?.price ??
+            item?.pivot?.price ??
+            0,
+          ),
+      };
+    }
+
     return null;
-  }
+  };
 
-  if (
-    typeof addon ===
-    'string'
-  ) {
-    return {
-      id:
-        `addon-${index}`,
+const normalizeAddon =
+  (
+    addon,
+    index,
+    groupName =
+      'Add-ons',
+  ) => {
+    if (
+      !addon
+    ) {
+      return null;
+    }
 
-      adon_id:
-        null,
+    const nested =
+      addon?.addon ??
+      addon?.adon ??
+      addon?.item ??
+      addon?.extra ??
+      {};
 
-      addon_id:
-        null,
+    const rawId =
+      addon?.adon_id ??
+      addon?.addon_id ??
+      addon?.addonId ??
+      addon?.id ??
+      nested?.id ??
+      null;
 
-      addonId:
-        null,
+    if (
+      rawId === null ||
+      rawId === undefined
+    ) {
+      return null;
+    }
 
-      name:
-        addon,
+    const numericId =
+      Number(
+        rawId,
+      );
 
-      price:
-        0,
-
-      addonGroup:
-        groupName,
-
-      group:
-        groupName,
-
-      groupName,
-    };
-  }
-
-  if (
-    typeof addon !==
-    'object'
-  ) {
-    return null;
-  }
-
-  const nested =
-    addon?.addon ??
-    addon?.adon ??
-    addon?.item ??
-    addon?.extra ??
-    {};
-
-  const rawId =
-    addon?.id ??
-    addon?.adon_id ??
-    addon?.addon_id ??
-    addon?.addonId ??
-    nested?.id ??
-    null;
-
-  const numericId =
-    Number(
-      rawId,
-    );
-
-  const addonId =
-    rawId === null ||
-    rawId === undefined
-      ? null
-      : Number.isFinite(
-            numericId,
-          )
+    const id =
+      Number.isFinite(
+        numericId,
+      )
         ? numericId
         : rawId;
 
-  const price =
-    normalizeMoney(
-      addon?.price ??
-      addon?.unit_price ??
-      addon?.unitPrice ??
-      addon?.additional_price ??
-      addon?.extra_price ??
-      addon?.pivot?.price ??
-      nested?.price ??
-      0,
-    );
+    const price =
+      normalizeMoney(
+        addon?.price ??
+        addon?.unit_price ??
+        addon?.unitPrice ??
+        addon?.additional_price ??
+        addon?.extra_price ??
+        addon?.pivot?.price ??
+        nested?.price ??
+        0,
+      );
 
-  const resolvedGroup =
-    addon?.addonGroup ??
-    addon?.group ??
-    addon?.groupName ??
-    addon?.category?.name ??
-    groupName ??
-    'Add-ons';
+    const resolvedGroup =
+      addon?.addonGroup ??
+      addon?.group ??
+      addon?.groupName ??
+      addon?.category?.name ??
+      groupName;
 
-  return {
-    ...addon,
+    return {
+      ...addon,
 
-    id:
-      addonId ??
-      `addon-${index}`,
+      id,
 
-    adon_id:
-      addonId,
+      adon_id:
+        id,
 
-    addon_id:
-      addonId,
+      addon_id:
+        id,
 
-    addonId:
-      addonId,
+      addonId:
+        id,
 
-    name:
-      addon?.name ??
-      addon?.adon_name ??
-      addon?.addon_name ??
-      addon?.title ??
-      nested?.name ??
-      nested?.title ??
-      `Add-on ${index + 1}`,
+      name:
+        addon?.name ??
+        addon?.adon_name ??
+        addon?.addon_name ??
+        addon?.title ??
+        nested?.name ??
+        nested?.title ??
+        `Add-on ${index + 1}`,
 
-    price,
-
-    rawPrice:
       price,
 
-    addonGroup:
-      resolvedGroup,
+      rawPrice:
+        price,
 
-    group:
-      resolvedGroup,
+      addonGroup:
+        resolvedGroup,
 
-    groupName:
-      resolvedGroup,
+      group:
+        resolvedGroup,
+
+      groupName:
+        resolvedGroup,
+    };
   };
-};
 
 /* =========================================================
  * COMPONENT
  * ========================================================= */
 
-const CustomizeTiffin = ({
-  navigation,
-  route,
-}) => {
-  const {
-    width,
-  } =
-    useWindowDimensions();
+const CustomizeTiffin =
+  ({
+    navigation,
+    route,
+  }) => {
+    const {
+      width,
+    } =
+      useWindowDimensions();
 
-  /* =======================================================
-   * TIFFIN / EDIT MODE
-   * ======================================================= */
+    const tiffin =
+      route?.params?.tiffin ??
+      {};
 
-  const tiffin =
-    route?.params?.tiffin ??
-    {};
-
-  const mode =
-    route?.params?.mode ??
-    'customize';
-
-  const isEditMode =
-    mode ===
-    'edit';
-
-  const editingCartId =
-    route?.params?.cartId ??
-    route?.params?.cartItem?.cartId ??
-    null;
-
-  const existingCartItem =
-    route?.params?.cartItem ??
-    null;
-
-  const existingQuantity =
-    Math.max(
-      1,
-
+    const tiffinId =
       Number(
-        route?.params?.quantity ??
-        existingCartItem?.quantity ??
-        1,
-      ) || 1,
-    );
+        tiffin?.id ??
+        tiffin?.tiffin_id,
+      );
 
-  /* =======================================================
-   * EXISTING SELECTED ADD-ONS
-   * ======================================================= */
+    const tiffinName =
+      tiffin?.name ??
+      tiffin?.tiffin_name ??
+      'Tiffin';
 
-  const existingExtras =
-    Array.isArray(
-      route?.params?.extras,
-    )
-      ? route.params.extras
-      : Array.isArray(
-            existingCartItem?.add_ons,
-          )
-        ? existingCartItem.add_ons
-        : Array.isArray(
-              existingCartItem?.extras,
-            )
-          ? existingCartItem.extras
-          : Array.isArray(
-                existingCartItem?.selectedExtras,
-              )
-            ? existingCartItem.selectedExtras
-            : Array.isArray(
-                  existingCartItem?.selectedAddons,
-                )
-              ? existingCartItem.selectedAddons
-              : Array.isArray(
-                    existingCartItem?.addons,
-                  )
-                ? existingCartItem.addons
-                : Array.isArray(
-                      existingCartItem?.adons,
-                    )
-                  ? existingCartItem.adons
-                  : [];
+    const description =
+      tiffin?.description ??
+      tiffin?.tiffin_description ??
+      '';
 
-  /* =======================================================
-   * BASIC TIFFIN DETAILS
-   * ======================================================= */
+    const basePrice =
+      normalizeMoney(
+        tiffin?.rawPrice ??
+        tiffin?.price ??
+        tiffin?.tiffin_price ??
+        0,
+      );
 
-  const tiffinId =
-    tiffin?.id ??
-    tiffin?.tiffin_id ??
-    null;
+    const status =
+      tiffin?.status ??
+      '';
 
-  const tiffinName =
-    tiffin?.name ??
-    tiffin?.tiffin_name ??
-    'Tiffin';
+    const imageValue =
+      tiffin?.image ??
+      tiffin?.image_url ??
+      tiffin?.tiffin_image;
 
-  const description =
-    tiffin?.description ??
-    tiffin?.tiffin_description ??
-    '';
-
-  const basePrice =
-    normalizeMoney(
-      tiffin?.rawPrice ??
-      tiffin?.price ??
-      tiffin?.tiffin_price ??
-      0,
-    );
-
-  const status =
-    tiffin?.status ??
-    '';
-
-  /* =======================================================
-   * CATEGORY
-   * ======================================================= */
-
-  const category =
-    useMemo(
-      () => {
-        if (
-          tiffin?.category &&
-          typeof tiffin.category ===
-            'object'
-        ) {
-          return (
-            tiffin.category?.name ??
-            tiffin.category?.title ??
-            ''
-          );
-        }
-
-        return (
-          tiffin?.category ??
-          tiffin?.category_name ??
-          ''
-        );
-      },
-      [
-        tiffin,
-      ],
-    );
-
-  /* =======================================================
-   * FOOD TYPE
-   * ======================================================= */
-
-  const foodType =
-    useMemo(
-      () => {
-        if (
-          tiffin?.foodType ||
-          tiffin?.food_type
-        ) {
-          return String(
-            tiffin?.foodType ??
-            tiffin?.food_type,
-          ).toUpperCase();
-        }
-
-        const value =
-          String(
-            category ??
-            '',
-          )
-            .trim()
-            .toLowerCase();
-
-        if (
-          value.includes(
-            'non-vegetarian',
-          ) ||
-          value.includes(
-            'non vegetarian',
-          ) ||
-          value.includes(
-            'non-veg',
-          ) ||
-          value.includes(
-            'non veg',
-          )
-        ) {
-          return 'NON-VEGETARIAN';
-        }
-
-        if (
-          value.includes(
-            'vegetarian',
-          ) ||
-          value ===
-            'veg'
-        ) {
-          return 'VEGETARIAN';
-        }
-
-        return '';
-      },
-      [
-        tiffin,
-        category,
-      ],
-    );
-
-  /* =======================================================
-   * PREPARATION TIME
-   * ======================================================= */
-
-  const preparationTime =
-    useMemo(
-      () => {
-        const value =
-          tiffin?.preparationTime ??
-          tiffin?.prep_time ??
-          tiffin?.preparation_time ??
-          '';
-
+    const getImageUrl =
+      value => {
         if (
           !value
         ) {
-          return '';
+          return null;
         }
 
-        if (
+        const string =
           String(
             value,
-          )
-            .toLowerCase()
-            .includes(
-              'min',
-            )
-        ) {
-          return String(
-            value,
-          );
-        }
+          ).trim();
 
-        return `${value} min`;
-      },
-      [
-        tiffin,
-      ],
-    );
-
-  /* =======================================================
-   * IMAGE
-   * ======================================================= */
-
-  const getImageUrl =
-    value => {
-      if (
-        !value
-      ) {
-        return null;
-      }
-
-      const imageValue =
-        String(
-          value,
-        ).trim();
-
-      if (
-        imageValue.includes(
-          '/uploads/',
-        )
-      ) {
-        const index =
-          imageValue.indexOf(
+        if (
+          string.includes(
             '/uploads/',
-          );
-
-        const path =
-          imageValue.substring(
-            index,
-          );
-
-        return `${BASE_URL}${path}`;
-      }
-
-      if (
-        imageValue.startsWith(
-          'http://',
-        ) ||
-        imageValue.startsWith(
-          'https://',
-        )
-      ) {
-        return imageValue;
-      }
-
-      if (
-        imageValue.startsWith(
-          '/',
-        )
-      ) {
-        return `${BASE_URL}${imageValue}`;
-      }
-
-      return `${BASE_URL}/${imageValue}`;
-    };
-
-  const image =
-    getImageUrl(
-      tiffin?.image ??
-      tiffin?.image_url ??
-      tiffin?.tiffin_image,
-    );
-
-  /* =======================================================
-   * INCLUDED ITEMS
-   * ======================================================= */
-
-  const includedItems =
-    useMemo(
-      () => {
-        const possibleItems =
-          tiffin?.items ??
-          tiffin?.included_items ??
-          tiffin?.includedItems ??
-          tiffin?.tiffin_items ??
-          tiffin?.tiffinItems ??
-          tiffin?.menu_items ??
-          [];
-
-        if (
-          !Array.isArray(
-            possibleItems,
           )
         ) {
-          return [];
-        }
-
-        return possibleItems
-          .map(
-            (
-              item,
-              index,
-            ) =>
-              normalizeIncludedItem(
-                item,
-                index,
-              ),
-          )
-          .filter(
-            Boolean,
-          );
-      },
-      [
-        tiffin,
-      ],
-    );
-
-  /* =======================================================
-   * API ADD-ONS ONLY
-   *
-   * NO:
-   * Bread customization
-   * Dal customization
-   * Rice customization
-   * Salad customization
-   * Papad customization
-   * Hard-coded fallback extras
-   * ======================================================= */
-
-  const addonItems =
-    useMemo(
-      () => {
-        /*
-         * Prefer the normalized flat addonList
-         * coming from Home.js.
-         */
-
-        const backendAddons =
-          route?.params?.addonList ??
-          route?.params?.allAddons ??
-          tiffin?.addonList ??
-          tiffin?.allAddons ??
-          tiffin?.flattenedAddons ??
-          route?.params?.available_add_ons ??
-          route?.params?.addonGroups ??
-          route?.params?.adons ??
-          route?.params?.addons ??
-          tiffin?.available_add_ons ??
-          tiffin?.addonGroups ??
-          tiffin?.adons ??
-          tiffin?.addons ??
-          tiffin?.add_ons ??
-          [];
-
-        let flattened =
-          [];
-
-        /* =============================================
-         * API ALREADY FLAT
-         * ============================================= */
-
-        if (
-          Array.isArray(
-            backendAddons,
-          )
-        ) {
-          flattened =
-            backendAddons;
-        }
-
-        /* =============================================
-         * GROUPED API OBJECT
-         *
-         * {
-         *   salad: [...],
-         *   breads: [...],
-         *   beverages: [...]
-         * }
-         * ============================================= */
-
-        else if (
-          backendAddons &&
-          typeof backendAddons ===
-            'object'
-        ) {
-          flattened =
-            Object.entries(
-              backendAddons,
-            ).flatMap(
-              ([
-                groupName,
-                values,
-              ]) => {
-                if (
-                  !Array.isArray(
-                    values,
-                  )
-                ) {
-                  return [];
-                }
-
-                return values.map(
-                  item => ({
-                    ...item,
-
-                    addonGroup:
-                      item?.addonGroup ??
-                      groupName,
-
-                    group:
-                      item?.group ??
-                      groupName,
-
-                    groupName:
-                      item?.groupName ??
-                      groupName,
-                  }),
-                );
-              },
+          const index =
+            string.indexOf(
+              '/uploads/',
             );
+
+          return (
+            BASE_URL +
+            string.substring(
+              index,
+            )
+          );
         }
 
-        /* =============================================
-         * NORMALIZE
-         * ============================================= */
+        if (
+          string.startsWith(
+            'http://',
+          ) ||
+          string.startsWith(
+            'https://',
+          )
+        ) {
+          return string;
+        }
 
-        const normalized =
-          flattened
+        if (
+          string.startsWith(
+            '/',
+          )
+        ) {
+          return `${BASE_URL}${string}`;
+        }
+
+        return `${BASE_URL}/${string}`;
+      };
+
+    const image =
+      getImageUrl(
+        imageValue,
+      );
+
+    /* =====================================================
+     * CATEGORY / FOOD TYPE
+     * ===================================================== */
+
+    const category =
+      useMemo(
+        () => {
+          if (
+            tiffin?.category &&
+            typeof tiffin.category ===
+              'object'
+          ) {
+            return (
+              tiffin.category?.name ??
+              tiffin.category?.title ??
+              ''
+            );
+          }
+
+          return (
+            tiffin?.category ??
+            tiffin?.category_name ??
+            ''
+          );
+        },
+        [
+          tiffin,
+        ],
+      );
+
+    const foodType =
+      useMemo(
+        () => {
+          if (
+            tiffin?.foodType ||
+            tiffin?.food_type
+          ) {
+            return String(
+              tiffin?.foodType ??
+              tiffin?.food_type,
+            ).toUpperCase();
+          }
+
+          const value =
+            String(
+              category,
+            )
+              .trim()
+              .toLowerCase();
+
+          if (
+            value.includes(
+              'non-veg',
+            ) ||
+            value.includes(
+              'non vegetarian',
+            )
+          ) {
+            return 'NON-VEGETARIAN';
+          }
+
+          if (
+            value.includes(
+              'vegetarian',
+            ) ||
+            value ===
+              'veg'
+          ) {
+            return 'VEGETARIAN';
+          }
+
+          return '';
+        },
+        [
+          tiffin,
+          category,
+        ],
+      );
+
+    /* =====================================================
+     * INCLUDED ITEMS
+     * ===================================================== */
+
+    const includedItems =
+      useMemo(
+        () => {
+          const possible =
+            tiffin?.items ??
+            tiffin?.included_items ??
+            tiffin?.includedItems ??
+            tiffin?.tiffin_items ??
+            tiffin?.menu_items ??
+            [];
+
+          if (
+            !Array.isArray(
+              possible,
+            )
+          ) {
+            return [];
+          }
+
+          return possible
+            .map(
+              normalizeIncludedItem,
+            )
+            .filter(
+              Boolean,
+            );
+        },
+        [
+          tiffin,
+        ],
+      );
+
+    /* =====================================================
+     * ADDONS
+     * ===================================================== */
+
+    const addonItems =
+      useMemo(
+        () => {
+          const source =
+            route?.params?.addonList ??
+            route?.params?.allAddons ??
+            tiffin?.addonList ??
+            route?.params?.available_add_ons ??
+            route?.params?.addonGroups ??
+            route?.params?.adons ??
+            route?.params?.addons ??
+            tiffin?.addonGroups ??
+            tiffin?.adons ??
+            tiffin?.addons ??
+            [];
+
+          let flattened =
+            [];
+
+          if (
+            Array.isArray(
+              source,
+            )
+          ) {
+            flattened =
+              source;
+          } else if (
+            source &&
+            typeof source ===
+              'object'
+          ) {
+            flattened =
+              Object.entries(
+                source,
+              ).flatMap(
+                ([
+                  groupName,
+                  values,
+                ]) => {
+                  if (
+                    !Array.isArray(
+                      values,
+                    )
+                  ) {
+                    return [];
+                  }
+
+                  return values.map(
+                    item => ({
+                      ...item,
+
+                      groupName:
+                        item?.groupName ??
+                        groupName,
+                    }),
+                  );
+                },
+              );
+          }
+
+          return flattened
             .map(
               (
                 addon,
@@ -738,9 +518,8 @@ const CustomizeTiffin = ({
                 normalizeAddon(
                   addon,
                   index,
-                  addon?.addonGroup ??
-                  addon?.group ??
                   addon?.groupName ??
+                  addon?.group ??
                   addon?.category?.name ??
                   'Add-ons',
                 ),
@@ -759,148 +538,46 @@ const CustomizeTiffin = ({
                     .toLowerCase();
 
                 return (
-                  statusValue ===
-                    '' ||
-                  statusValue ===
-                    'active' ||
-                  statusValue ===
-                    'available' ||
-                  statusValue ===
-                    '1' ||
-                  statusValue ===
-                    'true'
+                  statusValue === '' ||
+                  statusValue === 'active' ||
+                  statusValue === 'available' ||
+                  statusValue === '1' ||
+                  statusValue === 'true'
                 );
               },
             );
+        },
+        [
+          route?.params,
+          tiffin,
+        ],
+      );
 
-        console.log(
-          '==========================================',
-        );
+    /* =====================================================
+     * QUANTITIES
+     * ===================================================== */
 
-        console.log(
-          'CUSTOMIZE TIFFIN API ADD-ONS:',
-        );
+    const [
+      extras,
+      setExtras,
+    ] =
+      useState({});
 
-        console.log(
-          JSON.stringify(
-            normalized,
-            null,
-            2,
-          ),
-        );
+    const [
+      adding,
+      setAdding,
+    ] =
+      useState(false);
 
-        console.log(
-          'ADD-ON COUNT:',
-          normalized.length,
-        );
+    const addLockRef =
+      useRef(false);
 
-        console.log(
-          '==========================================',
-        );
-
-        /*
-         * IMPORTANT:
-         *
-         * Do NOT return fallback addons.
-         *
-         * If API gives no addons,
-         * this returns [].
-         */
-
-        return normalized;
-      },
-      [
-        tiffin,
-        route?.params,
-      ],
-    );
-
-  /* =======================================================
-   * RESTORE SELECTED ADD-ONS IN EDIT MODE
-   * ======================================================= */
-
-  const initialExtras =
-    useMemo(
-      () => {
-        const result =
-          {};
-
-        existingExtras.forEach(
-          savedExtra => {
-            const extraId =
-              savedExtra?.id ??
-              savedExtra?.adon_id ??
-              savedExtra?.addon_id ??
-              savedExtra?.extra_id ??
-              null;
-
-            if (
-              extraId ===
-                null ||
-              extraId ===
-                undefined
-            ) {
-              return;
-            }
-
-            result[
-              String(
-                extraId,
-              )
-            ] =
-              Math.max(
-                0,
-
-                Number(
-                  savedExtra?.quantity ??
-                  savedExtra?.qty ??
-                  1,
-                ) || 0,
-              );
-          },
-        );
-
-        return result;
-      },
-      [
-        existingExtras,
-      ],
-    );
-
-  const [
-    extras,
-    setExtras,
-  ] =
-    useState(
-      initialExtras,
-    );
-
-  const [
-    adding,
-    setAdding,
-  ] =
-    useState(false);
-
-  /*
-   * Prevent duplicate rapid taps.
-   */
-
-  const addLockRef =
-    useRef(false);
-
-  /* =======================================================
-   * RESPONSIVE
-   * ======================================================= */
-
-  const responsive =
-    useMemo(
-      () => {
-        const isTablet =
-          width >= 768;
-
-        return {
+    const responsive =
+      useMemo(
+        () => ({
           width:
-            isTablet
+            width >=
+            768
               ? Math.min(
                   width - 80,
                   720,
@@ -908,902 +585,520 @@ const CustomizeTiffin = ({
               : width,
 
           padding:
-            isTablet
+            width >=
+            768
               ? 28
               : 16,
-        };
-      },
-      [
-        width,
-      ],
-    );
+        }),
+        [
+          width,
+        ],
+      );
 
-  /* =======================================================
-   * SELECTED ADD-ONS
-   * ======================================================= */
+    const changeExtra =
+      (
+        id,
+        change,
+      ) => {
+        setExtras(
+          current => ({
+            ...current,
 
-  const selectedExtras =
-    useMemo(
-      () => {
-        return addonItems
-          .filter(
-            item =>
-              Number(
-                extras[
-                  item.id
-                ] ??
-                0,
-              ) >
-              0,
-          )
-          .map(
-            item => {
-              const quantity =
-                Math.max(
-                  1,
-
-                  Number(
-                    extras[
-                      item.id
-                    ] ??
-                    1,
-                  ) || 1,
-                );
-
-              const price =
-                normalizeMoney(
-                  item?.price,
-                );
-
-              const addonId =
-                item?.id ??
-                item?.adon_id ??
-                item?.addon_id ??
-                null;
-
-              return {
-                ...item,
-
-                id:
-                  addonId,
-
-                adon_id:
-                  addonId,
-
-                addon_id:
-                  addonId,
-
-                addonId:
-                  addonId,
-
-                name:
-                  item?.name ??
-                  item?.title ??
-                  'Add-on',
-
-                price:
-                  Number(
-                    price.toFixed(
-                      2,
-                    ),
-                  ),
-
-                quantity,
-
-                /*
-                 * Backend response uses qty.
-                 */
-
-                qty:
-                  quantity,
-
-                lineTotal:
-                  Number(
-                    (
-                      quantity *
-                      price
-                    ).toFixed(
-                      2,
-                    ),
-                  ),
-              };
-            },
-          );
-      },
-      [
-        addonItems,
-        extras,
-      ],
-    );
-
-  /* =======================================================
-   * EXACT BACKEND ADD_ON STRUCTURE
-   *
-   * [
-   *   {
-   *     id: 9,
-   *     name: "Green Salad",
-   *     price: 3,
-   *     qty: 1
-   *   }
-   * ]
-   * ======================================================= */
-
-  const backendAddOns =
-    useMemo(
-      () => {
-        return selectedExtras.map(
-          addon => ({
-            id:
-              addon?.id ??
-              addon?.adon_id ??
-              addon?.addon_id,
-
-            name:
-              addon?.name ??
-              'Add-on',
-
-            price:
-              Number(
-                normalizeMoney(
-                  addon?.price,
-                ).toFixed(
-                  2,
-                ),
-              ),
-
-            qty:
+            [id]:
               Math.max(
-                1,
-
+                0,
                 Number(
-                  addon?.quantity ??
-                  addon?.qty ??
-                  1,
-                ) || 1,
+                  current[
+                    id
+                  ] ??
+                  0,
+                ) +
+                  change,
               ),
           }),
         );
-      },
-      [
-        selectedExtras,
-      ],
-    );
+      };
 
-  /* =======================================================
-   * ADD-ONS PRICE
-   * ======================================================= */
+    const selectedExtras =
+      useMemo(
+        () => {
+          return addonItems
+            .filter(
+              item =>
+                Number(
+                  extras[
+                    item.id
+                  ] ??
+                  0,
+                ) >
+                0,
+            )
+            .map(
+              item => {
+                const quantity =
+                  Math.max(
+                    1,
+                    Number(
+                      extras[
+                        item.id
+                      ] ??
+                      1,
+                    ) || 1,
+                  );
 
-  const extrasPrice =
-    useMemo(
-      () => {
-        return selectedExtras.reduce(
-          (
-            totalValue,
-            item,
-          ) =>
-            totalValue +
-            normalizeMoney(
-              item?.lineTotal,
-            ),
-          0,
-        );
-      },
-      [
-        selectedExtras,
-      ],
-    );
+                const price =
+                  normalizeMoney(
+                    item.price,
+                  );
 
-  /* =======================================================
-   * TOTAL
-   *
-   * No customization price anymore.
-   * ======================================================= */
+                return {
+                  ...item,
 
-  const subtotal =
-    basePrice +
-    extrasPrice;
+                  id:
+                    item.id,
 
-  const shippingCharge =
-    subtotal <
-    FREE_SHIPPING_MINIMUM
-      ? SHIPPING_CHARGE
-      : 0;
+                  adon_id:
+                    item.id,
 
-  const total =
-    subtotal +
-    shippingCharge;
+                  addon_id:
+                    item.id,
 
-  /* =======================================================
-   * CHANGE ADD-ON QUANTITY
-   * ======================================================= */
+                  addonId:
+                    item.id,
 
-  const changeExtra = (
-    id,
-    change,
-  ) => {
-    setExtras(
-      current => {
-        const existing =
-          Number(
-            current[
-              id
-            ] ??
-            0,
+                  quantity,
+
+                  qty:
+                    quantity,
+
+                  price,
+
+                  unit_price:
+                    price,
+
+                  total:
+                    Number(
+                      (
+                        price *
+                        quantity
+                      ).toFixed(
+                        2,
+                      ),
+                    ),
+
+                  lineTotal:
+                    Number(
+                      (
+                        price *
+                        quantity
+                      ).toFixed(
+                        2,
+                      ),
+                    ),
+                };
+              },
+            );
+        },
+        [
+          addonItems,
+          extras,
+        ],
+      );
+
+    const extrasPrice =
+      selectedExtras.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          normalizeMoney(
+            item.total,
+          ),
+        0,
+      );
+
+    const subtotal =
+      basePrice +
+      extrasPrice;
+
+    const shippingCharge =
+      subtotal <
+      FREE_SHIPPING_MINIMUM
+        ? SHIPPING_CHARGE
+        : 0;
+
+    const total =
+      subtotal +
+      shippingCharge;
+
+    /* =====================================================
+     * ADD TO CART
+     * ===================================================== */
+
+    const handleAddToCart =
+      async () => {
+        if (
+          !Number.isFinite(
+            tiffinId,
+          ) ||
+          tiffinId <=
+            0
+        ) {
+          Alert.alert(
+            'Unable to Add',
+            'The selected tiffin does not have a valid ID.',
           );
 
-        return {
-          ...current,
+          return;
+        }
 
-          [id]:
-            Math.max(
-              0,
+        if (
+          adding ||
+          addLockRef.current
+        ) {
+          return;
+        }
 
-              existing +
-              change,
-            ),
-        };
-      },
-    );
-  };
+        addLockRef.current =
+          true;
 
-  /* =======================================================
-   * ADD / UPDATE CART
-   * ======================================================= */
+        try {
+          setAdding(
+            true,
+          );
 
-  const handleAddToCart =
-    async () => {
-      if (
-        !tiffinId
-      ) {
-        Alert.alert(
-          'Unable to Add',
+          const cartItem = {
+            cartId:
+              `${tiffinId}-${Date.now()}`,
 
-          'Tiffin information is missing.',
-        );
+            id:
+              tiffinId,
 
-        return;
-      }
-
-      if (
-        adding ||
-        addLockRef.current
-      ) {
-        return;
-      }
-
-      addLockRef.current =
-        true;
-
-      try {
-        setAdding(
-          true,
-        );
-
-        /* =============================================
-         * EDIT = KEEP SAME CART ID
-         * NEW = CREATE CART ID
-         * ============================================= */
-
-        const resolvedCartId =
-          isEditMode &&
-          editingCartId
-            ? String(
-                editingCartId,
-              )
-            : `${tiffinId}-${Date.now()}`;
-
-        /* =============================================
-         * BUILD CART ITEM
-         * ============================================= */
-
-        const cartItem = {
-          /*
-           * Keep any fields already stored.
-           */
-
-          ...existingCartItem,
-
-          cartId:
-            resolvedCartId,
-
-          tiffinId,
-
-          productId:
             tiffinId,
 
-          id:
-            tiffinId,
+            productId:
+              tiffinId,
 
-          name:
-            tiffinName,
+            name:
+              tiffinName,
 
-          description,
+            description,
 
-          image,
+            image,
 
-          category,
+            category,
 
-          foodType,
+            foodType,
 
-          status,
+            status,
 
-          preparationTime,
+            quantity:
+              1,
 
-          currency:
-            existingCartItem?.currency ??
-            'USD',
+            items:
+              includedItems,
 
-          quantity:
-            isEditMode
-              ? existingQuantity
-              : 1,
+            includedItems:
+              includedItems,
 
-          /* =========================================
-           * BASE TIFFIN ITEMS
-           * ========================================= */
-
-          items:
-            includedItems,
-
-          includedItems,
-
-          /* =========================================
-           * PRICES
-           * ========================================= */
-
-          basePrice,
-
-          rawPrice:
             basePrice,
 
-          /*
-           * Customizations removed.
-           */
+            rawPrice:
+              basePrice,
 
-          customizationPrice:
-            0,
+            customizationPrice:
+              0,
 
-          extrasPrice,
+            extrasPrice,
 
-          subtotal,
+            subtotal,
 
-          shippingCharge,
+            shippingCharge,
 
-          totalPrice:
-            total,
+            totalPrice:
+              total,
 
-          /* =========================================
-           * NO CUSTOMIZATION SELECTIONS
-           * ========================================= */
+            selections:
+              [],
 
-          selections:
-            [],
+            customizations:
+              [],
 
-          customizations:
-            [],
+            extras:
+              selectedExtras,
 
-          /* =========================================
-           * SELECTED API ADD-ONS
-           * ========================================= */
+            selectedExtras:
+              selectedExtras,
 
-          extras:
-            selectedExtras,
+            selectedAddons:
+              selectedExtras,
 
-          selectedExtras:
-            selectedExtras,
+            addons:
+              selectedExtras,
 
-          selectedAddons:
-            selectedExtras,
+            adons:
+              selectedExtras,
 
-          addons:
-            selectedExtras,
+            add_ons:
+              selectedExtras.map(
+                addon => ({
+                  id:
+                    addon.id,
 
-          adons:
-            selectedExtras,
+                  name:
+                    addon.name,
 
-          /*
-           * Exact Laravel-compatible structure.
-           */
+                  price:
+                    addon.price,
 
-          add_ons:
-            backendAddOns,
+                  qty:
+                    addon.quantity,
+                }),
+              ),
 
-          isCustomized:
-            true,
+            isCustomized:
+              true,
 
-          /*
-           * Keep the complete tiffin so the full
-           * available addon catalogue remains available
-           * when editing the cart item again.
-           */
+            /*
+             * Distinguish fixed-tiffin
+             * add-on customization from
+             * Home custom boxes.
+             */
+            isCustomBox:
+              false,
 
-          originalTiffin:
-            tiffin,
+            originalTiffin:
+              tiffin,
 
-          addedAt:
-            existingCartItem?.addedAt ??
-            existingCartItem?.added_at ??
-            new Date()
-              .toISOString(),
+            addedAt:
+              new Date()
+                .toISOString(),
+          };
 
-          updatedAt:
-            new Date()
-              .toISOString(),
-        };
+          const stored =
+            await AsyncStorage.getItem(
+              CART_STORAGE_KEY,
+            );
 
-        console.log(
-          '=============================================',
-        );
+          let cart =
+            [];
 
-        console.log(
-          'SELECTED ADD-ONS:',
-          JSON.stringify(
-            backendAddOns,
-            null,
-            2,
-          ),
-        );
+          if (
+            stored
+          ) {
+            try {
+              const parsed =
+                JSON.parse(
+                  stored,
+                );
 
-        console.log(
-          'CUSTOMIZED CART ITEM:',
-          JSON.stringify(
-            cartItem,
-            null,
-            2,
-          ),
-        );
-
-        console.log(
-          '=============================================',
-        );
-
-        /* =============================================
-         * READ CURRENT CART
-         * ============================================= */
-
-        const stored =
-          await AsyncStorage.getItem(
-            CART_STORAGE_KEY,
-          );
-
-        let cart =
-          [];
-
-        if (
-          stored
-        ) {
-          try {
-            const parsed =
-              JSON.parse(
-                stored,
-              );
-
-            if (
-              Array.isArray(
-                parsed,
-              )
+              if (
+                Array.isArray(
+                  parsed,
+                )
+              ) {
+                cart =
+                  parsed;
+              }
+            } catch (
+              error
             ) {
               cart =
-                parsed;
+                [];
             }
-          } catch (
-            parseError
-          ) {
-            console.log(
-              'CART JSON ERROR:',
-              parseError,
-            );
-
-            cart =
-              [];
           }
-        }
 
-        let updatedCart =
-          [];
+          await AsyncStorage.setItem(
+            CART_STORAGE_KEY,
 
-        /* =============================================
-         * EDIT EXISTING CART ITEM
-         * ============================================= */
+            JSON.stringify(
+              [
+                ...cart,
+                cartItem,
+              ],
+            ),
+          );
 
-        if (
-          isEditMode
+          navigation.navigate(
+            'Order',
+          );
+        } catch (
+          error
         ) {
-          let existingIndex =
-            -1;
+          console.log(
+            'ADD TIFFIN ERROR:',
+            error,
+          );
 
-          /*
-           * First use exact cartId.
-           */
+          Alert.alert(
+            'Unable to Add',
+            'Something went wrong while adding the tiffin.',
+          );
+        } finally {
+          addLockRef.current =
+            false;
 
-          if (
-            editingCartId
-          ) {
-            existingIndex =
-              cart.findIndex(
-                item =>
-                  String(
-                    item?.cartId ??
-                    '',
-                  ) ===
-                  String(
-                    editingCartId,
-                  ),
-              );
-          }
-
-          /*
-           * Old cart fallback.
-           */
-
-          if (
-            existingIndex <
-            0
-          ) {
-            existingIndex =
-              cart.findIndex(
-                item =>
-                  String(
-                    item?.tiffinId ??
-                    item?.productId ??
-                    item?.id ??
-                    '',
-                  ) ===
-                  String(
-                    tiffinId,
-                  ),
-              );
-          }
-
-          /* =========================================
-           * REPLACE EXISTING ROW
-           *
-           * This prevents duplicate cart item.
-           * ========================================= */
-
-          if (
-            existingIndex >=
-            0
-          ) {
-            const originalRow =
-              cart[
-                existingIndex
-              ];
-
-            const replacement = {
-              ...cartItem,
-
-              cartId:
-                originalRow?.cartId ??
-                resolvedCartId,
-
-              quantity:
-                Math.max(
-                  1,
-
-                  Number(
-                    route?.params?.quantity ??
-                    originalRow?.quantity ??
-                    existingQuantity,
-                  ) || 1,
-                ),
-            };
-
-            updatedCart =
-              cart.map(
-                (
-                  item,
-                  index,
-                ) =>
-                  index ===
-                  existingIndex
-                    ? replacement
-                    : item,
-              );
-
-            console.log(
-              'CART TIFFIN UPDATED - NO DUPLICATE',
-            );
-          } else {
-            /*
-             * Source row somehow disappeared.
-             */
-
-            updatedCart = [
-              ...cart,
-
-              cartItem,
-            ];
-          }
-        } else {
-          /* =========================================
-           * NEW CUSTOMIZED TIFFIN
-           * ========================================= */
-
-          updatedCart = [
-            ...cart,
-
-            cartItem,
-          ];
+          setAdding(
+            false,
+          );
         }
+      };
 
-        /* =============================================
-         * SAVE
-         * ============================================= */
+    const isVegetarian =
+      foodType ===
+        'VEGETARIAN' ||
+      foodType ===
+        'VEG';
 
-        await AsyncStorage.setItem(
-          CART_STORAGE_KEY,
-
-          JSON.stringify(
-            updatedCart,
-          ),
-        );
-
-        navigation.navigate(
-          'Order',
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          'ADD / UPDATE CART ERROR:',
-          error,
-        );
-
-        Alert.alert(
-          isEditMode
-            ? 'Unable to Update'
-            : 'Unable to Add',
-
-          isEditMode
-            ? 'Something went wrong while updating the tiffin.'
-            : 'Something went wrong while adding the tiffin.',
-        );
-      } finally {
-        addLockRef.current =
-          false;
-
-        setAdding(
-          false,
-        );
-      }
-    };
-
-  /* =======================================================
-   * VEG STATUS
-   * ======================================================= */
-
-  const isVegetarian =
-    foodType ===
-      'VEGETARIAN' ||
-    foodType ===
-      'VEG';
-
-  /* =======================================================
-   * UI
-   * ======================================================= */
-
-  return (
-    <SafeAreaView
-      style={
-        styles.safeArea
-      }
-      edges={[
-        'top',
-        'left',
-        'right',
-      ]}
-    >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFDFB"
-      />
-
-      <View
-        style={[
-          styles.screen,
-
-          {
-            width:
-              responsive.width,
-          },
+    return (
+      <SafeAreaView
+        style={
+          styles.safeArea
+        }
+        edges={[
+          'top',
+          'left',
+          'right',
         ]}
       >
-        {/* ================================================= */}
-        {/* HEADER */}
-        {/* ================================================= */}
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#FFFDFB"
+        />
 
         <View
           style={[
-            styles.header,
+            styles.screen,
 
             {
-              paddingHorizontal:
-                responsive.padding,
+              width:
+                responsive.width,
             },
           ]}
         >
-          <Pressable
-            hitSlop={
-              10
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.headerButton,
+          <View
+            style={[
+              styles.header,
 
-              pressed &&
-                styles.headerButtonPressed,
+              {
+                paddingHorizontal:
+                  responsive.padding,
+              },
             ]}
-            onPress={() =>
-              navigation.goBack()
-            }
           >
-            <Image
-              source={require('../assets/login-icons/back.png')}
-              style={
-                styles.headerIcon
+            <Pressable
+              onPress={() =>
+                navigation.goBack()
               }
-              resizeMode="contain"
-            />
-          </Pressable>
-
-          <View
-            style={
-              styles.headerTextContainer
-            }
-          >
-            <Text
               style={
-                styles.headerEyebrow
+                styles.backButton
               }
             >
-              {isEditMode
-                ? 'EDIT YOUR MEAL'
-                : 'BUILD YOUR MEAL'}
-            </Text>
-
-            <Text
-              style={
-                styles.headerTitle
-              }
-            >
-              Add-ons
-            </Text>
-          </View>
-        </View>
-
-        {/* ================================================= */}
-        {/* SCROLL */}
-        {/* ================================================= */}
-
-        <ScrollView
-          showsVerticalScrollIndicator={
-            false
-          }
-          contentContainerStyle={{
-            paddingBottom:
-              130,
-          }}
-        >
-          {/* ================================================= */}
-          {/* IMAGE */}
-          {/* ================================================= */}
-
-          <View
-            style={
-              styles.hero
-            }
-          >
-            {image ? (
               <Image
-                source={{
-                  uri:
-                    image,
-                }}
+                source={require('../assets/login-icons/back.png')}
                 style={
-                  styles.heroImage
+                  styles.headerIcon
                 }
-                resizeMode="cover"
               />
-            ) : (
-              <Image
-                source={require('../assets/tiffin-2.png')}
-                style={
-                  styles.heroImage
-                }
-                resizeMode="cover"
-              />
-            )}
-
-            {!!foodType && (
-              <View
-                style={[
-                  styles.foodTypeBadge,
-
-                  !isVegetarian &&
-                    styles.nonVegBadge,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.foodTypeDot,
-
-                    !isVegetarian &&
-                      styles.nonVegDot,
-                  ]}
-                />
-
-                <Text
-                  style={[
-                    styles.foodTypeText,
-
-                    !isVegetarian &&
-                      styles.nonVegText,
-                  ]}
-                >
-                  {foodType}
-                </Text>
-              </View>
-            )}
-
-            {!!status && (
-              <View
-                style={
-                  styles.statusBadge
-                }
-              >
-                <View
-                  style={
-                    styles.statusDot
-                  }
-                />
-
-                <Text
-                  style={
-                    styles.statusText
-                  }
-                >
-                  {String(
-                    status,
-                  ).toUpperCase()}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* ================================================= */}
-          {/* BODY */}
-          {/* ================================================= */}
-
-          <View
-            style={{
-              paddingHorizontal:
-                responsive.padding,
-
-              paddingTop:
-                18,
-            }}
-          >
-            {/* ================================================= */}
-            {/* TIFFIN INFO */}
-            {/* ================================================= */}
+            </Pressable>
 
             <View
+              style={{
+                flex: 1,
+                marginLeft: 12,
+              }}
+            >
+              <Text
+                style={
+                  styles.headerEyebrow
+                }
+              >
+                BUILD YOUR MEAL
+              </Text>
+
+              <Text
+                style={
+                  styles.headerTitle
+                }
+              >
+                Add-ons
+              </Text>
+            </View>
+          </View>
+
+          <ScrollView
+            showsVerticalScrollIndicator={
+              false
+            }
+            contentContainerStyle={{
+              paddingBottom:
+                130,
+            }}
+          >
+            <View
               style={
-                styles.tiffinInfoCard
+                styles.hero
               }
+            >
+              <Image
+                source={
+                  image
+                    ? {
+                        uri:
+                          image,
+                      }
+                    : require('../assets/tiffin-2.png')
+                }
+                style={
+                  styles.heroImage
+                }
+              />
+
+              {!!foodType && (
+                <View
+                  style={[
+                    styles.foodBadge,
+
+                    !isVegetarian &&
+                      styles.nonVegBadge,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.foodDot,
+
+                      !isVegetarian &&
+                        styles.nonVegDot,
+                    ]}
+                  />
+
+                  <Text
+                    style={
+                      styles.foodText
+                    }
+                  >
+                    {foodType}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View
+              style={{
+                padding:
+                  responsive.padding,
+              }}
             >
               <View
                 style={
-                  styles.titleRow
+                  styles.infoCard
                 }
               >
                 <View
-                  style={
-                    styles.titleArea
-                  }
+                  style={{
+                    flex: 1,
+                  }}
                 >
                   <Text
                     style={
@@ -1835,164 +1130,106 @@ const CustomizeTiffin = ({
                   )}
                 </Text>
               </View>
-            </View>
 
-            {/* ================================================= */}
-            {/* INCLUDED ITEMS */}
-            {/* ================================================= */}
-
-            {includedItems.length >
-              0 && (
-              <View
-                style={
-                  styles.section
-                }
-              >
+              {includedItems.length >
+                0 && (
                 <View
                   style={
-                    styles.sectionHeader
+                    styles.section
                   }
                 >
-                  <View>
-                    <Text
-                      style={
-                        styles.sectionEyebrow
-                      }
-                    >
-                      YOUR TIFFIN
-                    </Text>
+                  <Text
+                    style={
+                      styles.sectionLabel
+                    }
+                  >
+                    YOUR TIFFIN
+                  </Text>
 
-                    <Text
-                      style={
-                        styles.sectionTitle
-                      }
-                    >
-                      Included Items
-                    </Text>
-                  </View>
+                  <Text
+                    style={
+                      styles.sectionTitle
+                    }
+                  >
+                    Included Items
+                  </Text>
 
                   <View
                     style={
-                      styles.itemCountBadge
+                      styles.itemCard
                     }
                   >
-                    <Text
-                      style={
-                        styles.itemCountText
-                      }
-                    >
-                      {
-                        includedItems.length
-                      }
-                    </Text>
-                  </View>
-                </View>
-
-                <View
-                  style={
-                    styles.includedCard
-                  }
-                >
-                  {includedItems.map(
-                    (
-                      item,
-                      index,
-                    ) => (
-                      <View
-                        key={
-                          String(
-                            item.id ??
-                            index,
-                          )
-                        }
-                        style={[
-                          styles.includedItem,
-
-                          index ===
-                            includedItems.length -
-                              1 &&
-                            styles.lastIncludedItem,
-                        ]}
-                      >
+                    {includedItems.map(
+                      item => (
                         <View
+                          key={
+                            String(
+                              item.id,
+                            )
+                          }
                           style={
-                            styles.includedCheck
+                            styles.includedRow
                           }
                         >
-                          <Image
-                            source={require('../assets/login-icons/record-button.png')}
+                          <View
                             style={
-                              styles.inputImageIcon
+                              styles.smallDot
                             }
-                            resizeMode="cover"
                           />
-                        </View>
 
-                        <View
-                          style={
-                            styles.includedItemContent
-                          }
-                        >
                           <Text
                             style={
-                              styles.includedItemName
+                              styles.includedName
                             }
                           >
                             {item.name}
                           </Text>
                         </View>
-                      </View>
-                    ),
-                  )}
+                      ),
+                    )}
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
-            {/* ================================================= */}
-            {/* API ADD-ONS ONLY */}
-            {/* ================================================= */}
-
-            {addonItems.length >
-            0 ? (
               <View
                 style={
                   styles.section
                 }
               >
-                <View
+                <Text
                   style={
-                    styles.sectionHeader
+                    styles.sectionLabel
                   }
                 >
-                  <View>
-                    <Text
-                      style={
-                        styles.sectionEyebrow
-                      }
-                    >
-                      AVAILABLE EXTRAS
-                    </Text>
+                  OPTIONAL EXTRAS
+                </Text>
 
+                <Text
+                  style={
+                    styles.sectionTitle
+                  }
+                >
+                  Add-ons
+                </Text>
+
+                {addonItems.length ===
+                0 ? (
+                  <View
+                    style={
+                      styles.emptyAddons
+                    }
+                  >
                     <Text
                       style={
-                        styles.sectionTitle
+                        styles.emptyText
                       }
                     >
-                      Add-ons
+                      No add-ons are available for this tiffin.
                     </Text>
                   </View>
-                </View>
-
-                <View
-                  style={
-                    styles.extraList
-                  }
-                >
-                  {addonItems.map(
-                    (
-                      item,
-                      index,
-                    ) => {
+                ) : (
+                  addonItems.map(
+                    item => {
                       const quantity =
                         Number(
                           extras[
@@ -2005,373 +1242,184 @@ const CustomizeTiffin = ({
                         <View
                           key={
                             String(
-                              item.id ??
-                              index,
+                              item.id,
                             )
                           }
                           style={
-                            styles.extraCard
+                            styles.addonCard
                           }
                         >
                           <View
-                            style={
-                              styles.extraContent
-                            }
+                            style={{
+                              flex: 1,
+                            }}
                           >
                             <Text
                               style={
-                                styles.extraName
+                                styles.addonName
                               }
                             >
                               {item.name}
                             </Text>
 
-                            {!!item?.addonGroup && (
-                              <Text
-                                style={
-                                  styles.extraGroup
-                                }
-                              >
-                                {
-                                  item.addonGroup
-                                }
-                              </Text>
-                            )}
-
                             <Text
                               style={
-                                styles.extraPrice
+                                styles.addonPrice
                               }
                             >
-                              $
-                              {normalizeMoney(
-                                item.price,
-                              ).toFixed(
+                              +$
+                              {item.price.toFixed(
                                 2,
                               )}
                             </Text>
                           </View>
 
-                          <View
-                            style={
-                              styles.quantityBox
-                            }
-                          >
-                            <TouchableOpacity
-                              style={[
-                                styles.quantityButton,
-
-                                quantity ===
-                                  0 &&
-                                  styles.quantityButtonDisabled,
-                              ]}
-                              disabled={
-                                quantity ===
-                                0
-                              }
-                              onPress={() =>
-                                changeExtra(
-                                  item.id,
-                                  -1,
-                                )
-                              }
-                            >
-                              <Ionicons
-                                name="remove"
-                                size={
-                                  16
-                                }
-                                color={
-                                  quantity ===
-                                  0
-                                    ? '#C8BFBB'
-                                    : '#A00B0F'
-                                }
-                              />
-                            </TouchableOpacity>
-
-                            <Text
-                              style={
-                                styles.quantityText
-                              }
-                            >
-                              {quantity}
-                            </Text>
-
-                            <TouchableOpacity
-                              style={
-                                styles.quantityButton
-                              }
+                          {quantity <=
+                          0 ? (
+                            <Pressable
                               onPress={() =>
                                 changeExtra(
                                   item.id,
                                   1,
                                 )
                               }
+                              style={
+                                styles.addButton
+                              }
                             >
-                              <Ionicons
-                                name="add"
-                                size={
-                                  16
+                              <Text
+                                style={
+                                  styles.addText
                                 }
-                                color="#A00B0F"
-                              />
-                            </TouchableOpacity>
-                          </View>
+                              >
+                                ADD +
+                              </Text>
+                            </Pressable>
+                          ) : (
+                            <View
+                              style={
+                                styles.qtyControl
+                              }
+                            >
+                              <Pressable
+                                onPress={() =>
+                                  changeExtra(
+                                    item.id,
+                                    -1,
+                                  )
+                                }
+                                style={
+                                  styles.qtyButton
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.qtyButtonText
+                                  }
+                                >
+                                  −
+                                </Text>
+                              </Pressable>
+
+                              <Text
+                                style={
+                                  styles.qtyText
+                                }
+                              >
+                                {quantity}
+                              </Text>
+
+                              <Pressable
+                                onPress={() =>
+                                  changeExtra(
+                                    item.id,
+                                    1,
+                                  )
+                                }
+                                style={[
+                                  styles.qtyButton,
+                                  styles.qtyPlus,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.qtyButtonText,
+                                    {
+                                      color:
+                                        '#fff',
+                                    },
+                                  ]}
+                                >
+                                  +
+                                </Text>
+                              </Pressable>
+                            </View>
+                          )}
                         </View>
                       );
                     },
-                  )}
-                </View>
-              </View>
-            ) : (
-              <View
-                style={
-                  styles.noAddonCard
-                }
-              >
-                <Ionicons
-                  name="restaurant-outline"
-                  size={
-                    26
-                  }
-                  color="#B19E96"
-                />
-
-                <Text
-                  style={
-                    styles.noAddonTitle
-                  }
-                >
-                  No add-ons available
-                </Text>
-
-                <Text
-                  style={
-                    styles.noAddonDescription
-                  }
-                >
-                  No extra items are currently available for this tiffin.
-                </Text>
-              </View>
-            )}
-
-            {/* ================================================= */}
-            {/* PRICE SUMMARY */}
-            {/* ================================================= */}
-
-            <View
-              style={
-                styles.section
-              }
-            >
-              <View
-                style={
-                  styles.sectionHeader
-                }
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.sectionEyebrow
-                    }
-                  >
-                    PRICE DETAILS
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.sectionTitle
-                    }
-                  >
-                    Order Summary
-                  </Text>
-                </View>
-              </View>
-
-              <View
-                style={
-                  styles.summaryCard
-                }
-              >
-                <SummaryRow
-                  label="Base Tiffin"
-                  value={
-                    basePrice
-                  }
-                />
-
-                <SummaryRow
-                  label="Add-ons"
-                  value={
-                    extrasPrice
-                  }
-                />
-
-                <SummaryRow
-                  label="Delivery"
-                  value={
-                    shippingCharge
-                  }
-                />
-
-                <View
-                  style={
-                    styles.divider
-                  }
-                />
-
-                <View
-                  style={
-                    styles.totalRow
-                  }
-                >
-                  <Text
-                    style={
-                      styles.totalLabel
-                    }
-                  >
-                    Total
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.totalValue
-                    }
-                  >
-                    $
-                    {total.toFixed(
-                      2,
-                    )}
-                  </Text>
-                </View>
+                  )
+                )}
               </View>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
 
-        {/* ================================================= */}
-        {/* BOTTOM CART BAR */}
-        {/* ================================================= */}
-
-        <View
-          style={[
-            styles.bottom,
-
-            {
-              paddingHorizontal:
-                responsive.padding,
-            },
-          ]}
-        >
           <View
             style={
-              styles.bottomPriceArea
+              styles.bottomBar
             }
           >
-            <Text
-              style={
-                styles.bottomLabel
-              }
-            >
-              Total
-            </Text>
+            <View>
+              <Text
+                style={
+                  styles.bottomLabel
+                }
+              >
+                TIFFIN TOTAL
+              </Text>
 
-            <Text
+              <Text
+                style={
+                  styles.totalText
+                }
+              >
+                $
+                {total.toFixed(
+                  2,
+                )}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              disabled={
+                adding
+              }
+              onPress={
+                handleAddToCart
+              }
               style={
-                styles.bottomTotal
+                styles.continueButton
               }
             >
-              $
-              {total.toFixed(
-                2,
+              {adding ? (
+                <ActivityIndicator
+                  color="#fff"
+                />
+              ) : (
+                <Text
+                  style={
+                    styles.continueText
+                  }
+                >
+                  Add To Order →
+                </Text>
               )}
-            </Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            activeOpacity={
-              0.85
-            }
-            disabled={
-              adding
-            }
-            onPress={
-              handleAddToCart
-            }
-            style={[
-              styles.addButton,
-
-              adding &&
-                styles.addButtonDisabled,
-            ]}
-          >
-            {adding && (
-              <ActivityIndicator
-                size="small"
-                color="#FFFFFF"
-              />
-            )}
-
-            <Text
-              style={
-                styles.addText
-              }
-            >
-              {adding
-                ? isEditMode
-                  ? 'Updating...'
-                  : 'Adding...'
-                : isEditMode
-                  ? 'Update Cart'
-                  : 'Add to Cart'}
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
-    </SafeAreaView>
-  );
-};
-
-/* =========================================================
- * SUMMARY ROW
- * ========================================================= */
-
-const SummaryRow = ({
-  label,
-  value,
-}) => (
-  <View
-    style={
-      styles.summaryRow
-    }
-  >
-    <Text
-      style={
-        styles.summaryLabel
-      }
-    >
-      {label}
-    </Text>
-
-    <Text
-      style={
-        styles.summaryValue
-      }
-    >
-      {Number(
-        value,
-      ) >
-      0
-        ? `$${Number(
-            value,
-          ).toFixed(
-            2,
-          )}`
-        : 'FREE'}
-    </Text>
-  </View>
-);
+      </SafeAreaView>
+    );
+  };
 
 /* =========================================================
  * STYLES
@@ -2380,941 +1428,312 @@ const SummaryRow = ({
 const styles =
   StyleSheet.create({
     safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        '#FFFDFB',
+      flex: 1,
+      backgroundColor: '#FFFDFB',
     },
 
     screen: {
-      flex:
-        1,
-
-      alignSelf:
-        'center',
-
-      backgroundColor:
-        '#FFFDFB',
+      flex: 1,
+      alignSelf: 'center',
+      backgroundColor: '#FFFDFB',
     },
-
-    /* =====================================================
-     * HEADER
-     * ===================================================== */
 
     header: {
-      height:
-        66,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        '#F0E8E4',
+      height: 70,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: '#F0E5DC',
     },
 
-    headerButton: {
-      width:
-        42,
-
-      height:
-        42,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      borderRadius:
-        12,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EEE4DF',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      marginRight:
-        12,
-    },
-
-    headerButtonPressed: {
-      opacity:
-        0.6,
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: '#F8F0E9',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     headerIcon: {
-      width:
-        20,
-
-      height:
-        20,
-    },
-
-    headerTextContainer: {
-      flex:
-        1,
+      width: 18,
+      height: 18,
+      resizeMode: 'contain',
     },
 
     headerEyebrow: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        8,
-
-      fontWeight:
-        '900',
-
-      letterSpacing:
-        1,
+      color: '#A00B0F',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 1,
     },
 
     headerTitle: {
-      color:
-        '#2B201C',
-
-      fontSize:
-        20,
-
-      fontWeight:
-        '900',
-
-      marginTop:
-        2,
+      color: '#25170F',
+      fontSize: 20,
+      fontWeight: '900',
+      marginTop: 2,
     },
 
-    /* =====================================================
-     * HERO
-     * ===================================================== */
-
     hero: {
-      height:
-        220,
-
-      position:
-        'relative',
-
-      backgroundColor:
-        '#F0E8E4',
+      height: 210,
+      position: 'relative',
     },
 
     heroImage: {
-      width:
-        '100%',
-
-      height:
-        '100%',
+      width: '100%',
+      height: '100%',
+      resizeMode: 'cover',
     },
 
-    foodTypeBadge: {
-      position:
-        'absolute',
-
-      left:
-        16,
-
-      bottom:
-        14,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#EAF8ED',
-
-      paddingHorizontal:
-        10,
-
-      paddingVertical:
-        6,
-
-      borderRadius:
-        20,
-    },
-
-    foodTypeDot: {
-      width:
-        7,
-
-      height:
-        7,
-
-      borderRadius:
-        4,
-
-      backgroundColor:
-        '#2D9B51',
-
-      marginRight:
-        6,
-    },
-
-    foodTypeText: {
-      color:
-        '#287D45',
-
-      fontSize:
-        8,
-
-      fontWeight:
-        '900',
+    foodBadge: {
+      position: 'absolute',
+      left: 16,
+      bottom: 15,
+      backgroundColor: '#EDF9F1',
+      borderRadius: 15,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
 
     nonVegBadge: {
-      backgroundColor:
-        '#FFF0F0',
+      backgroundColor: '#FFF0F0',
+    },
+
+    foodDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: '#36A268',
+      marginRight: 5,
     },
 
     nonVegDot: {
-      backgroundColor:
-        '#A00B0F',
+      backgroundColor: '#BC3131',
     },
 
-    nonVegText: {
-      color:
-        '#A00B0F',
+    foodText: {
+      color: '#3D443E',
+      fontSize: 8,
+      fontWeight: '900',
     },
 
-    statusBadge: {
-      position:
-        'absolute',
-
-      right:
-        16,
-
-      bottom:
-        14,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        'rgba(255,255,255,0.94)',
-
-      paddingHorizontal:
-        10,
-
-      paddingVertical:
-        6,
-
-      borderRadius:
-        20,
-    },
-
-    statusDot: {
-      width:
-        7,
-
-      height:
-        7,
-
-      borderRadius:
-        4,
-
-      backgroundColor:
-        '#2D9B51',
-
-      marginRight:
-        6,
-    },
-
-    statusText: {
-      color:
-        '#51443E',
-
-      fontSize:
-        8,
-
-      fontWeight:
-        '900',
-    },
-
-    /* =====================================================
-     * TIFFIN INFO
-     * ===================================================== */
-
-    tiffinInfoCard: {
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EEE5E1',
-
-      borderRadius:
-        16,
-
-      padding:
-        15,
-
-      marginBottom:
-        14,
-    },
-
-    titleRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'flex-start',
-    },
-
-    titleArea: {
-      flex:
-        1,
-
-      paddingRight:
-        12,
+    infoCard: {
+      backgroundColor: '#fff',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#EEDFD4',
+      padding: 15,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
     },
 
     title: {
-      color:
-        '#2F221D',
-
-      fontSize:
-        18,
-
-      fontWeight:
-        '900',
+      color: '#28170F',
+      fontSize: 18,
+      fontWeight: '900',
     },
 
     description: {
-      color:
-        '#897B74',
-
-      fontSize:
-        9,
-
-      lineHeight:
-        14,
-
-      marginTop:
-        5,
+      color: '#8E786B',
+      fontSize: 10,
+      lineHeight: 15,
+      marginTop: 5,
     },
 
     basePrice: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        17,
-
-      fontWeight:
-        '900',
+      color: '#A00B0F',
+      fontSize: 17,
+      fontWeight: '900',
+      marginLeft: 10,
     },
-
-    /* =====================================================
-     * SECTION
-     * ===================================================== */
 
     section: {
-      marginBottom:
-        17,
+      marginTop: 22,
     },
 
-    sectionHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      marginBottom:
-        9,
-    },
-
-    sectionEyebrow: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        7,
-
-      fontWeight:
-        '900',
-
-      letterSpacing:
-        0.9,
+    sectionLabel: {
+      color: '#A00B0F',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 1,
     },
 
     sectionTitle: {
-      color:
-        '#32251F',
-
-      fontSize:
-        15,
-
-      fontWeight:
-        '900',
-
-      marginTop:
-        2,
+      color: '#28170F',
+      fontSize: 17,
+      fontWeight: '900',
+      marginTop: 3,
+      marginBottom: 10,
     },
 
-    itemCountBadge: {
-      minWidth:
-        27,
-
-      height:
-        27,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF0F0',
-
-      borderRadius:
-        9,
+    itemCard: {
+      backgroundColor: '#fff',
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: '#EEE1D8',
+      paddingHorizontal: 13,
     },
 
-    itemCountText: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '900',
+    includedRow: {
+      minHeight: 48,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderBottomWidth: 1,
+      borderBottomColor: '#F5ECE5',
     },
 
-    /* =====================================================
-     * INCLUDED ITEMS
-     * ===================================================== */
-
-    includedCard: {
-      backgroundColor:
-        '#FFFFFF',
-
-      borderRadius:
-        14,
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#EEE5E1',
-
-      paddingHorizontal:
-        12,
+    smallDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: '#A00B0F',
+      marginRight: 9,
     },
 
-    includedItem: {
-      minHeight:
-        48,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderBottomWidth:
-        1,
-
-      borderBottomColor:
-        '#F0E9E6',
+    includedName: {
+      color: '#4B382D',
+      fontSize: 11,
+      fontWeight: '700',
     },
 
-    lastIncludedItem: {
-      borderBottomWidth:
-        0,
+    addonCard: {
+      minHeight: 66,
+      backgroundColor: '#fff',
+      borderWidth: 1,
+      borderColor: '#EEE1D8',
+      borderRadius: 14,
+      padding: 12,
+      marginBottom: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
 
-    includedCheck: {
-      width:
-        28,
-
-      height:
-        28,
-
-      borderRadius:
-        9,
-
-      backgroundColor:
-        '#FFF0F0',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      marginRight:
-        10,
+    addonName: {
+      color: '#2F1D13',
+      fontSize: 12,
+      fontWeight: '900',
     },
 
-    inputImageIcon: {
-      width:
-        14,
-
-      height:
-        14,
-    },
-
-    includedItemContent: {
-      flex:
-        1,
-    },
-
-    includedItemName: {
-      color:
-        '#453833',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '800',
-    },
-
-    /* =====================================================
-     * ADD-ONS
-     * ===================================================== */
-
-    extraList: {
-      gap:
-        8,
-    },
-
-    extraCard: {
-      minHeight:
-        62,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#ECE3DF',
-
-      borderRadius:
-        13,
-
-      paddingHorizontal:
-        12,
-
-      paddingVertical:
-        10,
-    },
-
-    extraContent: {
-      flex:
-        1,
-
-      paddingRight:
-        10,
-    },
-
-    extraName: {
-      color:
-        '#473A34',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '900',
-    },
-
-    extraGroup: {
-      color:
-        '#9A8A82',
-
-      fontSize:
-        7,
-
-      textTransform:
-        'capitalize',
-
-      marginTop:
-        2,
-    },
-
-    extraPrice: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        8,
-
-      fontWeight:
-        '800',
-
-      marginTop:
-        3,
-    },
-
-    quantityBox: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFF5F3',
-
-      borderRadius:
-        10,
-
-      padding:
-        3,
-    },
-
-    quantityButton: {
-      width:
-        30,
-
-      height:
-        30,
-
-      borderRadius:
-        8,
-
-      backgroundColor:
-        '#FFFFFF',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    quantityButtonDisabled: {
-      opacity:
-        0.55,
-    },
-
-    quantityText: {
-      minWidth:
-        30,
-
-      textAlign:
-        'center',
-
-      color:
-        '#322621',
-
-      fontSize:
-        10,
-
-      fontWeight:
-        '900',
-    },
-
-    /* =====================================================
-     * NO ADD-ONS
-     * ===================================================== */
-
-    noAddonCard: {
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#ECE3DF',
-
-      borderRadius:
-        14,
-
-      paddingHorizontal:
-        20,
-
-      paddingVertical:
-        24,
-
-      marginBottom:
-        17,
-    },
-
-    noAddonTitle: {
-      color:
-        '#493B35',
-
-      fontSize:
-        11,
-
-      fontWeight:
-        '900',
-
-      marginTop:
-        8,
-    },
-
-    noAddonDescription: {
-      color:
-        '#95867F',
-
-      fontSize:
-        8,
-
-      lineHeight:
-        13,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        4,
-    },
-
-    /* =====================================================
-     * SUMMARY
-     * ===================================================== */
-
-    summaryCard: {
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#ECE3DF',
-
-      borderRadius:
-        14,
-
-      padding:
-        13,
-    },
-
-    summaryRow: {
-      minHeight:
-        34,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    summaryLabel: {
-      color:
-        '#7E706A',
-
-      fontSize:
-        9,
-    },
-
-    summaryValue: {
-      color:
-        '#493B35',
-
-      fontSize:
-        9,
-
-      fontWeight:
-        '800',
-    },
-
-    divider: {
-      height:
-        1,
-
-      backgroundColor:
-        '#EEE6E2',
-
-      marginVertical:
-        8,
-    },
-
-    totalRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-
-      paddingVertical:
-        3,
-    },
-
-    totalLabel: {
-      color:
-        '#2F231E',
-
-      fontSize:
-        12,
-
-      fontWeight:
-        '900',
-    },
-
-    totalValue: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        15,
-
-      fontWeight:
-        '900',
-    },
-
-    /* =====================================================
-     * BOTTOM
-     * ===================================================== */
-
-    bottom: {
-      position:
-        'absolute',
-
-      left:
-        0,
-
-      right:
-        0,
-
-      bottom:
-        0,
-
-      minHeight:
-        78,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderTopWidth:
-        1,
-
-      borderTopColor:
-        '#ECE3DF',
-
-      paddingVertical:
-        10,
-    },
-
-    bottomPriceArea: {
-      flex:
-        1,
-    },
-
-    bottomLabel: {
-      color:
-        '#93847D',
-
-      fontSize:
-        8,
-    },
-
-    bottomTotal: {
-      color:
-        '#2F231E',
-
-      fontSize:
-        18,
-
-      fontWeight:
-        '900',
-
-      marginTop:
-        2,
+    addonPrice: {
+      color: '#A00B0F',
+      fontSize: 9,
+      fontWeight: '800',
+      marginTop: 4,
     },
 
     addButton: {
-      minWidth:
-        150,
-
-      minHeight:
-        50,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        13,
-
-      paddingHorizontal:
-        18,
-    },
-
-    addButtonDisabled: {
-      opacity:
-        0.65,
+      minWidth: 68,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: '#FFF5E9',
+      borderWidth: 1,
+      borderColor: '#C99155',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
 
     addText: {
-      color:
-        '#FFFFFF',
+      color: '#8B210C',
+      fontSize: 9,
+      fontWeight: '900',
+    },
 
-      fontSize:
-        10,
+    qtyControl: {
+      height: 32,
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 16,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: '#DDB479',
+      backgroundColor: '#FFF7EB',
+    },
 
-      fontWeight:
-        '900',
+    qtyButton: {
+      width: 29,
+      height: 30,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
 
-      marginLeft:
-        6,
+    qtyPlus: {
+      backgroundColor: '#8B210C',
+      borderRadius: 15,
+    },
+
+    qtyButtonText: {
+      color: '#986F4D',
+      fontSize: 17,
+      fontWeight: '900',
+    },
+
+    qtyText: {
+      minWidth: 24,
+      textAlign: 'center',
+      color: '#3E2418',
+      fontSize: 10,
+      fontWeight: '900',
+    },
+
+    emptyAddons: {
+      padding: 18,
+      backgroundColor: '#F9F4EF',
+      borderRadius: 13,
+    },
+
+    emptyText: {
+      color: '#8A7568',
+      textAlign: 'center',
+      fontSize: 10,
+    },
+
+    bottomBar: {
+      position: 'absolute',
+      left: 12,
+      right: 12,
+      bottom: 10,
+      minHeight: 72,
+      backgroundColor: '#342216',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: '#B79157',
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      elevation: 10,
+    },
+
+    bottomLabel: {
+      color: '#D0AD7C',
+      fontSize: 7,
+      fontWeight: '900',
+    },
+
+    totalText: {
+      color: '#F1B94F',
+      fontSize: 20,
+      fontWeight: '900',
+      marginTop: 3,
+    },
+
+    continueButton: {
+      height: 46,
+      minWidth: 145,
+      borderRadius: 12,
+      backgroundColor: '#8B210C',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 15,
+    },
+
+    continueText: {
+      color: '#fff',
+      fontSize: 10,
+      fontWeight: '900',
     },
   });
 

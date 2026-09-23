@@ -1,12 +1,7 @@
-import React, {
-  useCallback,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -20,1862 +15,1621 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
-
-import {
-  useFocusEffect,
-} from '@react-navigation/native';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 /* =========================================================
- * STORAGE
+ * API
  * ========================================================= */
 
-const WEEKLY_ORDERS_STORAGE_KEY =
-  'kp_customer_weekly_orders';
+const BASE_API_URL = 'https://replete-software.com/projects/kp_admin/api';
+
+const CUSTOMER_INVOICES_API = `${BASE_API_URL}/customer/invoices`;
 
 /* =========================================================
- * FILTER OPTIONS
+ * TOKEN KEYS
+ * ========================================================= */
+
+const CUSTOMER_TOKEN_KEYS = [
+  'token',
+  '@kp_kitchen_customer_token',
+  '@kp_customer_token',
+  'customer_token',
+];
+
+/* =========================================================
+ * FILTERS
  * ========================================================= */
 
 const FILTER_OPTIONS = [
   {
     id: 'all',
-    title: 'All Invoices',
-    subtitle: 'Show every available invoice',
+
+    title: 'All Weeks',
+
+    subtitle: 'All weekly billing invoices',
   },
-  {
-    id: 'last_week',
-    title: 'Last Week',
-    subtitle: 'Only previous week invoices',
-  },
+
   {
     id: 'paid',
+
     title: 'Paid',
-    subtitle: 'Show completed payments',
+
+    subtitle: 'Fully paid weekly invoices',
   },
+
   {
-    id: 'due',
-    title: 'Payment Due',
-    subtitle: 'Show unpaid invoices',
+    id: 'unpaid',
+
+    title: 'Unpaid',
+
+    subtitle: 'Weekly invoices with an outstanding balance',
+  },
+
+  {
+    id: 'overdue',
+
+    title: 'Overdue',
+
+    subtitle: 'Past-due weekly invoices',
   },
 ];
 
 /* =========================================================
- * DATE HELPERS
+ * BASIC HELPERS
  * ========================================================= */
 
-const startOfDay = date => {
-  const result =
-    new Date(date);
+const firstValue = (...values) => {
+  for (const value of values) {
+    if (value !== null && value !== undefined && value !== '') {
+      return value;
+    }
+  }
 
-  result.setHours(
-    0,
-    0,
-    0,
-    0,
-  );
-
-  return result;
+  return null;
 };
 
-const getMonday = date => {
-  const current =
-    startOfDay(date);
+const parseMoney = value => {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
 
-  const day =
-    current.getDay();
+  const number = Number(String(value).replace(/[^0-9.-]/g, ''));
 
-  const difference =
-    day === 0
-      ? -6
-      : 1 - day;
-
-  current.setDate(
-    current.getDate() +
-      difference,
-  );
-
-  return current;
+  return Number.isFinite(number) ? number : 0;
 };
 
-const getLastWeekRange = () => {
-  const currentMonday =
-    getMonday(
-      new Date(),
-    );
+const formatMoney = (value, currency = 'AUD') =>
+  `${currency} ${parseMoney(value).toFixed(2)}`;
 
-  const previousMonday =
-    new Date(
-      currentMonday,
-    );
+const normalizeStatus = value =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 
-  previousMonday.setDate(
-    currentMonday.getDate() -
-      7,
+/* =========================================================
+ * DATE
+ * ========================================================= */
+
+const safeDate = value => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDate = value => {
+  const date = safeDate(value);
+
+  if (!date) {
+    return 'Not available';
+  }
+
+  return date.toLocaleDateString(
+    'en-AU',
+
+    {
+      day: '2-digit',
+
+      month: 'short',
+
+      year: 'numeric',
+    },
   );
+};
+
+const dateKey = value => {
+  const date = safeDate(value);
+
+  if (!date) {
+    return '';
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+
+    '0',
+  )}-${String(date.getDate()).padStart(
+    2,
+
+    '0',
+  )}`;
+};
+
+/* =========================================================
+ * MONDAY - SUNDAY WEEK
+ * ========================================================= */
+
+const getWeekRange = value => {
+  const source = safeDate(value);
+
+  if (!source) {
+    return null;
+  }
+
+  const working = new Date(source);
+
+  working.setHours(0, 0, 0, 0);
+
+  const day = working.getDay();
+
+  // const distanceToMonday = day === 0 ? -6 : 1 - day;
+  const distanceToMonday = day === 0 ;
+
+  const start = new Date(working);
+
+  start.setDate(working.getDate() + distanceToMonday);
+
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+
+  end.setDate(start.getDate() + 6);
+
+  end.setHours(23, 59, 59, 999);
 
   return {
-    start:
-      previousMonday,
+    start,
 
-    end:
-      currentMonday,
+    end,
+
+    key: dateKey(start),
   };
 };
 
-const formatDate = date => {
-  if (!date) {
-    return '';
+/* =========================================================
+ * CURRENT BILLING CYCLE
+ * ========================================================= */
+
+const getCurrentBillingCycle = (value = new Date()) => {
+  const currentWeek = getWeekRange(value);
+
+  if (!currentWeek?.start) {
+    return null;
+  }
+
+  const start = new Date(currentWeek.start);
+
+  start.setHours(0, 0, 0, 0);
+
+  const nextMonday = new Date(start);
+
+  nextMonday.setDate(nextMonday.getDate() + 7);
+
+  nextMonday.setHours(0, 0, 0, 0);
+
+  return {
+    start,
+
+    nextMonday,
+  };
+};
+
+/* =========================================================
+ * CURRENT WEEK CHECK
+ * ========================================================= */
+
+const isCurrentWeekInvoice = invoice => {
+  if (!invoice) {
+    return false;
+  }
+
+  const cycle = getCurrentBillingCycle();
+
+  if (!cycle) {
+    return false;
+  }
+
+  const invoiceDate =
+    safeDate(invoice?.startDate) ??
+    safeDate(invoice?.createdAt) ??
+    safeDate(invoice?.endDate);
+
+  if (!invoiceDate) {
+    return false;
+  }
+
+  invoiceDate.setHours(0, 0, 0, 0);
+
+  return invoiceDate >= cycle.start && invoiceDate < cycle.nextMonday;
+};
+
+/* =========================================================
+ * TOKEN
+ * ========================================================= */
+
+const getCustomerToken = async () => {
+  for (const key of CUSTOMER_TOKEN_KEYS) {
+    try {
+      const token = await AsyncStorage.getItem(key);
+
+      if (token && String(token).trim()) {
+        return String(token).trim();
+      }
+    } catch (error) {
+      console.log('TOKEN READ ERROR:', error);
+    }
+  }
+
+  return null;
+};
+
+/* =========================================================
+ * JSON
+ * ========================================================= */
+
+const readJsonResponse = async response => {
+  const text = await response.text();
+
+  if (!text) {
+    return {};
   }
 
   try {
-    return new Intl.DateTimeFormat(
-      'en-US',
-      {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      },
-    ).format(
-      new Date(date),
-    );
+    return JSON.parse(text);
   } catch (error) {
-    return '';
+    console.log('RAW INVOICE RESPONSE:', text);
+
+    throw new Error('The invoice server returned an invalid response.');
   }
 };
 
-const formatShortDate = date => {
-  if (!date) {
-    return '';
+/* =========================================================
+ * EXTRACT INVOICE ARRAY
+ * ========================================================= */
+
+const extractInvoicesArray = responseData => {
+  const values = [
+    responseData?.invoices,
+    responseData?.invoices?.data,
+
+    responseData?.weekly_bills,
+    responseData?.weeklyBills,
+    responseData?.weekly_bills?.data,
+    responseData?.weeklyBills?.data,
+
+    responseData?.bills,
+    responseData?.bills?.data,
+
+    responseData?.data?.invoices,
+    responseData?.data?.invoices?.data,
+
+    responseData?.data?.weekly_bills,
+    responseData?.data?.weeklyBills,
+    responseData?.data?.weekly_bills?.data,
+    responseData?.data?.weeklyBills?.data,
+
+    responseData?.data?.bills,
+    responseData?.data?.bills?.data,
+
+    responseData?.data?.data,
+    responseData?.data,
+    responseData,
+  ];
+
+  const arrays = values.filter(Array.isArray);
+
+  /*
+   * Important:
+   * invoices: [] must not hide a populated weekly_bills array.
+   */
+  return arrays.find(items => items.length > 0) ?? arrays[0] ?? [];
+};
+
+/* =========================================================
+ * NORMALIZE INVOICE
+ * ========================================================= */
+
+const normalizeInvoice = (rawInvoice, index) => {
+  if (!rawInvoice) {
+    return null;
   }
 
-  try {
-    return new Intl.DateTimeFormat(
-      'en-US',
-      {
-        day: '2-digit',
-        month: 'short',
-      },
-    ).format(
-      new Date(date),
-    );
-  } catch (error) {
-    return '';
+  const id = firstValue(
+    rawInvoice?.id,
+    rawInvoice?.invoice_id,
+    rawInvoice?.invoiceId,
+    rawInvoice?.bill_id,
+    rawInvoice?.billId,
+    index + 1,
+  );
+
+  const weeklyBillId = firstValue(
+    rawInvoice?.weekly_bill_id,
+    rawInvoice?.weeklyBillId,
+    rawInvoice?.weekly_bill?.id,
+    rawInvoice?.weeklyBill?.id,
+    rawInvoice?.bill?.weekly_bill_id,
+    rawInvoice?.bill?.weeklyBillId,
+  );
+
+  const invoiceNumber = firstValue(
+    rawInvoice?.invoice_number,
+    rawInvoice?.invoiceNumber,
+    rawInvoice?.invoice_no,
+    rawInvoice?.bill_number,
+    rawInvoice?.billNumber,
+    rawInvoice?.bill_no,
+    rawInvoice?.number,
+    `INV-${id}`,
+  );
+
+  const totalAmount = parseMoney(
+    firstValue(
+      rawInvoice?.total_amount,
+      rawInvoice?.totalAmount,
+
+      rawInvoice?.invoice_total,
+      rawInvoice?.invoiceTotal,
+
+      rawInvoice?.invoice_amount,
+      rawInvoice?.invoiceAmount,
+
+      rawInvoice?.grand_total,
+      rawInvoice?.grandTotal,
+
+      rawInvoice?.bill_amount,
+      rawInvoice?.billAmount,
+
+      rawInvoice?.payable_amount,
+      rawInvoice?.payableAmount,
+
+      rawInvoice?.total_due,
+      rawInvoice?.totalDue,
+
+      rawInvoice?.amount,
+      rawInvoice?.total,
+
+      0,
+    ),
+  );
+
+  const explicitBalance = firstValue(
+    rawInvoice?.balance_amount,
+    rawInvoice?.balanceAmount,
+    rawInvoice?.balance,
+
+    rawInvoice?.outstanding_amount,
+    rawInvoice?.outstandingAmount,
+
+    rawInvoice?.outstanding_balance,
+    rawInvoice?.outstandingBalance,
+
+    rawInvoice?.amount_due,
+    rawInvoice?.amountDue,
+
+    rawInvoice?.due_amount,
+    rawInvoice?.dueAmount,
+
+    rawInvoice?.remaining_amount,
+    rawInvoice?.remainingAmount,
+
+    rawInvoice?.remaining_balance,
+    rawInvoice?.remainingBalance,
+
+    rawInvoice?.pending_amount,
+    rawInvoice?.pendingAmount,
+
+    rawInvoice?.unpaid_amount,
+    rawInvoice?.unpaidAmount,
+
+    rawInvoice?.payable_amount,
+    rawInvoice?.payableAmount,
+  );
+
+  const explicitPaidAmount = firstValue(
+    rawInvoice?.paid_amount,
+    rawInvoice?.paidAmount,
+    rawInvoice?.amount_paid,
+    rawInvoice?.amountPaid,
+    rawInvoice?.payment_amount,
+  );
+
+  let balanceAmount =
+    explicitBalance !== null ? parseMoney(explicitBalance) : totalAmount;
+
+  let paidAmount =
+    explicitPaidAmount !== null ? parseMoney(explicitPaidAmount) : 0;
+
+  const status = String(
+    firstValue(
+      rawInvoice?.payment_status,
+      rawInvoice?.paymentStatus,
+
+      rawInvoice?.invoice_status,
+      rawInvoice?.invoiceStatus,
+
+      rawInvoice?.bill_status,
+      rawInvoice?.billStatus,
+
+      rawInvoice?.status,
+
+      'Pending',
+    ),
+  );
+
+  const normalizedStatus = normalizeStatus(status);
+
+  const explicitPaid = firstValue(
+    rawInvoice?.is_paid,
+    rawInvoice?.isPaid,
+    rawInvoice?.paid,
+  );
+
+  let paid =
+    explicitPaid === true || explicitPaid === 1 || explicitPaid === '1';
+
+  if (
+    [
+      'paid',
+      'completed',
+      'settled',
+      'fully_paid',
+      'payment_completed',
+      'success',
+    ].includes(normalizedStatus)
+  ) {
+    paid = true;
   }
+
+  /*
+   * If backend explicitly sends balance = 0,
+   * that is authoritative.
+   */
+  if (explicitBalance !== null && balanceAmount <= 0) {
+    paid = true;
+  }
+
+  if (paid) {
+    balanceAmount = 0;
+
+    if (explicitPaidAmount === null) {
+      paidAmount = totalAmount;
+    }
+  } else {
+    if (explicitBalance === null) {
+      balanceAmount = Math.max(
+        0,
+
+        totalAmount - paidAmount,
+      );
+    }
+
+    if (explicitPaidAmount === null && totalAmount > balanceAmount) {
+      paidAmount = Math.max(
+        0,
+
+        totalAmount - balanceAmount,
+      );
+    }
+  }
+
+  const startDate = firstValue(
+    rawInvoice?.start_date,
+    rawInvoice?.startDate,
+    rawInvoice?.week_start_date,
+    rawInvoice?.week_start,
+    rawInvoice?.billing_start,
+    rawInvoice?.billing_start_date,
+    rawInvoice?.period_start,
+    rawInvoice?.from_date,
+    rawInvoice?.cycle_start,
+    rawInvoice?.cycleStart,
+  );
+
+  const endDate = firstValue(
+    rawInvoice?.end_date,
+    rawInvoice?.endDate,
+    rawInvoice?.week_end_date,
+    rawInvoice?.week_end,
+    rawInvoice?.billing_end,
+    rawInvoice?.billing_end_date,
+    rawInvoice?.period_end,
+    rawInvoice?.to_date,
+    rawInvoice?.cycle_end,
+    rawInvoice?.cycleEnd,
+  );
+
+  const dueDate = firstValue(
+    rawInvoice?.due_date,
+    rawInvoice?.dueDate,
+    rawInvoice?.payment_due_date,
+    rawInvoice?.paymentDueDate,
+    rawInvoice?.due_on,
+    rawInvoice?.dueOn,
+    rawInvoice?.due_at,
+    rawInvoice?.dueAt,
+  );
+
+  const createdAt = firstValue(
+    rawInvoice?.created_at,
+    rawInvoice?.createdAt,
+    rawInvoice?.generated_at,
+    rawInvoice?.generatedAt,
+    rawInvoice?.invoice_date,
+    rawInvoice?.invoiceDate,
+    rawInvoice?.date,
+  );
+
+  const paidAt = firstValue(
+    rawInvoice?.paid_at,
+    rawInvoice?.paidAt,
+    rawInvoice?.payment_date,
+    rawInvoice?.paymentDate,
+    rawInvoice?.paid_date,
+  );
+
+  const due = safeDate(dueDate);
+
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+
+  const overdueStatuses = ['overdue', 'over_due', 'past_due', 'pastdue'];
+
+  const overdue = Boolean(
+    !paid &&
+      balanceAmount > 0 &&
+      (overdueStatuses.includes(normalizedStatus) || (due && due < today)),
+  );
+
+  const orders = Array.isArray(rawInvoice?.orders)
+    ? rawInvoice.orders
+    : Array.isArray(rawInvoice?.order_details)
+    ? rawInvoice.order_details
+    : Array.isArray(rawInvoice?.items)
+    ? rawInvoice.items
+    : Array.isArray(rawInvoice?.invoice_items)
+    ? rawInvoice.invoice_items
+    : [];
+
+  return {
+    id: String(id),
+
+    invoiceNumber: String(invoiceNumber),
+
+    weeklyBillId:
+      weeklyBillId !== null && weeklyBillId !== undefined && weeklyBillId !== ''
+        ? String(weeklyBillId)
+        : null,
+
+    status,
+
+    paid,
+
+    overdue,
+
+    totalAmount,
+
+    paidAmount,
+
+    balanceAmount,
+
+    currency: String(
+      firstValue(
+        rawInvoice?.currency,
+        rawInvoice?.currency_code,
+        rawInvoice?.currencyCode,
+        'AUD',
+      ),
+    ).toUpperCase(),
+
+    startDate,
+
+    endDate,
+
+    dueDate,
+
+    createdAt,
+
+    paidAt,
+
+    paymentMethod: String(
+      firstValue(
+        rawInvoice?.payment_method,
+        rawInvoice?.paymentMethod,
+        rawInvoice?.payment_type,
+        rawInvoice?.paymentType,
+        '',
+      ),
+    ),
+
+    orders,
+
+    raw: rawInvoice,
+  };
+};
+
+/* =========================================================
+ * GROUPING DATE
+ * ========================================================= */
+
+const getGroupingDate = invoice =>
+  safeDate(invoice?.startDate) ??
+  safeDate(invoice?.createdAt) ??
+  safeDate(invoice?.endDate) ??
+  safeDate(invoice?.dueDate);
+
+/* =========================================================
+ * CREATE WHOLE WEEK INVOICE
+ * ========================================================= */
+
+const createWeeklyInvoice = (weekKey, weekRange, invoices) => {
+  if (!invoices.length) {
+    return null;
+  }
+
+  const sourceInvoiceIds = [...new Set(invoices.map(item => String(item.id)))];
+
+  const weeklyBillIds = [
+    ...new Set(
+      invoices
+        .map(item => item.weeklyBillId)
+        .filter(value => value !== null && value !== undefined && value !== '')
+        .map(String),
+    ),
+  ];
+
+  /*
+   * Payment API can only use one real weekly bill ID.
+   * Never silently choose one ID when a grouped week
+   * contains multiple different IDs.
+   */
+  const paymentBillId =
+    weeklyBillIds.length === 1
+      ? weeklyBillIds[0]
+      : invoices.length === 1 && invoices[0].weeklyBillId
+      ? String(invoices[0].weeklyBillId)
+      : null;
+
+  /*
+   * When invoices are grouped by weekly_bill_id there is no
+   * pre-computed Monday-Sunday range to fall back on. Derive the
+   * display period directly from the invoices themselves so it
+   * still represents exactly what this bill covers.
+   */
+  const derivedRange =
+    weekRange ??
+    (() => {
+      const starts = invoices
+        .map(item => safeDate(item.startDate))
+        .filter(Boolean);
+
+      const ends = invoices.map(item => safeDate(item.endDate)).filter(Boolean);
+
+      return {
+        start: starts.length
+          ? new Date(Math.min(...starts.map(date => date.getTime())))
+          : null,
+
+        end: ends.length
+          ? new Date(Math.max(...ends.map(date => date.getTime())))
+          : null,
+      };
+    })();
+
+  const totalAmount = invoices.reduce(
+    (sum, item) => sum + parseMoney(item.totalAmount),
+
+    0,
+  );
+
+  const paidAmount = invoices.reduce(
+    (sum, item) => sum + parseMoney(item.paidAmount),
+
+    0,
+  );
+
+  const balanceAmount = invoices.reduce(
+    (sum, item) => sum + (item.paid ? 0 : parseMoney(item.balanceAmount)),
+
+    0,
+  );
+
+  const paid = balanceAmount <= 0 || invoices.every(item => item.paid);
+
+  const overdue = !paid && invoices.some(item => item.overdue);
+
+  const orders = [];
+
+  invoices.forEach(item => {
+    if (Array.isArray(item.orders) && item.orders.length) {
+      orders.push(...item.orders);
+
+      return;
+    }
+
+    orders.push({
+      id: item.id,
+
+      order_id: firstValue(item.raw?.order_id, item.raw?.orderId, item.id),
+
+      order_number: firstValue(
+        item.raw?.order_number,
+        item.raw?.order_no,
+        item.id,
+      ),
+
+      name: firstValue(
+        item.raw?.tiffin_name,
+        item.raw?.name,
+        item.raw?.tiffin?.name,
+        'Tiffin Order',
+      ),
+
+      quantity: Number(firstValue(item.raw?.quantity, item.raw?.qty, 1)) || 1,
+
+      total_amount: item.totalAmount,
+
+      total: item.totalAmount,
+
+      created_at: item.createdAt,
+    });
+  });
+
+  const dueDates = invoices.map(item => safeDate(item.dueDate)).filter(Boolean);
+
+  const paidDates = invoices.map(item => safeDate(item.paidAt)).filter(Boolean);
+
+  const createdDates = invoices
+    .map(item => safeDate(item.createdAt))
+    .filter(Boolean);
+
+  const dueDate = dueDates.length
+    ? new Date(Math.max(...dueDates.map(date => date.getTime())))
+    : null;
+
+  const paidAt = paidDates.length
+    ? new Date(Math.max(...paidDates.map(date => date.getTime())))
+    : null;
+
+  const createdAt = createdDates.length
+    ? new Date(Math.max(...createdDates.map(date => date.getTime())))
+    : derivedRange.end;
+
+  return {
+    id: paymentBillId ?? `weekly-${weekKey}`,
+
+    invoiceNumber:
+      paymentBillId && invoices.length === 1
+        ? invoices[0].invoiceNumber
+        : paymentBillId
+        ? `BILL-${paymentBillId}`
+        : `WEEK-${weekKey}`,
+
+    weeklyBillId: paymentBillId,
+
+    paymentBillId,
+
+    weeklyBillIds,
+
+    sourceInvoiceIds,
+
+    sourceInvoiceCount: invoices.length,
+
+    sourceInvoices: invoices.map(item => ({
+      id: item.id,
+
+      invoiceNumber: item.invoiceNumber,
+
+      weeklyBillId: item.weeklyBillId,
+
+      totalAmount: item.totalAmount,
+
+      paidAmount: item.paidAmount,
+
+      balanceAmount: item.balanceAmount,
+
+      paid: item.paid,
+
+      overdue: item.overdue,
+
+      status: item.status,
+
+      startDate: item.startDate,
+
+      endDate: item.endDate,
+
+      dueDate: item.dueDate,
+
+      createdAt: item.createdAt,
+
+      currency: item.currency,
+
+      orders: item.orders,
+    })),
+
+    status: paid ? 'Paid' : overdue ? 'Overdue' : 'Payment Due',
+
+    paid,
+
+    overdue,
+
+    totalAmount: Number(totalAmount.toFixed(2)),
+
+    paidAmount: Number(paidAmount.toFixed(2)),
+
+    balanceAmount: Number(balanceAmount.toFixed(2)),
+
+    currency: invoices.find(item => item.currency)?.currency ?? 'AUD',
+
+    startDate: derivedRange.start,
+
+    endDate: derivedRange.end,
+
+    dueDate,
+
+    createdAt,
+
+    paidAt,
+
+    paymentMethod:
+      invoices.find(item => item.paymentMethod)?.paymentMethod ?? '',
+
+    orderCount: orders.length,
+
+    orders,
+
+    isWeeklyInvoice: true,
+  };
+};
+
+/* =========================================================
+ * GROUP ALL INVOICES BY THEIR WEEKLY BILL
+ * ========================================================= */
+
+/*
+ * IMPORTANT:
+ * PaymentDetails charges by summing every invoice that shares the
+ * same weekly_bill_id, with no date-range restriction. If this
+ * screen grouped invoices by a client-guessed Monday-Sunday date
+ * window instead, the total shown here could disagree with the
+ * total PaymentDetails actually charges through Stripe for the same
+ * bill. Group by weekly_bill_id first so both screens always sum
+ * the exact same set of invoices. Only fall back to date-based
+ * grouping for invoices that have no weekly_bill_id at all.
+ */
+const groupInvoicesByWeek = invoices => {
+  const groups = {};
+
+  invoices.forEach((invoice, index) => {
+    const billId =
+      invoice.weeklyBillId !== null &&
+      invoice.weeklyBillId !== undefined &&
+      invoice.weeklyBillId !== ''
+        ? String(invoice.weeklyBillId)
+        : null;
+
+    let key;
+
+    let range = null;
+
+    if (billId) {
+      key = `bill-${billId}`;
+    } else {
+      const groupingDate = getGroupingDate(invoice);
+
+      range = groupingDate ? getWeekRange(groupingDate) : null;
+
+      key = range?.key ?? `unknown-${invoice.id ?? index}`;
+    }
+
+    if (!groups[key]) {
+      groups[key] = {
+        range,
+
+        invoices: [],
+      };
+    }
+
+    groups[key].invoices.push(invoice);
+  });
+
+  return Object.entries(groups)
+    .map(([key, group]) => createWeeklyInvoice(key, group.range, group.invoices))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aTime = safeDate(a.endDate)?.getTime() ?? 0;
+
+      const bTime = safeDate(b.endDate)?.getTime() ?? 0;
+
+      return bTime - aTime;
+    });
 };
 
 /* =========================================================
  * ORDER HELPERS
  * ========================================================= */
 
-const getOrderDate = order => {
-  const rawDate =
-    order?.date ??
-    order?.order_date ??
-    order?.ordered_at ??
-    order?.created_at ??
-    order?.createdAt ??
-    null;
-
-  if (!rawDate) {
-    return null;
-  }
-
-  const parsedDate =
-    new Date(rawDate);
-
-  if (
-    Number.isNaN(
-      parsedDate.getTime(),
-    )
-  ) {
-    return null;
-  }
-
-  return parsedDate;
-};
-
 const getOrderId = order =>
-  order?.id ??
-  order?.order_id ??
-  order?.orderId ??
-  '';
-
-const getInvoiceNumber = (
-  order,
-  index,
-) => {
-  const invoiceNumber =
-    order?.invoice_number ??
-    order?.invoice_no ??
-    order?.invoiceNumber ??
-    order?.order_number ??
-    order?.order_no ??
-    getOrderId(order);
-
-  if (
-    invoiceNumber !== null &&
-    invoiceNumber !== undefined &&
-    invoiceNumber !== ''
-  ) {
-    const value =
-      String(invoiceNumber);
-
-    return value.startsWith('#')
-      ? value
-      : `#${value}`;
-  }
-
-  return `#INV-${String(
-    index + 1,
-  ).padStart(
-    3,
-    '0',
-  )}`;
-};
+  firstValue(
+    order?.order_number,
+    order?.order_no,
+    order?.order_id,
+    order?.orderId,
+    order?.id,
+    '—',
+  );
 
 const getOrderName = order =>
-  order?.tiffin ??
-  order?.tiffin_name ??
-  order?.name ??
-  order?.product_name ??
-  'Tiffin Order';
-
-const getOrderQuantity = order => {
-  const quantity =
-    Number(
-      order?.quantity ??
-        order?.qty ??
-        1,
-    );
-
-  return Number.isFinite(
-    quantity,
-  )
-    ? quantity
-    : 1;
-};
-
-const getOrderAmount = order => {
-  const amount =
-    Number(
-      order?.amount ??
-        order?.total_amount ??
-        order?.total ??
-        order?.grand_total ??
-        order?.price ??
-        0,
-    );
-
-  return Number.isFinite(
-    amount,
-  )
-    ? amount
-    : 0;
-};
-
-const getPaymentStatus = order =>
-  order?.payment_status ??
-  order?.paymentStatus ??
-  order?.status ??
-  'Pending';
-
-const isOrderPaid = order => {
-  const status =
-    String(
-      getPaymentStatus(
-        order,
-      ),
-    )
-      .trim()
-      .toLowerCase();
-
-  return (
-    status === 'paid' ||
-    status ===
-      'payment completed' ||
-    status ===
-      'payment complete' ||
-    status ===
-      'completed' ||
-    status ===
-      'success'
+  firstValue(
+    order?.tiffin_name,
+    order?.tiffin?.name,
+    order?.product_name,
+    order?.product?.name,
+    order?.name,
+    'Tiffin Order',
   );
-};
 
-const sortOrdersNewestFirst =
-  orders => {
-    return [...orders].sort(
-      (
-        first,
-        second,
-      ) => {
-        const firstDate =
-          getOrderDate(
-            first,
-          );
+const getOrderQuantity = order =>
+  Number(firstValue(order?.quantity, order?.qty, 1)) || 1;
 
-        const secondDate =
-          getOrderDate(
-            second,
-          );
-
-        if (
-          !firstDate &&
-          !secondDate
-        ) {
-          return 0;
-        }
-
-        if (!firstDate) {
-          return 1;
-        }
-
-        if (!secondDate) {
-          return -1;
-        }
-
-        return (
-          secondDate.getTime() -
-          firstDate.getTime()
-        );
-      },
-    );
-  };
+const getOrderAmount = order =>
+  parseMoney(
+    firstValue(
+      order?.total_amount,
+      order?.grand_total,
+      order?.line_total,
+      order?.amount,
+      order?.total,
+      order?.price,
+      0,
+    ),
+  );
 
 /* =========================================================
- * SCREEN
+ * MAIN COMPONENT
  * ========================================================= */
 
-const WeeklyInvoice = ({
-  navigation,
-  route,
-}) => {
-  const {
-    width,
-  } =
-    useWindowDimensions();
+const WeeklyInvoice = ({ navigation }) => {
+  const { width } = useWindowDimensions();
 
-  /* =======================================================
-   * STATE
-   * ======================================================= */
+  const [invoices, setInvoices] = useState([]);
 
-  const [
-    orders,
-    setOrders,
-  ] =
-    useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(false);
+  const [error, setError] = useState('');
 
-  const [
-    paymentLoading,
-    setPaymentLoading,
-  ] =
-    useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('all');
 
-  const [
-    error,
-    setError,
-  ] =
-    useState(null);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
 
-  const [
-    filterModalVisible,
-    setFilterModalVisible,
-  ] =
-    useState(false);
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState(null);
 
-  const [
-    selectedFilter,
-    setSelectedFilter,
-  ] =
-    useState('all');
+  const [paymentAlertVisible, setPaymentAlertVisible] = useState(false);
 
-  /* =======================================================
-   * RESPONSIVE
-   * ======================================================= */
+  const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState(null);
 
-  const responsive =
-    useMemo(
-      () => ({
-        width:
-          width >= 768
-            ? Math.min(
-                width,
-                720,
-              )
-            : width,
+  const responsive = useMemo(
+    () => ({
+      width: width >= 768 ? Math.min(width, 720) : width,
 
-        padding:
-          width >= 768
-            ? 24
-            : width <= 360
-              ? 12
-              : 16,
-      }),
-      [width],
-    );
+      padding: width >= 768 ? 24 : width <= 360 ? 12 : 16,
+    }),
 
-  /* =======================================================
-   * WEEK
-   * ======================================================= */
+    [width],
+  );
 
-  const lastWeekRange =
-    useMemo(
-      () =>
-        getLastWeekRange(),
-      [],
-    );
-
-  /* =======================================================
-   * FETCH ORDERS
-   * ======================================================= */
-
-  const fetchOrders =
-    async (
-      showLoader =
-        true,
-    ) => {
+  const fetchInvoices = useCallback(
+    async (showLoader = true) => {
       try {
         if (showLoader) {
           setLoading(true);
         }
 
-        setError(null);
+        setError('');
 
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
+        const token = await getCustomerToken();
 
         if (!token) {
-          Alert.alert(
-            'Login Required',
-            'Please login to view your invoices.',
+          throw new Error(
+            'Your login session has expired. Please login again.',
           );
+        }
 
-          navigation.navigate(
-            'Login',
-            {
-              redirectTo:
-                'WeeklyInvoice',
+        const response = await fetch(
+          `${CUSTOMER_INVOICES_API}?_=${Date.now()}`,
+
+          {
+            method: 'GET',
+
+            headers: {
+              Accept: 'application/json',
+
+              Authorization: `Bearer ${token}`,
+
+              'Cache-Control': 'no-cache',
+
+              Pragma: 'no-cache',
             },
-          );
+          },
+        );
 
-          return;
-        }
+        const result = await readJsonResponse(response);
 
-        /* NAVIGATION ORDERS */
-
-        const navigationOrders =
-          route?.params
-            ?.orders;
-
-        if (
-          Array.isArray(
-            navigationOrders,
-          )
-        ) {
-          setOrders(
-            navigationOrders,
-          );
-
-          return;
-        }
-
-        /* CACHED ORDERS */
-
-        const storedOrders =
-          await AsyncStorage.getItem(
-            WEEKLY_ORDERS_STORAGE_KEY,
-          );
-
-        if (storedOrders) {
-          const parsedOrders =
-            JSON.parse(
-              storedOrders,
-            );
-
-          if (
-            Array.isArray(
-              parsedOrders,
-            )
-          ) {
-            setOrders(
-              parsedOrders,
-            );
-
-            return;
-          }
-        }
-
-        /*
-         * Add your real invoice API here
-         * when backend endpoint is available.
-         */
-
-        setOrders([]);
-      } catch (err) {
         console.log(
-          'WEEKLY INVOICE ERROR:',
-          err,
+          'WEEKLY INVOICE API RESPONSE:',
+
+          JSON.stringify(result, null, 2),
         );
 
-        setError(
-          err?.message ??
-            'Unable to load your invoices.',
-        );
-      } finally {
-        if (showLoader) {
-          setLoading(false);
+        if (!response.ok || result?.success === false) {
+          throw new Error(
+            result?.message ?? result?.error ?? 'Unable to retrieve invoices.',
+          );
         }
+
+        const normalized = extractInvoicesArray(result)
+          .map((invoice, index) => normalizeInvoice(invoice, index))
+          .filter(Boolean);
+
+        const grouped = groupInvoicesByWeek(normalized);
+
+        console.log(
+          'WEEKLY INVOICE NORMALIZED:',
+
+          JSON.stringify(
+            grouped.map(item => ({
+              id: item.id,
+
+              paymentBillId: item.paymentBillId,
+
+              weeklyBillIds: item.weeklyBillIds,
+
+              sourceInvoiceIds: item.sourceInvoiceIds,
+
+              totalAmount: item.totalAmount,
+
+              balanceAmount: item.balanceAmount,
+
+              paid: item.paid,
+
+              overdue: item.overdue,
+            })),
+
+            null,
+
+            2,
+          ),
+        );
+
+        setInvoices(grouped);
+      } catch (err) {
+        console.log('WEEKLY INVOICE ERROR:', err);
+
+        setInvoices([]);
+
+        setError(err?.message ?? 'Unable to load your weekly invoices.');
+      } finally {
+        setLoading(false);
 
         setRefreshing(false);
       }
-    };
+    },
 
-  /* =======================================================
-   * SCREEN FOCUS
-   * ======================================================= */
-
-  useFocusEffect(
-    useCallback(
-      () => {
-        fetchOrders();
-      },
-      [
-        route?.params
-          ?.orders,
-      ],
-    ),
+    [],
   );
 
-  /* =======================================================
-   * ORDER GROUPS
-   * ======================================================= */
+  useFocusEffect(
+    useCallback(() => {
+      fetchInvoices(true);
 
-  const allOrders =
-    useMemo(
-      () =>
-        sortOrdersNewestFirst(
-          orders,
-        ),
-      [orders],
-    );
+      return () => {};
+    }, [fetchInvoices]),
+  );
 
-  const lastWeekOrders =
-    useMemo(
-      () => {
-        const {
-          start,
-          end,
-        } =
-          lastWeekRange;
+  const paidInvoices = useMemo(
+    () => invoices.filter(item => item.paid),
 
-        return sortOrdersNewestFirst(
-          orders.filter(
-            order => {
-              const orderDate =
-                getOrderDate(
-                  order,
-                );
+    [invoices],
+  );
 
-              if (!orderDate) {
-                return false;
-              }
+  const unpaidInvoices = useMemo(
+    () =>
+      invoices.filter(item => !item.paid && parseMoney(item.balanceAmount) > 0),
 
-              return (
-                orderDate >=
-                  start &&
-                orderDate <
-                  end
-              );
-            },
-          ),
-        );
-      },
-      [
-        orders,
-        lastWeekRange,
-      ],
-    );
+    [invoices],
+  );
 
-  const paidOrders =
-    useMemo(
-      () =>
-        allOrders.filter(
-          isOrderPaid,
-        ),
-      [allOrders],
-    );
+  const overdueInvoices = useMemo(
+    () => invoices.filter(item => item.overdue),
 
-  const dueOrders =
-    useMemo(
-      () =>
-        allOrders.filter(
-          order =>
-            !isOrderPaid(
-              order,
-            ),
-        ),
-      [allOrders],
-    );
+    [invoices],
+  );
 
-  /* =======================================================
-   * FILTER DATA
-   * ======================================================= */
+  const filteredInvoices = useMemo(() => {
+    if (selectedFilter === 'paid') {
+      return paidInvoices;
+    }
 
-  const filteredOrders =
-    useMemo(
-      () => {
-        switch (
-          selectedFilter
-        ) {
-          case 'last_week':
-            return lastWeekOrders;
+    if (selectedFilter === 'unpaid') {
+      return unpaidInvoices;
+    }
 
-          case 'paid':
-            return paidOrders;
+    if (selectedFilter === 'overdue') {
+      return overdueInvoices;
+    }
 
-          case 'due':
-            return dueOrders;
-
-          case 'all':
-          default:
-            return allOrders;
-        }
-      },
-      [
-        selectedFilter,
-        allOrders,
-        lastWeekOrders,
-        paidOrders,
-        dueOrders,
-      ],
-    );
+    return invoices;
+  }, [selectedFilter, invoices, paidInvoices, unpaidInvoices, overdueInvoices]);
 
   const selectedFilterData =
-    useMemo(
-      () =>
-        FILTER_OPTIONS.find(
-          item =>
-            item.id ===
-            selectedFilter,
-        ) ??
-        FILTER_OPTIONS[0],
-      [selectedFilter],
-    );
+    FILTER_OPTIONS.find(item => item.id === selectedFilter) ??
+    FILTER_OPTIONS[0];
 
-  /* =======================================================
-   * TOTALS
-   * ======================================================= */
+  const totalAmount = useMemo(
+    () =>
+      invoices.reduce(
+        (sum, item) => sum + parseMoney(item.totalAmount),
 
-  const totalInvoiceAmount =
-    useMemo(
-      () =>
-        allOrders.reduce(
-          (
-            total,
-            order,
-          ) =>
-            total +
-            getOrderAmount(
-              order,
-            ),
-          0,
-        ),
-      [allOrders],
-    );
+        0,
+      ),
 
-  const totalPaidAmount =
-    useMemo(
-      () =>
-        paidOrders.reduce(
-          (
-            total,
-            order,
-          ) =>
-            total +
-            getOrderAmount(
-              order,
-            ),
-          0,
-        ),
-      [paidOrders],
-    );
+    [invoices],
+  );
 
-  const totalDueAmount =
-    useMemo(
-      () =>
-        dueOrders.reduce(
-          (
-            total,
-            order,
-          ) =>
-            total +
-            getOrderAmount(
-              order,
-            ),
-          0,
-        ),
-      [dueOrders],
-    );
+  const paidAmount = useMemo(
+    () =>
+      invoices.reduce(
+        (sum, item) => sum + parseMoney(item.paidAmount),
 
-  const lastWeekTotal =
-    useMemo(
-      () =>
-        lastWeekOrders.reduce(
-          (
-            total,
-            order,
-          ) =>
-            total +
-            getOrderAmount(
-              order,
-            ),
-          0,
-        ),
-      [lastWeekOrders],
-    );
+        0,
+      ),
 
-  const lastWeekPaidTotal =
-    useMemo(
-      () =>
-        lastWeekOrders.reduce(
-          (
-            total,
-            order,
-          ) => {
-            if (
-              !isOrderPaid(
-                order,
-              )
-            ) {
-              return total;
-            }
+    [invoices],
+  );
 
-            return (
-              total +
-              getOrderAmount(
-                order,
-              )
-            );
+  const dueAmount = useMemo(
+    () =>
+      invoices.reduce(
+        (sum, item) => sum + (item.paid ? 0 : parseMoney(item.balanceAmount)),
+
+        0,
+      ),
+
+    [invoices],
+  );
+
+  const openPayBill = invoice => {
+    if (
+      !invoice ||
+      invoice.paid ||
+      isCurrentWeekInvoice(invoice) ||
+      parseMoney(invoice.balanceAmount) <= 0
+    ) {
+      return;
+    }
+
+    /*
+     * If a grouped week has multiple rows but no one
+     * shared weekly_bill_id, PaymentDetails must not
+     * guess an invoice ID as the weekly bill ID.
+     */
+    if (!invoice.paymentBillId && (invoice.sourceInvoiceIds?.length ?? 0) > 1) {
+      setSelectedPaymentInvoice(invoice);
+
+      setPaymentAlertVisible(true);
+
+      return;
+    }
+
+    setSelectedPaymentInvoice(invoice);
+
+    setPaymentAlertVisible(true);
+  };
+
+  const continueToPayment = () => {
+    const invoice = selectedPaymentInvoice;
+
+    if (!invoice || isCurrentWeekInvoice(invoice)) {
+      setPaymentAlertVisible(false);
+
+      setSelectedPaymentInvoice(null);
+
+      return;
+    }
+
+    /*
+     * Never navigate to payment for a multi-row week
+     * when the API did not provide one shared weekly bill ID.
+     */
+    if (!invoice.paymentBillId && (invoice.sourceInvoiceIds?.length ?? 0) > 1) {
+      return;
+    }
+
+    setPaymentAlertVisible(false);
+
+    setSelectedPaymentInvoice(null);
+
+    setTimeout(
+      () => {
+        navigation.navigate(
+          'PaymentDetails',
+
+          {
+            weeklyPayment: true,
+
+            invoiceId: invoice.id,
+
+            invoiceNumber: invoice.invoiceNumber,
+
+            paymentBillId: invoice.paymentBillId ?? null,
+
+            weeklyBillId: invoice.paymentBillId ?? null,
+
+            weeklyBillIds: invoice.weeklyBillIds ?? [],
+
+            sourceInvoiceIds: invoice.sourceInvoiceIds ?? [],
+
+            sourceInvoiceCount: invoice.sourceInvoiceCount ?? 1,
+
+            sourceInvoices: invoice.sourceInvoices ?? [],
+
+            orders: invoice.orders ?? [],
+
+            /*
+             * These values are only a display/fallback snapshot.
+             * PaymentDetails will replace them with the live
+             * /customer/invoices values when available.
+             */
+            totalAmount: parseMoney(invoice.totalAmount),
+
+            paidAmount: parseMoney(invoice.paidAmount),
+
+            balanceAmount: parseMoney(invoice.balanceAmount),
+
+            currency: invoice.currency ?? 'AUD',
+
+            status: invoice.status,
+
+            overdue: Boolean(invoice.overdue),
+
+            startDate: invoice.startDate,
+
+            endDate: invoice.endDate,
+
+            dueDate: invoice.dueDate,
+
+            createdAt: invoice.createdAt,
+
+            source: 'WeeklyInvoice',
           },
-          0,
-        ),
-      [lastWeekOrders],
+        );
+      },
+
+      100,
     );
+  };
 
-  const lastWeekUnpaidOrders =
-    useMemo(
-      () =>
-        lastWeekOrders.filter(
-          order =>
-            !isOrderPaid(
-              order,
-            ),
-        ),
-      [lastWeekOrders],
-    );
+  const renderInvoice = ({ item }) => {
+    const expanded = expandedInvoiceId === item.id;
 
-  const lastWeekAmountDue =
-    Math.max(
-      0,
-      lastWeekTotal -
-        lastWeekPaidTotal,
-    );
+    const isCurrentWeek = isCurrentWeekInvoice(item);
 
-  /* =======================================================
-   * REFRESH
-   * ======================================================= */
+    const canPay =
+      !item.paid && !isCurrentWeek && parseMoney(item.balanceAmount) > 0;
 
-  const onRefresh =
-    () => {
-      setRefreshing(true);
-
-      fetchOrders(false);
-    };
-
-  /* =======================================================
-   * FILTER
-   * ======================================================= */
-
-  const handleFilterSelect =
-    filterId => {
-      setSelectedFilter(
-        filterId,
-      );
-
-      setFilterModalVisible(
-        false,
-      );
-    };
-
-  /* =======================================================
-   * PAY LAST WEEK
-   * ======================================================= */
-
-  const handlePayLastWeek =
-    async () => {
-      if (
-        paymentLoading
-      ) {
-        return;
-      }
-
-      if (
-        lastWeekOrders.length ===
-        0
-      ) {
-        Alert.alert(
-          'No Invoice',
-          'There are no orders in last week’s invoice.',
-        );
-
-        return;
-      }
-
-      if (
-        lastWeekUnpaidOrders.length ===
-          0 ||
-        lastWeekAmountDue <=
-          0
-      ) {
-        Alert.alert(
-          'Already Paid',
-          'Last week’s invoice is already fully paid.',
-        );
-
-        return;
-      }
-
-      try {
-        setPaymentLoading(
-          true,
-        );
-
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
-
-        if (!token) {
-          Alert.alert(
-            'Login Required',
-            'Please login before making payment.',
-          );
-
-          navigation.navigate(
-            'Login',
-          );
-
-          return;
-        }
-
-        const orderIds =
-          lastWeekUnpaidOrders.map(
-            order =>
-              getOrderId(
-                order,
-              ),
-          );
-
-        console.log(
-          'LAST WEEK UNPAID ORDER IDS:',
-          orderIds,
-        );
-
-        console.log(
-          'LAST WEEK AMOUNT DUE:',
-          lastWeekAmountDue,
-        );
-
-        Alert.alert(
-          'Weekly Payment',
-          `Amount due: $${lastWeekAmountDue.toFixed(
-            2,
-          )}\n\n${lastWeekUnpaidOrders.length} unpaid order(s).`,
-        );
-      } catch (err) {
-        Alert.alert(
-          'Payment Error',
-          err?.message ??
-            'Unable to process weekly payment.',
-        );
-      } finally {
-        setPaymentLoading(
-          false,
-        );
-      }
-    };
-
-  /* =======================================================
-   * INVOICE CARD
-   * ======================================================= */
-
-  const renderInvoiceCard =
-    ({
-      item,
-      index,
-    }) => {
-      const orderDate =
-        getOrderDate(
-          item,
-        );
-
-      const amount =
-        getOrderAmount(
-          item,
-        );
-
-      const quantity =
-        getOrderQuantity(
-          item,
-        );
-
-      const paid =
-        isOrderPaid(
-          item,
-        );
-
-      const invoiceNumber =
-        getInvoiceNumber(
-          item,
-          index,
-        );
-
-      return (
-        <View
-          style={
-            styles.invoiceCard
-          }
-        >
-          <View
-            style={
-              styles.invoiceCardTop
-            }
-          >
-            <View
-              style={
-                styles.invoiceIcon
-              }
-            >
-              <Image
-                source={require('../assets/login-icons/invoice.png')}
-                style={
-                  styles.invoiceCardIconImage
-                }
-                resizeMode="contain"
-              />
-            </View>
-
-            <View
-              style={
-                styles.invoiceMain
-              }
-            >
-              <Text
-                style={
-                  styles.invoiceSmallLabel
-                }
-              >
-                INVOICE
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                style={
-                  styles.invoiceNumber
-                }
-              >
-                {invoiceNumber}
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                style={
-                  styles.invoiceProductName
-                }
-              >
-                {getOrderName(
-                  item,
-                )}
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.invoiceAmountArea
-              }
-            >
-              <Text
-                style={
-                  styles.invoiceAmountLabel
-                }
-              >
-                AMOUNT
-              </Text>
-
-              <Text
-                style={
-                  styles.invoiceAmount
-                }
-              >
-                $
-                {amount.toFixed(
-                  2,
-                )}
-              </Text>
-            </View>
+    return (
+      <View style={styles.invoiceCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.invoiceIcon}>
+            <Ionicons name="receipt-outline" size={22} color="#A9090D" />
           </View>
 
-          <View
-            style={
-              styles.invoiceDivider
-            }
-          />
+          <View style={styles.cardHeaderMain}>
+            <Text style={styles.eyebrow}>WEEKLY INVOICE</Text>
 
-          <View
-            style={
-              styles.invoiceMetaRow
-            }
-          >
-            <View
-              style={
-                styles.invoiceMetaItem
-              }
-            >
-              <View
-                style={
-                  styles.invoiceMetaIcon
-                }
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={16}
-                  color="#697386"
-                />
-              </View>
+            <Text style={styles.invoiceNumber}>{item.invoiceNumber}</Text>
 
-              <View
-                style={
-                  styles.invoiceMetaContent
-                }
-              >
-                <Text
-                  style={
-                    styles.invoiceMetaLabel
-                  }
-                >
-                  DATE
-                </Text>
-
-                <Text
-                  numberOfLines={1}
-                  style={
-                    styles.invoiceMetaValue
-                  }
-                >
-                  {orderDate
-                    ? formatDate(
-                        orderDate,
-                      )
-                    : 'Unavailable'}
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={
-                styles.invoiceMetaItem
-              }
-            >
-              <View
-                style={
-                  styles.invoiceMetaIcon
-                }
-              >
-                <Ionicons
-                  name="restaurant-outline"
-                  size={16}
-                  color="#697386"
-                />
-              </View>
-
-              <View
-                style={
-                  styles.invoiceMetaContent
-                }
-              >
-                <Text
-                  style={
-                    styles.invoiceMetaLabel
-                  }
-                >
-                  QUANTITY
-                </Text>
-
-                <Text
-                  style={
-                    styles.invoiceMetaValue
-                  }
-                >
-                  {quantity}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View
-            style={
-              styles.invoiceBottomRow
-            }
-          >
-            <View
-              style={[
-                styles.statusBadge,
-
-                paid
-                  ? styles.paidBadge
-                  : styles.dueBadge,
-              ]}
-            >
-              <View
-                style={[
-                  styles.statusDot,
-
-                  paid
-                    ? styles.paidDot
-                    : styles.dueDot,
-                ]}
-              />
-
-              <Text
-                style={[
-                  styles.statusText,
-
-                  paid
-                    ? styles.paidText
-                    : styles.dueText,
-                ]}
-              >
-                {paid
-                  ? 'Paid'
-                  : 'Payment Due'}
-              </Text>
-            </View>
-
-            <Text
-              style={
-                styles.orderIdText
-              }
-            >
-              Order #
-              {getOrderId(
-                item,
-              ) || '—'}
+            <Text style={styles.period}>
+              {formatDate(item.startDate)} – {formatDate(item.endDate)}
             </Text>
           </View>
-        </View>
-      );
-    };
 
-  /* =======================================================
-   * LIST HEADER
-   * ======================================================= */
+          <View style={styles.amountArea}>
+            <Text style={styles.smallLabel}>WEEK TOTAL</Text>
 
-  const renderListHeader =
-    () => (
-      <>
-        {/* ================================================= */}
-        {/* SUMMARY */}
-        {/* ================================================= */}
+            <Text style={styles.weekAmount}>
+              {formatMoney(
+                item.totalAmount,
 
-        <View
-          style={
-            styles.summarySection
-          }
-        >
-          <View
-            style={
-              styles.summaryTitleRow
-            }
-          >
-            <View>
-              <Text
-                style={
-                  styles.sectionEyebrow
-                }
-              >
-                BILLING OVERVIEW
-              </Text>
-
-              <Text
-                style={
-                  styles.sectionTitle
-                }
-              >
-                Invoice Summary
-              </Text>
-            </View>
-
-            <View
-              style={
-                styles.totalInvoiceBadge
-              }
-            >
-              <Text
-                style={
-                  styles.totalInvoiceBadgeNumber
-                }
-              >
-                {allOrders.length}
-              </Text>
-
-              <Text
-                style={
-                  styles.totalInvoiceBadgeText
-                }
-              >
-                INVOICES
-              </Text>
-            </View>
-          </View>
-
-          <View
-            style={
-              styles.summaryCards
-            }
-          >
-            {/* TOTAL */}
-
-            <View
-              style={
-                styles.summaryCard
-              }
-            >
-              <View
-                style={[
-                  styles.summaryIcon,
-                  styles.totalIcon,
-                ]}
-              >
-                <Image
-                  source={require('../assets/login-icons/doller-red.png')}
-                  style={
-                    styles.summaryImage
-                  }
-                  resizeMode="contain"
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.summaryLabel
-                }
-              >
-                TOTAL
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={
-                  styles.summaryAmount
-                }
-              >
-                $
-                {totalInvoiceAmount.toFixed(
-                  2,
-                )}
-              </Text>
-            </View>
-
-            {/* PAID */}
-
-            <View
-              style={
-                styles.summaryCard
-              }
-            >
-              <View
-                style={[
-                  styles.summaryIcon,
-                  styles.paidSummaryIcon,
-                ]}
-              >
-                <Image
-                  source={require('../assets/login-icons/doller-green.png')}
-                  style={
-                    styles.summaryImage
-                  }
-                  resizeMode="contain"
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.summaryLabel
-                }
-              >
-                PAID
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[
-                  styles.summaryAmount,
-                  styles.paidSummaryAmount,
-                ]}
-              >
-                $
-                {totalPaidAmount.toFixed(
-                  2,
-                )}
-              </Text>
-            </View>
-
-            {/* DUE */}
-
-            <View
-              style={
-                styles.summaryCard
-              }
-            >
-              <View
-                style={[
-                  styles.summaryIcon,
-                  styles.dueSummaryIcon,
-                ]}
-              >
-                <Image
-                  source={require('../assets/login-icons/doller-orange.png')}
-                  style={
-                    styles.summaryImage
-                  }
-                  resizeMode="contain"
-                />
-              </View>
-
-              <Text
-                style={
-                  styles.summaryLabel
-                }
-              >
-                DUE
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                style={[
-                  styles.summaryAmount,
-                  styles.dueSummaryAmount,
-                ]}
-              >
-                $
-                {totalDueAmount.toFixed(
-                  2,
-                )}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ================================================= */}
-        {/* LAST WEEK */}
-        {/* ================================================= */}
-
-        {lastWeekOrders.length >
-          0 && (
-          <View
-            style={
-              styles.lastWeekCard
-            }
-          >
-            <View
-              style={
-                styles.lastWeekTop
-              }
-            >
-              <View
-                style={
-                  styles.lastWeekCalendar
-                }
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={22}
-                  color="#FFFFFF"
-                />
-              </View>
-
-              <View
-                style={
-                  styles.lastWeekContent
-                }
-              >
-                <Text
-                  style={
-                    styles.lastWeekLabel
-                  }
-                >
-                  LAST WEEK INVOICE
-                </Text>
-
-                <Text
-                  style={
-                    styles.lastWeekDate
-                  }
-                >
-                  {formatShortDate(
-                    lastWeekRange.start,
-                  )}
-                  {' — '}
-                  {formatShortDate(
-                    lastWeekRange.end,
-                  )}
-                </Text>
-
-                <Text
-                  style={
-                    styles.lastWeekOrderCount
-                  }
-                >
-                  {lastWeekOrders.length}{' '}
-                  {lastWeekOrders.length ===
-                  1
-                    ? 'order'
-                    : 'orders'}
-                </Text>
-              </View>
-
-              <View
-                style={
-                  styles.lastWeekAmountArea
-                }
-              >
-                <Text
-                  style={
-                    styles.lastWeekAmountLabel
-                  }
-                >
-                  DUE
-                </Text>
-
-                <Text
-                  style={
-                    styles.lastWeekAmount
-                  }
-                >
-                  $
-                  {lastWeekAmountDue.toFixed(
-                    2,
-                  )}
-                </Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={
-                paymentLoading ||
-                lastWeekAmountDue <=
-                  0
-              }
-              onPress={
-                handlePayLastWeek
-              }
-              style={[
-                styles.payLastWeekButton,
-
-                (paymentLoading ||
-                  lastWeekAmountDue <=
-                    0) &&
-                  styles.payLastWeekButtonDisabled,
-              ]}
-            >
-              {paymentLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#A9090D"
-                />
-              ) : (
-                <Ionicons
-                  name={
-                    lastWeekAmountDue >
-                    0
-                      ? 'card-outline'
-                      : 'checkmark-circle-outline'
-                  }
-                  size={18}
-                  color={
-                    lastWeekAmountDue >
-                    0
-                      ? '#A9090D'
-                      : '#23834B'
-                  }
-                />
+                item.currency,
               )}
-
-              <Text
-                style={[
-                  styles.payLastWeekText,
-
-                  lastWeekAmountDue <=
-                    0 &&
-                    styles.paidLastWeekText,
-                ]}
-              >
-                {paymentLoading
-                  ? 'Please Wait'
-                  : lastWeekAmountDue >
-                      0
-                    ? 'Pay Last Week Invoice'
-                    : 'Last Week Paid'}
-              </Text>
-            </TouchableOpacity>
+            </Text>
           </View>
-        )}
+        </View>
 
-        {/* ================================================= */}
-        {/* INVOICE HISTORY */}
-        {/* ================================================= */}
-
-        <View
-          style={
-            styles.invoiceListHeader
-          }
-        >
+        <View style={styles.statusRow}>
           <View
-            style={
-              styles.invoiceListTitleArea
-            }
-          >
-            <Text
-              style={
-                styles.sectionEyebrow
-              }
-            >
-              INVOICE HISTORY
-            </Text>
+            style={[
+              styles.statusBadge,
 
-            <Text
-              style={
-                styles.sectionTitle
-              }
-            >
-              Your Invoices
-            </Text>
-
-            <Text
-              style={
-                styles.invoiceListSubtitle
-              }
-            >
-              {filteredOrders.length}{' '}
-              {filteredOrders.length ===
-              1
-                ? 'invoice'
-                : 'invoices'}{' '}
-              found
-            </Text>
-          </View>
-
-          <Pressable
-            onPress={() =>
-              setFilterModalVisible(
-                true,
-              )
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.filterButton,
-
-              pressed &&
-                styles.filterButtonPressed,
+              item.paid
+                ? styles.paidBadge
+                : item.overdue
+                ? styles.overdueBadge
+                : styles.dueBadge,
             ]}
           >
             <Text
-              numberOfLines={1}
-              style={
-                styles.filterButtonText
-              }
-            >
-              {selectedFilterData.title}
-            </Text>
+              style={[
+                styles.statusText,
 
-            <Text
-              style={
-                styles.filterArrow
-              }
+                item.paid
+                  ? styles.paidText
+                  : item.overdue
+                  ? styles.overdueText
+                  : styles.dueText,
+              ]}
             >
-              ▾
+              {item.paid
+                ? 'Paid'
+                : item.overdue
+                ? 'Overdue'
+                : isCurrentWeek
+                ? 'Current Week'
+                : 'Payment Due'}
             </Text>
-          </Pressable>
+          </View>
+
+          <Text style={styles.weekLabel}>Monday – Sunday</Text>
         </View>
 
-        {selectedFilter !==
-          'all' && (
-          <View
-            style={
-              styles.activeFilterRow
-            }
-          >
-            <View
-              style={
-                styles.activeFilterChip
-              }
-            >
-              <Text
-                style={
-                  styles.activeFilterText
-                }
-              >
-                {selectedFilterData.title}
-              </Text>
+        <View style={styles.divider} />
 
-              <Pressable
-                hitSlop={10}
-                onPress={() =>
-                  setSelectedFilter(
-                    'all',
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.activeFilterClose
-                  }
-                >
-                  ×
-                </Text>
-              </Pressable>
+        <InfoLine label="Orders / Tiffins" value={String(item.orderCount)} />
+
+        <InfoLine label="Generated" value={formatDate(item.createdAt)} />
+
+        <InfoLine label="Due Date" value={formatDate(item.dueDate)} />
+
+        <InfoLine
+          label="Weekly Bill ID"
+          value={
+            item.paymentBillId
+              ? String(item.paymentBillId)
+              : 'Not returned by API'
+          }
+        />
+
+        <View style={styles.divider} />
+
+        <AmountLine
+          label="Weekly Total"
+          value={formatMoney(
+            item.totalAmount,
+
+            item.currency,
+          )}
+        />
+
+        <AmountLine
+          label="Amount Paid"
+          value={formatMoney(
+            item.paidAmount,
+
+            item.currency,
+          )}
+          type="paid"
+        />
+
+        <AmountLine
+          label="Balance Due"
+          value={formatMoney(
+            item.balanceAmount,
+
+            item.currency,
+          )}
+          type={item.balanceAmount > 0 ? 'due' : 'paid'}
+        />
+
+        {isCurrentWeek && !item.paid && parseMoney(item.balanceAmount) > 0 && (
+          <View style={styles.currentWeekNotice}>
+            <View style={styles.currentWeekIcon}>
+              <Ionicons name="time-outline" size={18} color="#A9090D" />
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
+              <Text style={styles.currentWeekTitle}>Current Billing Week</Text>
+
+              <Text style={styles.currentWeekText}>
+                Payment will be available after this Monday-to-Monday billing
+                cycle is completed.
+              </Text>
             </View>
           </View>
         )}
-      </>
-    );
 
-  /* =======================================================
-   * LOADING
-   * ======================================================= */
+        {item.orders.length > 0 && (
+          <>
+            <Pressable
+              style={styles.expandButton}
+              onPress={() => setExpandedInvoiceId(expanded ? null : item.id)}
+            >
+              <Text style={styles.expandText}>
+                {expanded
+                  ? 'Hide Weekly Orders'
+                  : `View ${item.orders.length} Orders`}
+              </Text>
+
+              <Ionicons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={17}
+                color="#A9090D"
+              />
+            </Pressable>
+
+            {expanded && (
+              <View style={styles.ordersBox}>
+                {item.orders.map((order, index) => (
+                  <View
+                    key={`${item.id}-${getOrderId(order)}-${index}`}
+                    style={styles.orderRow}
+                  >
+                    <View style={styles.orderIcon}>
+                      <Ionicons
+                        name="restaurant-outline"
+                        size={16}
+                        color="#A9090D"
+                      />
+                    </View>
+
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text style={styles.orderNumber}>
+                        Order #{String(getOrderId(order))}
+                      </Text>
+
+                      <Text style={styles.orderName}>
+                        {String(getOrderName(order))}
+                      </Text>
+
+                      <Text style={styles.orderQty}>
+                        Qty: {getOrderQuantity(order)}
+                      </Text>
+                    </View>
+
+                    <Text style={styles.orderAmount}>
+                      {formatMoney(
+                        getOrderAmount(order),
+
+                        item.currency,
+                      )}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        {canPay && (
+          <Pressable
+            style={[styles.payButton, item.overdue && styles.payButtonOverdue]}
+            onPress={() => openPayBill(item)}
+          >
+            <View style={styles.payIcon}>
+              <Ionicons
+                name={item.overdue ? 'alert-circle-outline' : 'card-outline'}
+                size={21}
+                color={item.overdue ? '#B42318' : '#A9090D'}
+              />
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+              }}
+            >
+              <Text
+                style={[
+                  styles.payTitle,
+
+                  item.overdue && {
+                    color: '#B42318',
+                  },
+                ]}
+              >
+                {item.overdue
+                  ? 'PAY OVERDUE WEEKLY BILL'
+                  : 'PAY WHOLE WEEK BILL'}
+              </Text>
+
+              <Text style={styles.paySubtitle}>
+                One payment clears all tiffins from this billing week.
+              </Text>
+            </View>
+
+            <Text
+              style={[
+                styles.payAmount,
+
+                item.overdue && {
+                  color: '#B42318',
+                },
+              ]}
+            >
+              {formatMoney(
+                item.balanceAmount,
+
+                item.currency,
+              )}
+            </Text>
+          </Pressable>
+        )}
+      </View>
+    );
+  };
 
   if (loading) {
     return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-        edges={[
-          'top',
-          'left',
-          'right',
-        ]}
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFF9F6"
-        />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
 
-        {/* HEADER */}
+        <Header navigation={navigation} />
 
-        <View
-          style={
-            styles.header
-          }
-        >
-          <Pressable
-            hitSlop={10}
-            onPress={() =>
-              navigation.goBack()
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.backButton,
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#A9090D" />
 
-              pressed &&
-                styles.backButtonPressed,
-            ]}
-          >
-            <Image
-              source={require('../assets/login-icons/back.png')}
-              style={
-                styles.backIcon
-              }
-              resizeMode="contain"
-            />
-          </Pressable>
+          <Text style={styles.loadingTitle}>Loading Weekly Invoices</Text>
 
-          <View
-            style={
-              styles.headerTextArea
-            }
-          >
-            <Text
-              style={
-                styles.headerEyebrow
-              }
-            >
-              BILLING
-            </Text>
-
-            <Text
-              style={
-                styles.headerTitle
-              }
-            >
-              Weekly Invoices
-            </Text>
-          </View>
-        </View>
-
-        <View
-          style={
-            styles.loadingContainer
-          }
-        >
-          <View
-            style={
-              styles.loadingIcon
-            }
-          >
-            <ActivityIndicator
-              size="large"
-              color="#A9090D"
-            />
-          </View>
-
-          <Text
-            style={
-              styles.loadingTitle
-            }
-          >
-            Loading Invoices
-          </Text>
-
-          <Text
-            style={
-              styles.loadingText
-            }
-          >
-            Retrieving your billing
-            history...
+          <Text style={styles.loadingSubtitle}>
+            Preparing your weekly billing details...
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  /* =======================================================
-   * MAIN UI
-   * ======================================================= */
-
   return (
-    <SafeAreaView
-      style={
-        styles.safeArea
-      }
-      edges={[
-        'top',
-        'left',
-        'right',
-      ]}
-    >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFF9F6"
-      />
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF9F6" />
 
       <View
         style={[
           styles.container,
 
           {
-            width:
-              responsive.width,
+            width: responsive.width,
           },
         ]}
       >
-        {/* ================================================= */}
-        {/* HEADER */}
-        {/* ================================================= */}
-
-        <View
-          style={
-            styles.header
-          }
-        >
-          <Pressable
-            hitSlop={10}
-            onPress={() =>
-              navigation.goBack()
-            }
-            style={({
-              pressed,
-            }) => [
-              styles.backButton,
-
-              pressed &&
-                styles.backButtonPressed,
-            ]}
-          >
-            <Image
-              source={require('../assets/login-icons/back.png')}
-              style={
-                styles.backIcon
-              }
-              resizeMode="contain"
-            />
-          </Pressable>
-
-          <View
-            style={
-              styles.headerTextArea
-            }
-          >
-            <Text
-              style={
-                styles.headerEyebrow
-              }
-            >
-              BILLING
-            </Text>
-
-            <Text
-              numberOfLines={1}
-              style={
-                styles.headerTitle
-              }
-            >
-              Weekly Invoices
-            </Text>
-          </View>
-        </View>
-
-        {/* ================================================= */}
-        {/* ERROR */}
-        {/* ================================================= */}
+        <Header navigation={navigation} />
 
         {!!error && (
           <View
@@ -1883,337 +1637,374 @@ const WeeklyInvoice = ({
               styles.errorBox,
 
               {
-                marginHorizontal:
-                  responsive.padding,
+                marginHorizontal: responsive.padding,
               },
             ]}
           >
-            <View
-              style={
-                styles.errorIcon
-              }
-            >
-              <Text
-                style={
-                  styles.errorIconText
-                }
-              >
-                !
-              </Text>
-            </View>
+            <Ionicons name="alert-circle-outline" size={20} color="#A9090D" />
 
-            <Text
-              style={
-                styles.errorText
-              }
-            >
-              {error}
-            </Text>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
 
-        {/* ================================================= */}
-        {/* LIST */}
-        {/* ================================================= */}
-
         <FlatList
-          style={
-            styles.flatList
-          }
-          data={
-            filteredOrders
-          }
-          keyExtractor={(
-            item,
-            index,
-          ) =>
-            String(
-              getOrderId(
-                item,
-              ) ||
-                index,
-            )
-          }
-          renderItem={
-            renderInvoiceCard
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
+          data={filteredInvoices}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          renderItem={renderInvoice}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={
-                refreshing
-              }
-              onRefresh={
-                onRefresh
-              }
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+
+                fetchInvoices(false);
+              }}
+              colors={['#A9090D']}
               tintColor="#A9090D"
-              colors={[
-                '#A9090D',
-              ]}
             />
           }
           contentContainerStyle={{
-            paddingHorizontal:
-              responsive.padding,
+            paddingHorizontal: responsive.padding,
 
-            paddingTop:
-              18,
+            paddingTop: 18,
 
-            paddingBottom:
-              70,
+            paddingBottom: 60,
 
             flexGrow: 1,
           }}
           ListHeaderComponent={
-            renderListHeader
-          }
-          ListEmptyComponent={
-            <View
-              style={
-                styles.emptyContainer
-              }
-            >
-              <View
-                style={
-                  styles.emptyIcon
-                }
-              >
-                <Image
-                  source={require('../assets/login-icons/invoice.png')}
-                  style={
-                    styles.emptyInvoiceIcon
-                  }
-                  resizeMode="contain"
-                />
+            <>
+              <View style={styles.summaryHeader}>
+                <View
+                  style={{
+                    flex: 1,
+                  }}
+                >
+                  <Text style={styles.eyebrow}>WEEKLY BILLING</Text>
+
+                  <Text style={styles.sectionTitle}>
+                    Weekly Invoice Summary
+                  </Text>
+
+                  <Text style={styles.summaryText}>
+                    Each Monday–Sunday period is combined into one payable
+                    weekly bill.
+                  </Text>
+                </View>
+
+                <View style={styles.weekCount}>
+                  <Text style={styles.weekCountNumber}>{invoices.length}</Text>
+
+                  <Text style={styles.weekCountLabel}>WEEKS</Text>
+                </View>
               </View>
 
-              <Text
-                style={
-                  styles.emptyTitle
-                }
-              >
-                No Invoices Found
-              </Text>
+              <View style={styles.summaryCards}>
+                <SummaryBox label="TOTAL" value={totalAmount} color="#A9090D" />
 
-              <Text
-                style={
-                  styles.emptySubtitle
-                }
-              >
-                No invoices match the
-                selected filter.
-              </Text>
+                <SummaryBox label="PAID" value={paidAmount} color="#278850" />
 
-              {selectedFilter !==
-                'all' && (
-                <Pressable
-                  onPress={() =>
-                    setSelectedFilter(
-                      'all',
-                    )
-                  }
-                  style={
-                    styles.clearFilterButton
-                  }
+                <SummaryBox label="DUE" value={dueAmount} color="#B87300" />
+              </View>
+
+              <View style={styles.billingCycleCard}>
+                <View style={styles.billingCycleIcon}>
+                  <Ionicons name="calendar-outline" size={20} color="#A9090D" />
+                </View>
+
+                <View
+                  style={{
+                    flex: 1,
+                  }}
                 >
-                  <Text
-                    style={
-                      styles.clearFilterButtonText
-                    }
-                  >
-                    Show All Invoices
+                  <Text style={styles.billingCycleTitle}>
+                    Weekly Payment Cycle
                   </Text>
+
+                  <Text style={styles.billingCycleText}>
+                    Current-week invoices are visible but cannot be paid before
+                    the billing cycle closes. Overdue bills remain available for
+                    payment.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.listHeader}>
+                <View>
+                  <Text style={styles.eyebrow}>INVOICE HISTORY</Text>
+
+                  <Text style={styles.sectionTitle}>Your Weekly Invoices</Text>
+
+                  <Text style={styles.listSubtitle}>
+                    {filteredInvoices.length}{' '}
+                    {filteredInvoices.length === 1
+                      ? 'weekly invoice'
+                      : 'weekly invoices'}
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={styles.filterButton}
+                  onPress={() => setFilterModalVisible(true)}
+                >
+                  <Text numberOfLines={1} style={styles.filterText}>
+                    {selectedFilterData.title}
+                  </Text>
+
+                  <Ionicons name="chevron-down" size={15} color="#A9090D" />
                 </Pressable>
+              </View>
+            </>
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Ionicons name="receipt-outline" size={38} color="#B9AEB2" />
+
+              <Text style={styles.emptyTitle}>No Weekly Invoices Found</Text>
+
+              <Text style={styles.emptyText}>
+                {selectedFilter === 'all'
+                  ? 'No weekly billing records are currently available.'
+                  : 'No weekly billing records match the selected filter.'}
+              </Text>
+
+              {selectedFilter !== 'all' && (
+                <TouchableOpacity
+                  style={styles.showAllButton}
+                  onPress={() => setSelectedFilter('all')}
+                >
+                  <Text style={styles.showAllButtonText}>Show All Weeks</Text>
+                </TouchableOpacity>
               )}
             </View>
           }
         />
       </View>
 
-      {/* ================================================= */}
-      {/* FILTER MODAL */}
-      {/* ================================================= */}
-
       <Modal
-        visible={
-          filterModalVisible
-        }
+        visible={paymentAlertVisible}
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() =>
-          setFilterModalVisible(
-            false,
-          )
-        }
+        onRequestClose={() => {
+          setPaymentAlertVisible(false);
+
+          setSelectedPaymentInvoice(null);
+        }}
       >
-        <View
-          style={
-            styles.modalOverlay
-          }
-        >
+        <View style={styles.modalOverlay}>
           <Pressable
-            style={
-              StyleSheet.absoluteFillObject
-            }
-            onPress={() =>
-              setFilterModalVisible(
-                false,
-              )
-            }
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => {
+              setPaymentAlertVisible(false);
+
+              setSelectedPaymentInvoice(null);
+            }}
+          />
+
+          <View style={styles.alertCard}>
+            <View
+              style={[
+                styles.alertIcon,
+
+                selectedPaymentInvoice?.overdue && {
+                  backgroundColor: '#FEE4E2',
+                },
+              ]}
+            >
+              <Ionicons
+                name={
+                  selectedPaymentInvoice?.overdue
+                    ? 'alert-circle-outline'
+                    : 'card-outline'
+                }
+                size={34}
+                color={selectedPaymentInvoice?.overdue ? '#B42318' : '#A9090D'}
+              />
+            </View>
+
+            <Text style={styles.alertEyebrow}>KP CLOUD KITCHEN</Text>
+
+            <Text style={styles.alertTitle}>
+              {selectedPaymentInvoice?.overdue
+                ? 'Overdue Weekly Payment'
+                : 'Pay Whole Week Bill'}
+            </Text>
+
+            <Text style={styles.alertDescription}>
+              This is one payment for every tiffin included in the selected
+              Monday–Sunday billing period.
+            </Text>
+
+            {!!selectedPaymentInvoice && (
+              <View style={styles.alertSummary}>
+                <InfoLine
+                  label="Billing Week"
+                  value={`${formatDate(
+                    selectedPaymentInvoice.startDate,
+                  )} – ${formatDate(selectedPaymentInvoice.endDate)}`}
+                />
+
+                <InfoLine
+                  label="Tiffin Bills"
+                  value={String(
+                    selectedPaymentInvoice.sourceInvoiceCount ??
+                      selectedPaymentInvoice.orderCount,
+                  )}
+                />
+
+                <InfoLine
+                  label="Amount Due"
+                  value={formatMoney(
+                    selectedPaymentInvoice.balanceAmount,
+
+                    selectedPaymentInvoice.currency,
+                  )}
+                  strong
+                />
+              </View>
+            )}
+
+            {!selectedPaymentInvoice?.paymentBillId &&
+              (selectedPaymentInvoice?.sourceInvoiceIds?.length ?? 0) > 1 && (
+                <View style={styles.warningBox}>
+                  <Ionicons name="warning-outline" size={18} color="#B87300" />
+
+                  <Text style={styles.warningText}>
+                    The API did not return one shared weekly_bill_id for this
+                    week. Payment is disabled because the app should never guess
+                    a bill ID or charge only one tiffin.
+                  </Text>
+                </View>
+              )}
+
+            <View style={styles.alertButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setPaymentAlertVisible(false);
+
+                  setSelectedPaymentInvoice(null);
+                }}
+              >
+                <Text style={styles.cancelText}>Not Now</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={
+                  !selectedPaymentInvoice?.paymentBillId &&
+                  (selectedPaymentInvoice?.sourceInvoiceIds?.length ?? 0) > 1
+                }
+                style={[
+                  styles.continueButton,
+
+                  selectedPaymentInvoice?.overdue && {
+                    backgroundColor: '#B42318',
+                  },
+
+                  !selectedPaymentInvoice?.paymentBillId &&
+                    (selectedPaymentInvoice?.sourceInvoiceIds?.length ?? 0) >
+                      1 && {
+                      opacity: 0.45,
+                    },
+                ]}
+                activeOpacity={0.85}
+                onPress={continueToPayment}
+              >
+                <Text style={styles.continueText}>Continue to Pay</Text>
+
+                <Ionicons name="arrow-forward" size={17} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={filterModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setFilterModalVisible(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setFilterModalVisible(false)}
           />
 
           <SafeAreaView
-            style={
-              styles.modalSafeArea
-            }
-            edges={[
-              'bottom',
-              'left',
-              'right',
-            ]}
+            style={{
+              width: '100%',
+            }}
+            edges={['bottom', 'left', 'right']}
           >
-            <View
-              style={
-                styles.filterModal
-              }
-            >
-              <View
-                style={
-                  styles.modalHandle
-                }
-              />
+            <View style={styles.filterSheet}>
+              <View style={styles.sheetHandle} />
 
-              {/* FILTER TITLE */}
+              <Text style={styles.filterTitle}>Filter Weekly Invoices</Text>
 
-              <View
-                style={
-                  styles.filterModalHeader
-                }
-              >
-                <Text
-                  style={
-                    styles.filterModalTitle
-                  }
-                >
-                  Filter Invoices
-                </Text>
+              <Text style={styles.filterSubtitle}>
+                Choose which weekly invoices you want to see.
+              </Text>
 
-                <Text
-                  style={
-                    styles.filterModalSubtitle
-                  }
-                >
-                  Choose which invoices
-                  you want to see
-                </Text>
-              </View>
+              {FILTER_OPTIONS.map(item => {
+                const active = selectedFilter === item.id;
 
-              {/* FILTER OPTIONS - NO ICONS */}
+                return (
+                  <Pressable
+                    key={item.id}
+                    style={[
+                      styles.filterOption,
 
-              <View
-                style={
-                  styles.filterOptions
-                }
-              >
-                {FILTER_OPTIONS.map(
-                  item => {
-                    const active =
-                      selectedFilter ===
-                      item.id;
+                      active && styles.filterOptionActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedFilter(item.id);
 
-                    return (
-                      <Pressable
-                        key={
-                          item.id
-                        }
-                        onPress={() =>
-                          handleFilterSelect(
-                            item.id,
-                          )
-                        }
-                        style={({
-                          pressed,
-                        }) => [
-                          styles.filterOption,
+                      setFilterModalVisible(false);
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.filterOptionTitle,
 
-                          active &&
-                            styles.activeFilterOption,
-
-                          pressed &&
-                            styles.filterOptionPressed,
+                          active && {
+                            color: '#A9090D',
+                          },
                         ]}
                       >
-                        <View
-                          style={
-                            styles.filterOptionTextArea
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.filterOptionTitle,
+                        {item.title}
+                      </Text>
 
-                              active &&
-                                styles.activeFilterOptionTitle,
-                            ]}
-                          >
-                            {item.title}
-                          </Text>
+                      <Text style={styles.filterOptionSubtitle}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
 
-                          <Text
-                            style={[
-                              styles.filterOptionSubtitle,
+                    <Ionicons
+                      name={active ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color={active ? '#A9090D' : '#C7BAB4'}
+                    />
+                  </Pressable>
+                );
+              })}
 
-                              active &&
-                                styles.activeFilterOptionSubtitle,
-                            ]}
-                          >
-                            {item.subtitle}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.radioOuter,
-
-                            active &&
-                              styles.activeRadioOuter,
-                          ]}
-                        >
-                          {active && (
-                            <View
-                              style={
-                                styles.radioInner
-                              }
-                            />
-                          )}
-                        </View>
-                      </Pressable>
-                    );
-                  },
-                )}
-              </View>
-
-              <Pressable
-                onPress={() =>
-                  setFilterModalVisible(
-                    false,
-                  )
-                }
-                style={
-                  styles.closeFilterButton
-                }
+              <TouchableOpacity
+                style={styles.closeButton}
+                activeOpacity={0.85}
+                onPress={() => setFilterModalVisible(false)}
               >
-                <Text
-                  style={
-                    styles.closeFilterText
-                  }
-                >
-                  Close
-                </Text>
-              </Pressable>
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
             </View>
           </SafeAreaView>
         </View>
@@ -2222,1377 +2013,1287 @@ const WeeklyInvoice = ({
   );
 };
 
+/* =========================================================
+ * HEADER
+ * ========================================================= */
+
+const Header = ({ navigation }) => (
+  <View style={styles.header}>
+    <Pressable
+      style={styles.backButton}
+      hitSlop={10}
+      onPress={() => navigation.goBack()}
+    >
+      <Image
+        source={require('../assets/login-icons/back.png')}
+        style={styles.backIcon}
+        resizeMode="contain"
+      />
+    </Pressable>
+
+    <View
+      style={{
+        marginLeft: 12,
+      }}
+    >
+      <Text style={styles.eyebrow}>BILLING</Text>
+
+      <Text style={styles.headerTitle}>Weekly Invoices</Text>
+    </View>
+  </View>
+);
+
+/* =========================================================
+ * INFO LINE
+ * ========================================================= */
+
+const InfoLine = ({ label, value, strong = false }) => (
+  <View style={styles.infoLine}>
+    <Text style={styles.infoLabel}>{label}</Text>
+
+    <Text
+      numberOfLines={2}
+      style={[
+        styles.infoValue,
+
+        strong && {
+          color: '#A9090D',
+
+          fontSize: 12,
+        },
+      ]}
+    >
+      {value}
+    </Text>
+  </View>
+);
+
+/* =========================================================
+ * AMOUNT LINE
+ * ========================================================= */
+
+const AmountLine = ({ label, value, type }) => (
+  <View style={styles.amountLine}>
+    <Text style={styles.amountLabel}>{label}</Text>
+
+    <Text
+      style={[
+        styles.amountValue,
+
+        type === 'paid' && {
+          color: '#278850',
+        },
+
+        type === 'due' && {
+          color: '#B87300',
+        },
+      ]}
+    >
+      {value}
+    </Text>
+  </View>
+);
+
+/* =========================================================
+ * SUMMARY BOX
+ * ========================================================= */
+
+const SummaryBox = ({ label, value, color }) => (
+  <View style={styles.summaryBox}>
+    <Text style={styles.summaryBoxLabel}>{label}</Text>
+
+    <Text
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      style={[
+        styles.summaryBoxValue,
+
+        {
+          color,
+        },
+      ]}
+    >
+      {formatMoney(value)}
+    </Text>
+  </View>
+);
+
 export default WeeklyInvoice;
 
 /* =========================================================
  * STYLES
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    /* =====================================================
-     * SAFE AREA
-     * ===================================================== */
-
-    safeArea: {
-      flex: 1,
-
-      backgroundColor:
-        '#FFF9F6',
-    },
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
 
-    container: {
-      flex: 1,
+    backgroundColor: '#FFF9F6',
+  },
 
-      alignSelf:
-        'center',
+  container: {
+    flex: 1,
 
-      backgroundColor:
-        '#F6F7F9',
-    },
+    alignSelf: 'center',
 
-    flatList: {
-      flex: 1,
+    backgroundColor: '#FFF9F6',
+  },
 
-      backgroundColor:
-        '#F6F7F9',
-    },
+  header: {
+    minHeight: 72,
 
-    /* =====================================================
-     * HEADER
-     * ===================================================== */
+    flexDirection: 'row',
 
-    header: {
-      minHeight: 86,
+    alignItems: 'center',
 
-      flexDirection:
-        'row',
+    paddingHorizontal: 16,
 
-      alignItems:
-        'center',
+    borderBottomWidth: 1,
 
-      backgroundColor:
-        '#FFF9F6',
+    borderBottomColor: '#F0E4DF',
 
-      paddingHorizontal: 16,
+    backgroundColor: '#FFF9F6',
+  },
 
-      paddingVertical: 12,
+  backButton: {
+    width: 42,
 
-      borderBottomWidth: 1,
+    height: 42,
 
-      borderBottomColor:
-        '#F0E7E3',
-    },
+    borderRadius: 13,
 
-    backButton: {
-      width: 48,
+    borderWidth: 1,
 
-      height: 48,
+    borderColor: '#EFE5E0',
 
-      borderRadius: 15,
+    backgroundColor: '#FFF',
 
-      backgroundColor:
-        '#FFFFFF',
+    alignItems: 'center',
 
-      borderWidth: 1,
+    justifyContent: 'center',
+  },
 
-      borderColor:
-        '#EADFD9',
+  backIcon: {
+    width: 19,
 
-      alignItems:
-        'center',
+    height: 19,
 
-      justifyContent:
-        'center',
+    tintColor: '#A9090D',
+  },
 
-      marginRight: 14,
+  headerTitle: {
+    color: '#2C201C',
 
-      elevation: 1,
+    fontSize: 21,
 
-      shadowColor:
-        '#000000',
+    fontWeight: '900',
 
-      shadowOffset: {
-        width: 0,
-        height: 1,
-      },
+    marginTop: 2,
+  },
 
-      shadowOpacity: 0.04,
+  eyebrow: {
+    color: '#A9090D',
 
-      shadowRadius: 3,
-    },
+    fontSize: 7,
 
-    backButtonPressed: {
-      opacity: 0.65,
-
-      transform: [
-        {
-          scale: 0.96,
-        },
-      ],
-    },
+    fontWeight: '900',
 
-    backIcon: {
-      width: 20,
+    letterSpacing: 0.9,
+  },
 
-      height: 20,
+  sectionTitle: {
+    color: '#2B201C',
 
-      tintColor:
-        '#A9090D',
-    },
+    fontSize: 17,
 
-    headerTextArea: {
-      flex: 1,
+    fontWeight: '900',
 
-      justifyContent:
-        'center',
+    marginTop: 2,
+  },
 
-      minWidth: 0,
-    },
+  summaryHeader: {
+    flexDirection: 'row',
 
-    headerEyebrow: {
-      color:
-        '#A94C2B',
+    alignItems: 'flex-start',
 
-      fontSize: 9,
+    marginBottom: 14,
+  },
 
-      fontWeight:
-        '900',
+  summaryText: {
+    color: '#90817B',
 
-      letterSpacing: 1,
+    fontSize: 8,
 
-      marginBottom: 4,
-    },
+    lineHeight: 13,
 
-    headerTitle: {
-      color:
-        '#211816',
+    marginTop: 4,
 
-      fontSize: 23,
+    paddingRight: 12,
+  },
 
-      lineHeight: 28,
+  weekCount: {
+    minWidth: 58,
 
-      fontWeight:
-        '900',
-    },
+    minHeight: 52,
 
-    /* =====================================================
-     * LOADING
-     * ===================================================== */
+    borderRadius: 15,
 
-    loadingContainer: {
-      flex: 1,
+    backgroundColor: '#FFF0EE',
 
-      alignItems:
-        'center',
+    borderWidth: 1,
 
-      justifyContent:
-        'center',
+    borderColor: '#F2D7D3',
 
-      backgroundColor:
-        '#F6F7F9',
+    alignItems: 'center',
 
-      paddingHorizontal: 30,
-    },
+    justifyContent: 'center',
+  },
 
-    loadingIcon: {
-      width: 82,
+  weekCountNumber: {
+    color: '#A9090D',
 
-      height: 82,
+    fontSize: 17,
 
-      borderRadius: 41,
+    fontWeight: '900',
+  },
 
-      backgroundColor:
-        '#FFFFFF',
+  weekCountLabel: {
+    color: '#A8766D',
 
-      alignItems:
-        'center',
+    fontSize: 6,
 
-      justifyContent:
-        'center',
+    fontWeight: '900',
+  },
 
-      elevation: 5,
-    },
+  summaryCards: {
+    flexDirection: 'row',
 
-    loadingTitle: {
-      color:
-        '#17191D',
+    marginHorizontal: -4,
 
-      fontSize: 20,
+    marginBottom: 12,
+  },
 
-      fontWeight:
-        '900',
+  summaryBox: {
+    flex: 1,
 
-      marginTop: 18,
-    },
+    marginHorizontal: 4,
 
-    loadingText: {
-      color:
-        '#7D8490',
+    padding: 12,
 
-      fontSize: 12,
+    borderRadius: 15,
 
-      textAlign:
-        'center',
+    backgroundColor: '#FFF',
 
-      marginTop: 6,
-    },
+    borderWidth: 1,
 
-    /* =====================================================
-     * ERROR
-     * ===================================================== */
+    borderColor: '#EEE4DF',
+  },
 
-    errorBox: {
-      minHeight: 52,
+  summaryBoxLabel: {
+    color: '#978982',
 
-      flexDirection:
-        'row',
+    fontSize: 6.5,
 
-      alignItems:
-        'center',
+    fontWeight: '900',
+  },
 
-      backgroundColor:
-        '#FFF9F6',
+  summaryBoxValue: {
+    fontSize: 11,
 
-      borderWidth: 1,
+    fontWeight: '900',
 
-      borderColor:
-        '#F0CCCC',
+    marginTop: 5,
+  },
 
-      borderRadius: 12,
+  billingCycleCard: {
+    flexDirection: 'row',
 
-      padding: 11,
+    alignItems: 'flex-start',
 
-      marginTop: 13,
-    },
+    backgroundColor: '#FFF4F2',
 
-    errorIcon: {
-      width: 27,
+    borderWidth: 1,
 
-      height: 27,
+    borderColor: '#F1D8D2',
 
-      borderRadius: 14,
+    borderRadius: 15,
 
-      backgroundColor:
-        '#A9090D',
+    padding: 12,
 
-      alignItems:
-        'center',
+    marginBottom: 22,
+  },
 
-      justifyContent:
-        'center',
-    },
+  billingCycleIcon: {
+    width: 38,
 
-    errorIconText: {
-      color:
-        '#FFFFFF',
+    height: 38,
 
-      fontSize: 15,
+    borderRadius: 12,
 
-      fontWeight:
-        '900',
-    },
+    backgroundColor: '#FFE6E3',
 
-    errorText: {
-      flex: 1,
+    alignItems: 'center',
 
-      color:
-        '#A00B0F',
+    justifyContent: 'center',
 
-      fontSize: 10,
+    marginRight: 9,
+  },
 
-      lineHeight: 15,
+  billingCycleTitle: {
+    color: '#5E332D',
 
-      marginLeft: 8,
-    },
+    fontSize: 9,
 
-    /* =====================================================
-     * SUMMARY
-     * ===================================================== */
+    fontWeight: '900',
+  },
 
-    summarySection: {
-      marginBottom: 20,
-      // backgroundColor:'#FFF9F6',
-    },
+  billingCycleText: {
+    color: '#87716B',
 
-    summaryTitleRow: {
-      flexDirection:
-        'row',
+    fontSize: 7.5,
 
-      alignItems:
-        'center',
+    lineHeight: 12,
 
-      justifyContent:
-        'space-between',
+    marginTop: 3,
+  },
 
-      marginBottom: 12,
-    },
+  listHeader: {
+    flexDirection: 'row',
 
-    sectionEyebrow: {
-      color:
-        '#A9090D',
+    justifyContent: 'space-between',
 
-      fontSize: 8,
+    alignItems: 'center',
 
-      fontWeight:
-        '900',
+    marginBottom: 12,
+  },
 
-      letterSpacing: 0.9,
+  listSubtitle: {
+    color: '#93857F',
 
-      marginBottom: 3,
-    },
+    fontSize: 7.5,
 
-    sectionTitle: {
-      color:
-        '#17191D',
+    marginTop: 2,
+  },
 
-      fontSize: 18,
+  filterButton: {
+    minWidth: 105,
 
-      fontWeight:
-        '900',
-    },
+    height: 38,
 
-    totalInvoiceBadge: {
-      minWidth: 58,
+    paddingHorizontal: 10,
 
-      backgroundColor:
-        '#FFF0F1',
+    borderRadius: 12,
 
-      borderRadius: 13,
+    backgroundColor: '#FFF',
 
-      alignItems:
-        'center',
+    borderWidth: 1,
 
-      justifyContent:
-        'center',
+    borderColor: '#EADFD9',
 
-      paddingHorizontal: 9,
+    flexDirection: 'row',
 
-      paddingVertical: 7,
-    },
+    alignItems: 'center',
 
-    totalInvoiceBadgeNumber: {
-      color:
-        '#A9090D',
+    justifyContent: 'center',
+  },
 
-      fontSize: 16,
+  filterText: {
+    flex: 1,
 
-      fontWeight:
-        '900',
-    },
+    color: '#A9090D',
 
-    totalInvoiceBadgeText: {
-      color:
-        '#9B6063',
+    fontSize: 8,
 
-      fontSize: 7,
+    fontWeight: '900',
 
-      fontWeight:
-        '900',
+    textAlign: 'center',
 
-      marginTop: 1,
-    },
+    marginRight: 5,
+  },
+
+  invoiceCard: {
+    backgroundColor: '#FFF',
+
+    borderRadius: 20,
 
-    summaryCards: {
-      flexDirection:
-        'row',
+    borderWidth: 1,
 
-      columnGap: 8,
+    borderColor: '#EEE4DF',
+
+    padding: 15,
+
+    marginBottom: 16,
+
+    shadowColor: '#5C4239',
+
+    shadowOffset: {
+      width: 0,
+
+      height: 5,
     },
 
-    summaryCard: {
-      flex: 1,
+    shadowOpacity: 0.05,
 
-      minWidth: 0,
+    shadowRadius: 10,
 
-      minHeight: 112,
+    elevation: 2,
+  },
 
-      backgroundColor:
-        '#FFFFFF',
+  cardHeader: {
+    flexDirection: 'row',
 
-      borderRadius: 15,
+    alignItems: 'center',
+  },
 
-      borderWidth: 1,
+  invoiceIcon: {
+    width: 45,
 
-      borderColor:
-        '#E9EBEE',
+    height: 45,
 
-      padding: 11,
+    borderRadius: 14,
 
-      elevation: 2,
-    },
+    backgroundColor: '#FFF0EE',
 
-    summaryIcon: {
-      width: 36,
+    alignItems: 'center',
 
-      height: 36,
+    justifyContent: 'center',
 
-      borderRadius: 11,
+    marginRight: 10,
+  },
 
-      alignItems:
-        'center',
+  cardHeaderMain: {
+    flex: 1,
 
-      justifyContent:
-        'center',
+    minWidth: 0,
+  },
 
-      marginBottom: 11,
-    },
+  invoiceNumber: {
+    color: '#342722',
 
-    totalIcon: {
-      backgroundColor:
-        '#FFF0F1',
-    },
+    fontSize: 12,
 
-    paidSummaryIcon: {
-      backgroundColor:
-        '#EAF8EF',
-    },
+    fontWeight: '900',
 
-    dueSummaryIcon: {
-      backgroundColor:
-        '#FFF4E5',
-    },
+    marginTop: 2,
+  },
 
-    summaryImage: {
-      width: 18,
+  period: {
+    color: '#94857F',
 
-      height: 18,
-    },
+    fontSize: 7,
 
-    summaryLabel: {
-      color:
-        '#9298A1',
+    marginTop: 3,
+  },
 
-      fontSize: 7,
+  amountArea: {
+    alignItems: 'flex-end',
 
-      fontWeight:
-        '900',
+    marginLeft: 8,
+  },
 
-      letterSpacing: 0.6,
-    },
+  smallLabel: {
+    color: '#9A8A83',
 
-    summaryAmount: {
-      color:
-        '#17191D',
+    fontSize: 5.5,
 
-      fontSize: 14,
+    fontWeight: '900',
+  },
 
-      fontWeight:
-        '900',
+  weekAmount: {
+    color: '#A9090D',
 
-      marginTop: 4,
-    },
+    fontSize: 13,
 
-    paidSummaryAmount: {
-      color:
-        '#23834B',
-    },
+    fontWeight: '900',
 
-    dueSummaryAmount: {
-      color:
-        '#AD6814',
-    },
+    marginTop: 3,
+  },
 
-    /* =====================================================
-     * LAST WEEK CARD
-     * ===================================================== */
+  statusRow: {
+    flexDirection: 'row',
 
-    lastWeekCard: {
-      backgroundColor:
-        '#A9090D',
+    justifyContent: 'space-between',
 
-      borderRadius: 17,
+    alignItems: 'center',
 
-      padding: 14,
+    marginTop: 12,
+  },
 
-      marginBottom: 22,
+  statusBadge: {
+    borderRadius: 16,
 
-      elevation: 4,
-    },
+    paddingHorizontal: 9,
 
-    lastWeekTop: {
-      flexDirection:
-        'row',
+    paddingVertical: 6,
+  },
 
-      alignItems:
-        'center',
-    },
+  statusText: {
+    fontSize: 7,
 
-    lastWeekCalendar: {
-      width: 47,
+    fontWeight: '900',
+  },
 
-      height: 47,
+  paidBadge: {
+    backgroundColor: '#EAF7EE',
+  },
 
-      borderRadius: 14,
+  paidText: {
+    color: '#278850',
+  },
 
-      alignItems:
-        'center',
+  overdueBadge: {
+    backgroundColor: '#FEECEB',
+  },
 
-      justifyContent:
-        'center',
+  overdueText: {
+    color: '#B42318',
+  },
 
-      backgroundColor:
-        'rgba(255,255,255,0.15)',
+  dueBadge: {
+    backgroundColor: '#FFF5E6',
+  },
 
-      marginRight: 11,
-    },
+  dueText: {
+    color: '#B87300',
+  },
 
-    lastWeekContent: {
-      flex: 1,
+  weekLabel: {
+    color: '#958780',
 
-      minWidth: 0,
-    },
+    fontSize: 7,
 
-    lastWeekLabel: {
-      color:
-        '#F4C454',
+    fontWeight: '700',
+  },
 
-      fontSize: 8,
+  divider: {
+    height: 1,
 
-      fontWeight:
-        '900',
+    backgroundColor: '#F0E8E4',
 
-      letterSpacing: 0.7,
-    },
+    marginVertical: 13,
+  },
 
-    lastWeekDate: {
-      color:
-        '#FFFFFF',
+  infoLine: {
+    minHeight: 34,
 
-      fontSize: 13,
+    flexDirection: 'row',
 
-      fontWeight:
-        '900',
+    justifyContent: 'space-between',
 
-      marginTop: 3,
-    },
+    alignItems: 'center',
 
-    lastWeekOrderCount: {
-      color:
-        'rgba(255,255,255,0.7)',
+    borderBottomWidth: 1,
 
-      fontSize: 9,
+    borderBottomColor: '#F4EEEB',
+  },
 
-      marginTop: 3,
-    },
+  infoLabel: {
+    color: '#83746E',
 
-    lastWeekAmountArea: {
-      alignItems:
-        'flex-end',
+    fontSize: 8,
+  },
 
-      marginLeft: 10,
-    },
+  infoValue: {
+    maxWidth: '62%',
 
-    lastWeekAmountLabel: {
-      color:
-        'rgba(255,255,255,0.63)',
+    color: '#443630',
 
-      fontSize: 7,
+    fontSize: 8.5,
 
-      fontWeight:
-        '900',
-    },
+    fontWeight: '900',
 
-    lastWeekAmount: {
-      color:
-        '#FFFFFF',
+    textAlign: 'right',
+  },
 
-      fontSize: 19,
+  amountLine: {
+    minHeight: 36,
 
-      fontWeight:
-        '900',
+    flexDirection: 'row',
 
-      marginTop: 3,
-    },
+    justifyContent: 'space-between',
 
-    payLastWeekButton: {
-      height: 47,
+    alignItems: 'center',
 
-      flexDirection:
-        'row',
+    borderBottomWidth: 1,
 
-      alignItems:
-        'center',
+    borderBottomColor: '#F2EBE7',
+  },
 
-      justifyContent:
-        'center',
+  amountLabel: {
+    color: '#7F706A',
 
-      backgroundColor:
-        '#FFFFFF',
+    fontSize: 8,
+  },
 
-      borderRadius: 12,
+  amountValue: {
+    color: '#4A3933',
 
-      marginTop: 13,
-    },
+    fontSize: 9,
 
-    payLastWeekButtonDisabled: {
-      opacity: 0.88,
-    },
+    fontWeight: '900',
+  },
 
-    payLastWeekText: {
-      color:
-        '#A9090D',
+  currentWeekNotice: {
+    flexDirection: 'row',
 
-      fontSize: 11,
+    alignItems: 'flex-start',
 
-      fontWeight:
-        '900',
+    backgroundColor: '#FFF7ED',
 
-      marginLeft: 7,
-    },
+    borderWidth: 1,
 
-    paidLastWeekText: {
-      color:
-        '#23834B',
-    },
+    borderColor: '#F1DFC5',
 
-    /* =====================================================
-     * HISTORY HEADER
-     * ===================================================== */
+    borderRadius: 12,
 
-    invoiceListHeader: {
-      flexDirection:
-        'row',
+    padding: 10,
 
-      alignItems:
-        'center',
+    marginTop: 12,
+  },
 
-      justifyContent:
-        'space-between',
+  currentWeekIcon: {
+    width: 34,
 
-      marginBottom: 12,
-    },
+    height: 34,
 
-    invoiceListTitleArea: {
-      flex: 1,
+    borderRadius: 10,
 
-      minWidth: 0,
+    backgroundColor: '#FFF0E2',
 
-      paddingRight: 10,
-    },
+    alignItems: 'center',
 
-    invoiceListSubtitle: {
-      color:
-        '#8A909A',
+    justifyContent: 'center',
 
-      fontSize: 9.5,
+    marginRight: 8,
+  },
 
-      marginTop: 3,
-    },
+  currentWeekTitle: {
+    color: '#7D4A18',
 
-    filterButton: {
-      maxWidth: 160,
+    fontSize: 8.5,
 
-      minHeight: 42,
+    fontWeight: '900',
+  },
 
-      flexDirection:
-        'row',
+  currentWeekText: {
+    color: '#94714D',
 
-      alignItems:
-        'center',
+    fontSize: 7,
 
-      justifyContent:
-        'center',
+    lineHeight: 11,
 
-      backgroundColor:
-        '#FFFFFF',
+    marginTop: 2,
+  },
 
-      borderWidth: 1,
+  expandButton: {
+    minHeight: 42,
 
-      borderColor:
-        '#E6D5D6',
+    borderRadius: 12,
 
-      borderRadius: 12,
+    backgroundColor: '#FFF7F4',
 
-      paddingHorizontal: 12,
+    borderWidth: 1,
 
-      elevation: 1,
-    },
+    borderColor: '#F0DDD6',
 
-    filterButtonPressed: {
-      opacity: 0.75,
-    },
+    flexDirection: 'row',
 
-    filterButtonText: {
-      flexShrink: 1,
+    alignItems: 'center',
 
-      color:
-        '#A9090D',
+    justifyContent: 'space-between',
 
-      fontSize: 10,
+    paddingHorizontal: 11,
 
-      fontWeight:
-        '800',
-    },
+    marginTop: 13,
+  },
 
-    filterArrow: {
-      color:
-        '#A9090D',
+  expandText: {
+    color: '#A9090D',
 
-      fontSize: 13,
+    fontSize: 8,
 
-      fontWeight:
-        '800',
+    fontWeight: '900',
+  },
 
-      marginLeft: 7,
-    },
+  ordersBox: {
+    backgroundColor: '#FBF8F6',
 
-    activeFilterRow: {
-      marginBottom: 10,
-    },
+    borderRadius: 12,
 
-    activeFilterChip: {
-      alignSelf:
-        'flex-start',
+    paddingHorizontal: 10,
 
-      flexDirection:
-        'row',
+    marginTop: 7,
+  },
 
-      alignItems:
-        'center',
+  orderRow: {
+    minHeight: 62,
 
-      backgroundColor:
-        '#FFF0F1',
+    flexDirection: 'row',
 
-      borderRadius: 20,
+    alignItems: 'center',
 
-      paddingLeft: 11,
+    borderBottomWidth: 1,
 
-      paddingRight: 7,
+    borderBottomColor: '#EEE5E0',
+  },
 
-      paddingVertical: 6,
-    },
+  orderIcon: {
+    width: 34,
 
-    activeFilterText: {
-      color:
-        '#A9090D',
+    height: 34,
 
-      fontSize: 9,
+    borderRadius: 10,
 
-      fontWeight:
-        '800',
-    },
+    backgroundColor: '#FFF0EE',
 
-    activeFilterClose: {
-      width: 22,
+    alignItems: 'center',
 
-      height: 22,
+    justifyContent: 'center',
 
-      color:
-        '#A9090D',
+    marginRight: 9,
+  },
 
-      fontSize: 17,
+  orderNumber: {
+    color: '#3F302A',
 
-      lineHeight: 21,
+    fontSize: 8.5,
 
-      fontWeight:
-        '900',
+    fontWeight: '900',
+  },
 
-      textAlign:
-        'center',
+  orderName: {
+    color: '#796B65',
 
-      marginLeft: 5,
-    },
+    fontSize: 7.5,
 
-    /* =====================================================
-     * INVOICE CARD
-     * ===================================================== */
+    marginTop: 2,
+  },
 
-    invoiceCard: {
-      backgroundColor:
-        '#FFFFFF',
+  orderQty: {
+    color: '#A1928B',
 
-      borderWidth: 1,
+    fontSize: 6.5,
 
-      borderColor:
-        '#E9EBEE',
+    marginTop: 2,
+  },
 
-      borderRadius: 16,
+  orderAmount: {
+    color: '#A9090D',
 
-      padding: 14,
+    fontSize: 8.5,
 
-      marginBottom: 11,
+    fontWeight: '900',
 
-      elevation: 2,
+    marginLeft: 8,
+  },
 
-      shadowColor:
-        '#000000',
+  payButton: {
+    minHeight: 72,
 
-      shadowOffset: {
-        width: 0,
-        height: 2,
-      },
+    flexDirection: 'row',
 
-      shadowOpacity: 0.045,
+    alignItems: 'center',
 
-      shadowRadius: 5,
-    },
+    backgroundColor: '#FFF5F3',
 
-    invoiceCardTop: {
-      flexDirection:
-        'row',
+    borderWidth: 1,
 
-      alignItems:
-        'center',
-    },
+    borderColor: '#EAC9C5',
 
-    invoiceIcon: {
-      width: 47,
+    borderRadius: 16,
 
-      height: 47,
+    padding: 11,
 
-      borderRadius: 14,
+    marginTop: 15,
+  },
 
-      backgroundColor:
-        '#FFF0F1',
+  payButtonOverdue: {
+    backgroundColor: '#FFF1F0',
 
-      alignItems:
-        'center',
+    borderColor: '#F0B9B5',
+  },
 
-      justifyContent:
-        'center',
+  payIcon: {
+    width: 42,
 
-      marginRight: 11,
-    },
+    height: 42,
 
-    invoiceCardIconImage: {
-      width: 21,
+    borderRadius: 13,
 
-      height: 21,
-    },
+    backgroundColor: '#FCE5E3',
 
-    invoiceMain: {
-      flex: 1,
+    alignItems: 'center',
 
-      minWidth: 0,
+    justifyContent: 'center',
 
-      paddingRight: 8,
-    },
+    marginRight: 10,
+  },
 
-    invoiceSmallLabel: {
-      color:
-        '#999FA8',
+  payTitle: {
+    color: '#A9090D',
 
-      fontSize: 7,
+    fontSize: 9,
 
-      fontWeight:
-        '900',
+    fontWeight: '900',
+  },
 
-      letterSpacing: 0.6,
-    },
+  paySubtitle: {
+    color: '#7D6D68',
 
-    invoiceNumber: {
-      color:
-        '#17191D',
+    fontSize: 7.2,
 
-      fontSize: 15,
+    lineHeight: 11,
 
-      fontWeight:
-        '900',
+    marginTop: 3,
+  },
 
-      marginTop: 2,
-    },
+  payAmount: {
+    color: '#A9090D',
 
-    invoiceProductName: {
-      color:
-        '#707887',
+    fontSize: 10,
 
-      fontSize: 9.5,
+    fontWeight: '900',
 
-      marginTop: 3,
-    },
+    marginLeft: 8,
+  },
 
-    invoiceAmountArea: {
-      alignItems:
-        'flex-end',
-    },
+  errorBox: {
+    flexDirection: 'row',
 
-    invoiceAmountLabel: {
-      color:
-        '#999FA8',
+    alignItems: 'center',
 
-      fontSize: 7,
+    backgroundColor: '#FFF1F1',
 
-      fontWeight:
-        '900',
-    },
+    borderWidth: 1,
 
-    invoiceAmount: {
-      color:
-        '#A9090D',
+    borderColor: '#F1D0D0',
 
-      fontSize: 17,
+    borderRadius: 13,
 
-      fontWeight:
-        '900',
+    padding: 12,
 
-      marginTop: 3,
-    },
+    marginTop: 12,
+  },
 
-    invoiceDivider: {
-      height: 1,
+  errorText: {
+    flex: 1,
 
-      backgroundColor:
-        '#F0F1F3',
+    color: '#8C3436',
 
-      marginVertical: 12,
-    },
+    fontSize: 9,
 
-    invoiceMetaRow: {
-      flexDirection:
-        'row',
+    lineHeight: 14,
 
-      columnGap: 12,
-    },
+    marginLeft: 8,
+  },
 
-    invoiceMetaItem: {
-      flex: 1,
+  loadingBox: {
+    flex: 1,
 
-      minWidth: 0,
+    alignItems: 'center',
 
-      flexDirection:
-        'row',
+    justifyContent: 'center',
 
-      alignItems:
-        'center',
-    },
+    paddingHorizontal: 25,
+  },
 
-    invoiceMetaContent: {
-      flex: 1,
+  loadingTitle: {
+    color: '#2C201C',
 
-      minWidth: 0,
-    },
+    fontSize: 16,
 
-    invoiceMetaIcon: {
-      width: 32,
+    fontWeight: '900',
 
-      height: 32,
+    marginTop: 14,
+  },
 
-      borderRadius: 9,
+  loadingSubtitle: {
+    color: '#91847E',
 
-      backgroundColor:
-        '#F5F6F8',
+    fontSize: 8.5,
 
-      alignItems:
-        'center',
+    textAlign: 'center',
 
-      justifyContent:
-        'center',
+    marginTop: 5,
+  },
 
-      marginRight: 7,
-    },
+  emptyBox: {
+    minHeight: 280,
 
-    invoiceMetaLabel: {
-      color:
-        '#989EA7',
+    alignItems: 'center',
 
-      fontSize: 7,
+    justifyContent: 'center',
 
-      fontWeight:
-        '900',
-    },
+    padding: 25,
+  },
 
-    invoiceMetaValue: {
-      color:
-        '#4C5563',
+  emptyTitle: {
+    color: '#362A25',
 
-      fontSize: 9.5,
+    fontSize: 15,
 
-      fontWeight:
-        '700',
+    fontWeight: '900',
 
-      marginTop: 2,
-    },
+    marginTop: 10,
+  },
 
-    invoiceBottomRow: {
-      flexDirection:
-        'row',
+  emptyText: {
+    maxWidth: 280,
 
-      alignItems:
-        'center',
+    color: '#91847E',
 
-      justifyContent:
-        'space-between',
+    fontSize: 8.5,
 
-      marginTop: 13,
-    },
+    lineHeight: 14,
 
-    statusBadge: {
-      minHeight: 29,
+    textAlign: 'center',
 
-      flexDirection:
-        'row',
+    marginTop: 5,
+  },
 
-      alignItems:
-        'center',
+  showAllButton: {
+    minHeight: 40,
 
-      borderRadius: 15,
+    borderRadius: 11,
 
-      paddingHorizontal: 9,
-    },
+    backgroundColor: '#A9090D',
 
-    paidBadge: {
-      backgroundColor:
-        '#EAF8EF',
-    },
+    alignItems: 'center',
 
-    dueBadge: {
-      backgroundColor:
-        '#FFF2E7',
-    },
+    justifyContent: 'center',
 
-    statusDot: {
-      width: 6,
+    paddingHorizontal: 18,
 
-      height: 6,
+    marginTop: 14,
+  },
 
-      borderRadius: 3,
+  showAllButtonText: {
+    color: '#FFF',
 
-      marginRight: 5,
-    },
+    fontSize: 8.5,
 
-    paidDot: {
-      backgroundColor:
-        '#23834B',
-    },
+    fontWeight: '900',
+  },
 
-    dueDot: {
-      backgroundColor:
-        '#B36A12',
-    },
+  modalOverlay: {
+    flex: 1,
 
-    statusText: {
-      fontSize: 8,
+    backgroundColor: 'rgba(35,23,20,.68)',
 
-      fontWeight:
-        '900',
-    },
+    alignItems: 'center',
 
-    paidText: {
-      color:
-        '#23834B',
-    },
+    justifyContent: 'center',
 
-    dueText: {
-      color:
-        '#A85F0D',
-    },
+    paddingHorizontal: 20,
+  },
+
+  alertCard: {
+    width: '100%',
+
+    maxWidth: 390,
+
+    backgroundColor: '#FFFDFC',
+
+    borderRadius: 26,
+
+    padding: 20,
 
-    orderIdText: {
-      color:
-        '#89909A',
+    alignItems: 'center',
 
-      fontSize: 8.5,
+    shadowColor: '#251511',
 
-      fontWeight:
-        '700',
+    shadowOffset: {
+      width: 0,
+
+      height: 8,
     },
 
-    /* =====================================================
-     * EMPTY
-     * ===================================================== */
+    shadowOpacity: 0.2,
 
-    emptyContainer: {
-      flex: 1,
+    shadowRadius: 18,
 
-      minHeight: 280,
+    elevation: 15,
+  },
 
-      alignItems:
-        'center',
+  alertIcon: {
+    width: 78,
 
-      justifyContent:
-        'center',
+    height: 78,
 
-      paddingVertical: 35,
+    borderRadius: 39,
 
-      paddingHorizontal: 30,
-    },
+    backgroundColor: '#FFF0EE',
 
-    emptyIcon: {
-      width: 72,
+    alignItems: 'center',
 
-      height: 72,
+    justifyContent: 'center',
+  },
 
-      borderRadius: 36,
+  alertEyebrow: {
+    color: '#A9090D',
 
-      alignItems:
-        'center',
+    fontSize: 7,
 
-      justifyContent:
-        'center',
+    fontWeight: '900',
 
-      backgroundColor:
-        '#FFF0F1',
-    },
+    letterSpacing: 1,
 
-    emptyInvoiceIcon: {
-      width: 30,
+    marginTop: 12,
+  },
 
-      height: 30,
-    },
+  alertTitle: {
+    color: '#2C201C',
 
-    emptyTitle: {
-      color:
-        '#17191D',
+    fontSize: 19,
 
-      fontSize: 16,
+    fontWeight: '900',
 
-      fontWeight:
-        '900',
+    textAlign: 'center',
 
-      marginTop: 14,
-    },
+    marginTop: 4,
+  },
 
-    emptySubtitle: {
-      color:
-        '#858D98',
+  alertDescription: {
+    maxWidth: 310,
 
-      fontSize: 10,
+    color: '#796B66',
 
-      lineHeight: 15,
+    fontSize: 9,
 
-      textAlign:
-        'center',
+    lineHeight: 15,
 
-      marginTop: 6,
-    },
+    textAlign: 'center',
 
-    clearFilterButton: {
-      backgroundColor:
-        '#A9090D',
+    marginTop: 7,
+  },
 
-      paddingHorizontal: 15,
+  alertSummary: {
+    width: '100%',
 
-      paddingVertical: 10,
+    backgroundColor: '#FBF6F3',
 
-      borderRadius: 10,
+    borderRadius: 15,
 
-      marginTop: 14,
-    },
+    borderWidth: 1,
 
-    clearFilterButtonText: {
-      color:
-        '#FFFFFF',
+    borderColor: '#EEE0DA',
 
-      fontSize: 9,
+    paddingHorizontal: 12,
 
-      fontWeight:
-        '900',
-    },
+    marginTop: 16,
+  },
 
-    /* =====================================================
-     * FILTER MODAL
-     * ===================================================== */
+  warningBox: {
+    width: '100%',
 
-    modalOverlay: {
-      flex: 1,
+    flexDirection: 'row',
 
-      backgroundColor:
-        'rgba(17,24,39,0.67)',
+    alignItems: 'flex-start',
 
-      justifyContent:
-        'flex-end',
-    },
+    backgroundColor: '#FFF7E9',
 
-    modalSafeArea: {
-      backgroundColor:
-        '#FFFFFF',
-    },
+    borderWidth: 1,
 
-    filterModal: {
-      backgroundColor:
-        '#FFFFFF',
+    borderColor: '#F0D6A5',
 
-      borderTopLeftRadius: 28,
+    borderRadius: 12,
 
-      borderTopRightRadius: 28,
+    padding: 10,
 
-      paddingHorizontal: 18,
+    marginTop: 12,
+  },
 
-      paddingTop: 10,
+  warningText: {
+    flex: 1,
 
-      paddingBottom: 20,
+    color: '#876A3A',
 
-      elevation: 20,
-    },
+    fontSize: 7.5,
 
-    modalHandle: {
-      width: 42,
+    lineHeight: 12,
 
-      height: 4,
+    marginLeft: 7,
+  },
 
-      borderRadius: 2,
+  alertButtons: {
+    width: '100%',
 
-      backgroundColor:
-        '#D9DADD',
+    flexDirection: 'row',
 
-      alignSelf:
-        'center',
+    marginTop: 18,
+  },
 
-      marginBottom: 19,
-    },
+  cancelButton: {
+    flex: 1,
 
-    filterModalHeader: {
-      marginBottom: 17,
-    },
+    minHeight: 48,
 
-    filterModalTitle: {
-      color:
-        '#17191D',
+    borderRadius: 13,
 
-      fontSize: 19,
+    backgroundColor: '#F6F0ED',
 
-      fontWeight:
-        '900',
-    },
+    borderWidth: 1,
 
-    filterModalSubtitle: {
-      color:
-        '#818894',
+    borderColor: '#E7DCD7',
 
-      fontSize: 10,
+    alignItems: 'center',
 
-      marginTop: 4,
-    },
+    justifyContent: 'center',
 
-    filterOptions: {
-      rowGap: 8,
-    },
+    marginRight: 5,
+  },
 
-    /* FILTER ITEM - NO ICON */
+  cancelText: {
+    color: '#73645E',
 
-    filterOption: {
-      minHeight: 66,
+    fontSize: 9.5,
 
-      flexDirection:
-        'row',
+    fontWeight: '900',
+  },
 
-      alignItems:
-        'center',
+  continueButton: {
+    flex: 1.3,
 
-      borderWidth: 1,
+    minHeight: 48,
 
-      borderColor:
-        '#ECEEF1',
+    borderRadius: 13,
 
-      backgroundColor:
-        '#FFFFFF',
+    backgroundColor: '#A9090D',
 
-      borderRadius: 14,
+    flexDirection: 'row',
 
-      paddingHorizontal: 14,
+    alignItems: 'center',
 
-      paddingVertical: 10,
-    },
+    justifyContent: 'center',
 
-    activeFilterOption: {
-      borderColor:
-        '#DDAFB1',
+    marginLeft: 5,
+  },
 
-      backgroundColor:
-        '#FFF8F8',
-    },
+  continueText: {
+    color: '#FFF',
 
-    filterOptionPressed: {
-      opacity: 0.75,
-    },
+    fontSize: 9.5,
 
-    filterOptionTextArea: {
-      flex: 1,
+    fontWeight: '900',
 
-      minWidth: 0,
+    marginRight: 6,
+  },
 
-      paddingRight: 12,
-    },
+  sheetOverlay: {
+    flex: 1,
 
-    filterOptionTitle: {
-      color:
-        '#24272D',
+    backgroundColor: 'rgba(35,23,20,.5)',
 
-      fontSize: 13,
+    justifyContent: 'flex-end',
+  },
 
-      fontWeight:
-        '900',
-    },
+  filterSheet: {
+    backgroundColor: '#FFFDFC',
 
-    activeFilterOptionTitle: {
-      color:
-        '#A9090D',
-    },
+    borderTopLeftRadius: 25,
 
-    filterOptionSubtitle: {
-      color:
-        '#888F99',
+    borderTopRightRadius: 25,
 
-      fontSize: 9.5,
+    paddingHorizontal: 18,
 
-      marginTop: 4,
-    },
+    paddingTop: 10,
 
-    activeFilterOptionSubtitle: {
-      color:
-        '#916164',
-    },
+    paddingBottom: 18,
+  },
 
-    radioOuter: {
-      width: 21,
+  sheetHandle: {
+    width: 44,
 
-      height: 21,
+    height: 4,
 
-      borderRadius: 11,
+    borderRadius: 2,
 
-      borderWidth: 2,
+    backgroundColor: '#D8CBC5',
 
-      borderColor:
-        '#D1D5DB',
+    alignSelf: 'center',
 
-      alignItems:
-        'center',
+    marginBottom: 15,
+  },
 
-      justifyContent:
-        'center',
-    },
+  filterTitle: {
+    color: '#2D211D',
 
-    activeRadioOuter: {
-      borderColor:
-        '#A9090D',
-    },
+    fontSize: 17,
 
-    radioInner: {
-      width: 10,
+    fontWeight: '900',
+  },
 
-      height: 10,
+  filterSubtitle: {
+    color: '#8F817B',
 
-      borderRadius: 5,
+    fontSize: 8.5,
 
-      backgroundColor:
-        '#A9090D',
-    },
+    marginTop: 4,
 
-    closeFilterButton: {
-      height: 48,
+    marginBottom: 13,
+  },
 
-      backgroundColor:
-        '#F1F2F4',
+  filterOption: {
+    minHeight: 62,
 
-      borderRadius: 12,
+    flexDirection: 'row',
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      justifyContent:
-        'center',
+    backgroundColor: '#FBF8F6',
 
-      marginTop: 14,
-    },
+    borderWidth: 1,
 
-    closeFilterText: {
-      color:
-        '#555D69',
+    borderColor: '#EEE4DF',
 
-      fontSize: 11,
+    borderRadius: 13,
 
-      fontWeight:
-        '900',
-    },
-  });
+    paddingHorizontal: 12,
+
+    marginBottom: 8,
+  },
+
+  filterOptionActive: {
+    backgroundColor: '#FFF2F0',
+
+    borderColor: '#E9BDB7',
+  },
+
+  filterOptionTitle: {
+    color: '#4A3B35',
+
+    fontSize: 10,
+
+    fontWeight: '900',
+  },
+
+  filterOptionSubtitle: {
+    color: '#91837D',
+
+    fontSize: 7.5,
+
+    marginTop: 3,
+  },
+
+  closeButton: {
+    minHeight: 48,
+
+    borderRadius: 13,
+
+    backgroundColor: '#A9090D',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginTop: 5,
+  },
+
+  closeButtonText: {
+    color: '#FFF',
+
+    fontSize: 10,
+
+    fontWeight: '900',
+  },
+});

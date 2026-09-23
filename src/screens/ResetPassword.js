@@ -1,8 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -21,9 +17,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -40,118 +34,71 @@ const RESET_PASSWORD_API_URL =
  * STORAGE KEYS
  * ========================================================= */
 
-const RESET_EMAIL_STORAGE_KEY =
-  'kp_reset_password_email';
+const RESET_EMAIL_STORAGE_KEY = 'kp_reset_password_email';
 
-const RESET_OTP_STORAGE_KEY =
-  'kp_reset_password_otp';
+const RESET_OTP_STORAGE_KEY = 'kp_reset_password_otp';
 
-const RESET_TOKEN_STORAGE_KEY =
-  'kp_reset_password_token';
+const RESET_TOKEN_STORAGE_KEY = 'kp_reset_password_token';
 
 /* =========================================================
  * RESET PASSWORD SCREEN
  * ========================================================= */
 
-const ResetPassword = ({
-  navigation,
-  route,
-}) => {
-  const {
-    width,
-    height,
-  } = useWindowDimensions();
+const ResetPassword = ({ navigation, route }) => {
+  const { width, height } = useWindowDimensions();
 
   /* =======================================================
    * ROUTE VALUES
    * ======================================================= */
 
-  const routeEmail =
-    route?.params?.email ??
-    '';
+  const routeEmail = route?.params?.email ?? '';
 
-  const routeOtp =
-    route?.params?.otp ??
-    '';
+  const routeOtp = route?.params?.otp ?? '';
 
   /* =======================================================
    * RESET SESSION STATE
    * ======================================================= */
 
-  const [
-    email,
-    setEmail,
-  ] = useState(
-    routeEmail,
-  );
+  const [email, setEmail] = useState(routeEmail);
 
-  const [
-    otp,
-    setOtp,
-  ] = useState(
-    routeOtp,
-  );
+  const [otp, setOtp] = useState(routeOtp);
 
-  const [
-    loadingResetSession,
-    setLoadingResetSession,
-  ] = useState(
-    true,
-  );
+  const [loadingResetSession, setLoadingResetSession] = useState(true);
 
   /* =======================================================
    * FORM STATE
    * ======================================================= */
 
-  const [
-    formData,
-    setFormData,
-  ] = useState({
-    password:
-      '',
+  const [formData, setFormData] = useState({
+    password: '',
 
-    passwordConfirmation:
-      '',
+    passwordConfirmation: '',
   });
 
-  const [
-    showPassword,
-    setShowPassword,
-  ] = useState(
-    false,
-  );
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [
-    showPasswordConfirmation,
-    setShowPasswordConfirmation,
-  ] = useState(
-    false,
-  );
+  const [showPasswordConfirmation, setShowPasswordConfirmation] =
+    useState(false);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(
-    false,
-  );
+  const [loading, setLoading] = useState(false);
+
+  /* =======================================================
+   * INPUT REF
+   * ======================================================= */
+
+  const confirmPasswordInputRef = useRef(null);
 
   /* =======================================================
    * RESPONSIVE
    * ======================================================= */
 
-  const isSmallScreen =
-    width <= 360;
+  const isSmallScreen = width <= 360;
 
-  const isTablet =
-    width >= 768;
+  const isTablet = width >= 768;
 
-  const isShortScreen =
-    height <= 700;
+  const isShortScreen = height <= 700;
 
-  const containerWidth =
-    isTablet
-      ? 500
-      : width - 32;
+  const containerWidth = isTablet ? 500 : width - 32;
 
   /* =======================================================
    * LOAD EMAIL + OTP
@@ -160,894 +107,571 @@ const ResetPassword = ({
    * If missing, restore from AsyncStorage.
    * ======================================================= */
 
-  useEffect(
-    () => {
-      const loadResetSession =
-        async () => {
-          try {
-            setLoadingResetSession(
-              true,
-            );
+  useEffect(() => {
+    const loadResetSession = async () => {
+      try {
+        setLoadingResetSession(true);
 
-            /* =============================================
-             * EMAIL
-             * ============================================= */
+        /* =============================================
+         * EMAIL
+         * ============================================= */
 
-            if (
-              routeEmail &&
-              String(
-                routeEmail,
-              ).trim()
-            ) {
-              const cleanEmail =
-                String(
-                  routeEmail,
-                )
-                  .trim()
-                  .toLowerCase();
+        if (routeEmail && String(routeEmail).trim()) {
+          const cleanEmail = String(routeEmail).trim().toLowerCase();
 
-              setEmail(
-                cleanEmail,
-              );
+          setEmail(cleanEmail);
 
-              await AsyncStorage.setItem(
-                RESET_EMAIL_STORAGE_KEY,
-                cleanEmail,
-              );
-            } else {
-              const storedEmail =
-                await AsyncStorage.getItem(
-                  RESET_EMAIL_STORAGE_KEY,
-                );
+          await AsyncStorage.setItem(RESET_EMAIL_STORAGE_KEY, cleanEmail);
+        } else {
+          const storedEmail = await AsyncStorage.getItem(
+            RESET_EMAIL_STORAGE_KEY,
+          );
 
-              if (
-                storedEmail
-              ) {
-                setEmail(
-                  storedEmail
-                    .trim()
-                    .toLowerCase(),
-                );
-              }
-            }
-
-            /* =============================================
-             * OTP
-             * ============================================= */
-
-            if (
-              routeOtp &&
-              String(
-                routeOtp,
-              ).trim()
-            ) {
-              const cleanOtp =
-                String(
-                  routeOtp,
-                ).trim();
-
-              setOtp(
-                cleanOtp,
-              );
-
-              await AsyncStorage.setItem(
-                RESET_OTP_STORAGE_KEY,
-                cleanOtp,
-              );
-            } else {
-              const storedOtp =
-                await AsyncStorage.getItem(
-                  RESET_OTP_STORAGE_KEY,
-                );
-
-              if (
-                storedOtp
-              ) {
-                setOtp(
-                  storedOtp.trim(),
-                );
-              }
-            }
-
-            console.log(
-              '======================================',
-            );
-
-            console.log(
-              'RESET PASSWORD SESSION',
-            );
-
-            console.log(
-              'EMAIL:',
-              routeEmail ||
-                'RESTORING FROM STORAGE',
-            );
-
-            console.log(
-              'OTP:',
-              routeOtp
-                ? 'AVAILABLE'
-                : 'RESTORING FROM STORAGE',
-            );
-
-            console.log(
-              '======================================',
-            );
-          } catch (
-            error
-          ) {
-            console.log(
-              'LOAD RESET SESSION ERROR:',
-              error,
-            );
-          } finally {
-            setLoadingResetSession(
-              false,
-            );
+          if (storedEmail) {
+            setEmail(storedEmail.trim().toLowerCase());
           }
-        };
+        }
 
-      loadResetSession();
-    },
-    [
-      routeEmail,
-      routeOtp,
-    ],
-  );
+        /* =============================================
+         * OTP
+         * ============================================= */
+
+        if (routeOtp && String(routeOtp).trim()) {
+          const cleanOtp = String(routeOtp).trim();
+
+          setOtp(cleanOtp);
+
+          await AsyncStorage.setItem(RESET_OTP_STORAGE_KEY, cleanOtp);
+        } else {
+          const storedOtp = await AsyncStorage.getItem(RESET_OTP_STORAGE_KEY);
+
+          if (storedOtp) {
+            setOtp(storedOtp.trim());
+          }
+        }
+
+        console.log('======================================');
+
+        console.log('RESET PASSWORD SESSION');
+
+        console.log('EMAIL:', routeEmail || 'RESTORING FROM STORAGE');
+
+        console.log('OTP:', routeOtp ? 'AVAILABLE' : 'RESTORING FROM STORAGE');
+
+        console.log('======================================');
+      } catch (error) {
+        console.log('LOAD RESET SESSION ERROR:', error);
+      } finally {
+        setLoadingResetSession(false);
+      }
+    };
+
+    loadResetSession();
+  }, [routeEmail, routeOtp]);
 
   /* =======================================================
    * UPDATE FORM FIELD
    * ======================================================= */
 
-  const updateField = (
-    field,
-    value,
-  ) => {
-    setFormData(
-      previous => ({
-        ...previous,
+  const updateField = (field, value) => {
+    setFormData(previous => ({
+      ...previous,
 
-        [field]:
-          value,
-      }),
-    );
+      [field]: value,
+    }));
   };
 
   /* =======================================================
    * PASSWORD REQUIREMENTS
    * ======================================================= */
 
-  const passwordChecks =
-    useMemo(
-      () => {
-        const password =
-          formData.password;
+  const passwordChecks = useMemo(() => {
+    const password = formData.password;
 
-        return {
-          minimumLength:
-            password.length >=
-            8,
+    return {
+      minimumLength: password.length >= 8,
 
-          uppercase:
-            /[A-Z]/.test(
-              password,
-            ),
+      uppercase: /[A-Z]/.test(password),
 
-          lowercase:
-            /[a-z]/.test(
-              password,
-            ),
+      lowercase: /[a-z]/.test(password),
 
-          number:
-            /\d/.test(
-              password,
-            ),
+      number: /\d/.test(password),
 
-          specialCharacter:
-            /[^A-Za-z0-9]/.test(
-              password,
-            ),
-        };
-      },
-      [
-        formData.password,
-      ],
-    );
+      specialCharacter: /[^A-Za-z0-9]/.test(password),
+    };
+  }, [formData.password]);
 
   /* =======================================================
    * PASSWORD STRENGTH
    * ======================================================= */
 
-  const passwordStrength =
-    useMemo(
-      () => {
-        const completed =
-          Object.values(
-            passwordChecks,
-          ).filter(
-            Boolean,
-          ).length;
+  const passwordStrength = useMemo(() => {
+    const completed = Object.values(passwordChecks).filter(Boolean).length;
 
-        if (
-          !formData.password
-        ) {
-          return {
-            label:
-              '',
+    if (!formData.password) {
+      return {
+        label: '',
 
-            width:
-              '0%',
-          };
-        }
+        width: '0%',
+      };
+    }
 
-        if (
-          completed <= 2
-        ) {
-          return {
-            label:
-              'Weak',
+    if (completed <= 2) {
+      return {
+        label: 'Weak',
 
-            width:
-              '33%',
-          };
-        }
+        width: '33%',
+      };
+    }
 
-        if (
-          completed <= 4
-        ) {
-          return {
-            label:
-              'Medium',
+    if (completed <= 4) {
+      return {
+        label: 'Medium',
 
-            width:
-              '66%',
-          };
-        }
+        width: '66%',
+      };
+    }
 
-        return {
-          label:
-            'Strong',
+    return {
+      label: 'Strong',
 
-          width:
-            '100%',
-        };
-      },
-      [
-        formData.password,
-        passwordChecks,
-      ],
-    );
+      width: '100%',
+    };
+  }, [formData.password, passwordChecks]);
 
   /* =======================================================
    * API ERROR MESSAGE
    * ======================================================= */
 
-  const getApiErrorMessage =
-    error => {
-      if (
-        !error?.response
-      ) {
-        if (
-          error?.code ===
-          'ECONNABORTED'
-        ) {
-          return 'The request timed out. Please try again.';
-        }
-
-        return 'Unable to connect to the server. Please check your internet connection.';
+  const getApiErrorMessage = error => {
+    if (!error?.response) {
+      if (error?.code === 'ECONNABORTED') {
+        return 'The request timed out. Please try again.';
       }
 
-      const responseData =
-        error.response.data;
+      return 'Unable to connect to the server. Please check your internet connection.';
+    }
 
-      /* =============================================
-       * Laravel validation errors
-       * ============================================= */
+    const responseData = error.response.data;
 
-      if (
-        responseData?.errors &&
-        typeof responseData.errors ===
-          'object'
-      ) {
-        const messages =
-          Object.values(
-            responseData.errors,
-          )
-            .flat()
-            .filter(
-              Boolean,
-            );
+    /* =============================================
+     * Laravel validation errors
+     * ============================================= */
 
-        if (
-          messages.length >
-          0
-        ) {
-          return messages.join(
-            '\n',
-          );
-        }
+    if (responseData?.errors && typeof responseData.errors === 'object') {
+      const messages = Object.values(responseData.errors)
+        .flat()
+        .filter(Boolean);
+
+      if (messages.length > 0) {
+        return messages.join('\n');
       }
+    }
 
-      /* =============================================
-       * Common statuses
-       * ============================================= */
+    /* =============================================
+     * Common statuses
+     * ============================================= */
 
-      if (
-        error.response.status ===
-        401
-      ) {
-        return (
-          responseData?.message ||
-          'The verification session is invalid or has expired.'
-        );
-      }
-
-      if (
-        error.response.status ===
-        404
-      ) {
-        return (
-          responseData?.message ||
-          'The password reset request could not be found.'
-        );
-      }
-
-      if (
-        error.response.status ===
-        422
-      ) {
-        return (
-          responseData?.message ||
-          'Please check the information and try again.'
-        );
-      }
-
-      if (
-        error.response.status ===
-        429
-      ) {
-        return (
-          responseData?.message ||
-          'Too many attempts. Please wait before trying again.'
-        );
-      }
-
+    if (error.response.status === 401) {
       return (
         responseData?.message ||
-        responseData?.error ||
-        'Unable to reset your password. Please try again.'
+        'The verification session is invalid or has expired.'
       );
-    };
+    }
+
+    if (error.response.status === 404) {
+      return (
+        responseData?.message ||
+        'The password reset request could not be found.'
+      );
+    }
+
+    if (error.response.status === 422) {
+      return (
+        responseData?.message || 'Please check the information and try again.'
+      );
+    }
+
+    if (error.response.status === 429) {
+      return (
+        responseData?.message ||
+        'Too many attempts. Please wait before trying again.'
+      );
+    }
+
+    return (
+      responseData?.message ||
+      responseData?.error ||
+      'Unable to reset your password. Please try again.'
+    );
+  };
 
   /* =======================================================
    * VALIDATE FORM
    * ======================================================= */
 
-  const validateForm =
-    () => {
-      const cleanEmail =
-        String(
-          email ??
-            '',
-        ).trim();
+  const validateForm = () => {
+    const cleanEmail = String(email ?? '').trim();
 
-      const cleanOtp =
-        String(
-          otp ??
-            '',
-        ).trim();
+    const cleanOtp = String(otp ?? '').trim();
 
-      const password =
-        formData.password;
+    const password = formData.password;
 
-      const confirmPassword =
-        formData.passwordConfirmation;
+    const confirmPassword = formData.passwordConfirmation;
 
-      /* =============================================
-       * EMAIL
-       * ============================================= */
+    /* =============================================
+     * EMAIL
+     * ============================================= */
 
-      if (
-        !cleanEmail
-      ) {
-        Alert.alert(
-          'Email Missing',
-          'Your email address is missing. Please restart the forgot password process.',
-        );
+    if (!cleanEmail) {
+      Alert.alert(
+        'Email Missing',
+        'Your email address is missing. Please restart the forgot password process.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      /* =============================================
-       * OTP
-       * ============================================= */
+    /* =============================================
+     * OTP
+     * ============================================= */
 
-      if (
-        !cleanOtp
-      ) {
-        Alert.alert(
-          'OTP Missing',
-          'Your verification code is missing. Please restart the forgot password process.',
-        );
+    if (!cleanOtp) {
+      Alert.alert(
+        'OTP Missing',
+        'Your verification code is missing. Please restart the forgot password process.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        cleanOtp.length !== 6
-      ) {
-        Alert.alert(
-          'Invalid OTP',
-          'The verification code must contain 6 digits.',
-        );
+    if (cleanOtp.length !== 6) {
+      Alert.alert(
+        'Invalid OTP',
+        'The verification code must contain 6 digits.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      /* =============================================
-       * PASSWORD
-       * ============================================= */
+    /* =============================================
+     * PASSWORD
+     * ============================================= */
 
-      if (
-        !password
-      ) {
-        Alert.alert(
-          'Password Required',
-          'Please enter your new password.',
-        );
+    if (!password) {
+      Alert.alert('Password Required', 'Please enter your new password.');
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        password.length <
-        8
-      ) {
-        Alert.alert(
-          'Password Too Short',
-          'Your password must contain at least 8 characters.',
-        );
+    if (password.length < 8) {
+      Alert.alert(
+        'Password Too Short',
+        'Your password must contain at least 8 characters.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !passwordChecks.uppercase
-      ) {
-        Alert.alert(
-          'Uppercase Required',
-          'Your password must contain at least one uppercase letter.',
-        );
+    if (!passwordChecks.uppercase) {
+      Alert.alert(
+        'Uppercase Required',
+        'Your password must contain at least one uppercase letter.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !passwordChecks.lowercase
-      ) {
-        Alert.alert(
-          'Lowercase Required',
-          'Your password must contain at least one lowercase letter.',
-        );
+    if (!passwordChecks.lowercase) {
+      Alert.alert(
+        'Lowercase Required',
+        'Your password must contain at least one lowercase letter.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !passwordChecks.number
-      ) {
-        Alert.alert(
-          'Number Required',
-          'Your password must contain at least one number.',
-        );
+    if (!passwordChecks.number) {
+      Alert.alert(
+        'Number Required',
+        'Your password must contain at least one number.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        !passwordChecks.specialCharacter
-      ) {
-        Alert.alert(
-          'Special Character Required',
-          'Your password must contain at least one special character.',
-        );
+    if (!passwordChecks.specialCharacter) {
+      Alert.alert(
+        'Special Character Required',
+        'Your password must contain at least one special character.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      /* =============================================
-       * CONFIRM PASSWORD
-       * ============================================= */
+    /* =============================================
+     * CONFIRM PASSWORD
+     * ============================================= */
 
-      if (
-        !confirmPassword
-      ) {
-        Alert.alert(
-          'Confirm Password Required',
-          'Please confirm your new password.',
-        );
+    if (!confirmPassword) {
+      Alert.alert(
+        'Confirm Password Required',
+        'Please confirm your new password.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      if (
-        password !==
-        confirmPassword
-      ) {
-        Alert.alert(
-          'Passwords Do Not Match',
-          'Password and confirm password must match.',
-        );
+    if (password !== confirmPassword) {
+      Alert.alert(
+        'Passwords Do Not Match',
+        'Password and confirm password must match.',
+      );
 
-        return false;
-      }
+      return false;
+    }
 
-      return true;
-    };
+    return true;
+  };
 
   /* =======================================================
    * CLEAR RESET SESSION
    * ======================================================= */
 
-  const clearResetSession =
-    async () => {
-      try {
-        await AsyncStorage.multiRemove(
-          [
-            RESET_EMAIL_STORAGE_KEY,
-            RESET_OTP_STORAGE_KEY,
-            RESET_TOKEN_STORAGE_KEY,
-          ],
-        );
+  const clearResetSession = async () => {
+    try {
+      await AsyncStorage.multiRemove([
+        RESET_EMAIL_STORAGE_KEY,
+        RESET_OTP_STORAGE_KEY,
+        RESET_TOKEN_STORAGE_KEY,
+      ]);
 
-        console.log(
-          'RESET PASSWORD SESSION CLEARED',
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          'CLEAR RESET SESSION ERROR:',
-          error,
-        );
-      }
-    };
+      console.log('RESET PASSWORD SESSION CLEARED');
+    } catch (error) {
+      console.log('CLEAR RESET SESSION ERROR:', error);
+    }
+  };
 
   /* =======================================================
    * RESET PASSWORD
    * ======================================================= */
 
-  const handleResetPassword =
-    async () => {
-      if (
-        loading ||
-        loadingResetSession
-      ) {
-        return;
-      }
+  const handleResetPassword = async () => {
+    if (loading || loadingResetSession) {
+      return;
+    }
 
-      if (
-        !validateForm()
-      ) {
-        return;
-      }
+    if (!validateForm()) {
+      return;
+    }
 
-      const cleanEmail =
-        String(
-          email,
-        )
-          .trim()
-          .toLowerCase();
+    const cleanEmail = String(email).trim().toLowerCase();
 
-      const cleanOtp =
-        String(
-          otp,
-        ).trim();
+    const cleanOtp = String(otp).trim();
+
+    /* =============================================
+     * EXACT BACKEND PAYLOAD
+     *
+     * {
+     *   email,
+     *   otp,
+     *   password,
+     *   confirm_password
+     * }
+     *
+     * Do NOT send:
+     * password_confirmation
+     * reset_token
+     * token
+     * ============================================= */
+
+    const payload = {
+      email: cleanEmail,
+
+      otp: cleanOtp,
+
+      password: formData.password,
+
+      confirm_password: formData.passwordConfirmation,
+    };
+
+    /* =============================================
+     * DEBUG
+     * ============================================= */
+
+    console.log('======================================');
+
+    console.log('RESET PASSWORD API');
+
+    console.log('URL:', RESET_PASSWORD_API_URL);
+
+    console.log(
+      'PAYLOAD:',
+      JSON.stringify(
+        {
+          email: payload.email,
+
+          otp: payload.otp,
+
+          password: '********',
+
+          confirm_password: '********',
+        },
+        null,
+        2,
+      ),
+    );
+
+    console.log('======================================');
+
+    try {
+      setLoading(true);
 
       /* =============================================
-       * EXACT BACKEND PAYLOAD
-       *
-       * {
-       *   email,
-       *   otp,
-       *   password,
-       *   confirm_password
-       * }
-       *
-       * Do NOT send:
-       * password_confirmation
-       * reset_token
-       * token
+       * API CALL
        * ============================================= */
 
-      const payload = {
-        email:
-          cleanEmail,
-
-        otp:
-          cleanOtp,
-
-        password:
-          formData.password,
-
-        confirm_password:
-          formData.passwordConfirmation,
-      };
-
-      /* =============================================
-       * DEBUG
-       * ============================================= */
-
-      console.log(
-        '======================================',
-      );
-
-      console.log(
-        'RESET PASSWORD API',
-      );
-
-      console.log(
-        'URL:',
+      const response = await axios.post(
         RESET_PASSWORD_API_URL,
+
+        payload,
+
+        {
+          headers: {
+            Accept: 'application/json',
+
+            'Content-Type': 'application/json',
+          },
+
+          timeout: 20000,
+        },
       );
+
+      console.log('RESET PASSWORD STATUS:', response.status);
 
       console.log(
-        'PAYLOAD:',
-        JSON.stringify(
-          {
-            email:
-              payload.email,
-
-            otp:
-              payload.otp,
-
-            password:
-              '********',
-
-            confirm_password:
-              '********',
-          },
-          null,
-          2,
-        ),
+        'RESET PASSWORD RESPONSE:',
+        JSON.stringify(response.data, null, 2),
       );
 
-      console.log(
-        '======================================',
-      );
+      /* =============================================
+       * LOGICAL FAILURE
+       * ============================================= */
 
-      try {
-        setLoading(
-          true,
-        );
-
-        /* =============================================
-         * API CALL
-         * ============================================= */
-
-        const response =
-          await axios.post(
-            RESET_PASSWORD_API_URL,
-
-            payload,
-
-            {
-              headers: {
-                Accept:
-                  'application/json',
-
-                'Content-Type':
-                  'application/json',
-              },
-
-              timeout:
-                20000,
-            },
-          );
-
-        console.log(
-          'RESET PASSWORD STATUS:',
-          response.status,
-        );
-
-        console.log(
-          'RESET PASSWORD RESPONSE:',
-          JSON.stringify(
-            response.data,
-            null,
-            2,
-          ),
-        );
-
-        /* =============================================
-         * LOGICAL FAILURE
-         * ============================================= */
-
-        if (
-          response.data?.status ===
-            false ||
-          response.data?.success ===
-            false
-        ) {
-          Alert.alert(
-            'Reset Failed',
-
-            response.data?.message ||
-            'Unable to reset your password.',
-          );
-
-          return;
-        }
-
-        /* =============================================
-         * SUCCESS
-         * ============================================= */
-
-        await clearResetSession();
-
-        Alert.alert(
-          'Password Updated',
-
-          response.data?.message ||
-          'Your password has been reset successfully. You can now sign in with your new password.',
-
-          [
-            {
-              text:
-                'Sign In',
-
-              onPress: () => {
-                navigation.reset({
-                  index:
-                    0,
-
-                  routes: [
-                    {
-                      name:
-                        'Login',
-                    },
-                  ],
-                });
-              },
-            },
-          ],
-
-          {
-            cancelable:
-              false,
-          },
-        );
-      } catch (
-        error
-      ) {
-        console.log(
-          '======================================',
-        );
-
-        console.log(
-          'RESET PASSWORD ERROR',
-        );
-
-        console.log(
-          'MESSAGE:',
-          error?.message,
-        );
-
-        console.log(
-          'STATUS:',
-          error?.response?.status,
-        );
-
-        console.log(
-          'RESPONSE:',
-          JSON.stringify(
-            error?.response?.data,
-            null,
-            2,
-          ),
-        );
-
-        console.log(
-          '======================================',
-        );
-
-        const errorMessage =
-          axios.isAxiosError(
-            error,
-          )
-            ? getApiErrorMessage(
-                error,
-              )
-            : 'An unexpected error occurred. Please try again.';
-
+      if (response.data?.status === false || response.data?.success === false) {
         Alert.alert(
           'Reset Failed',
-          errorMessage,
+
+          response.data?.message || 'Unable to reset your password.',
         );
-      } finally {
-        setLoading(
-          false,
-        );
+
+        return;
       }
-    };
+
+      /* =============================================
+       * SUCCESS
+       * ============================================= */
+
+      await clearResetSession();
+
+      Alert.alert(
+        'Password Updated',
+
+        response.data?.message ||
+          'Your password has been reset successfully. You can now sign in with your new password.',
+
+        [
+          {
+            text: 'Sign In',
+
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+
+                routes: [
+                  {
+                    name: 'Login',
+                  },
+                ],
+              });
+            },
+          },
+        ],
+
+        {
+          cancelable: false,
+        },
+      );
+    } catch (error) {
+      console.log('======================================');
+
+      console.log('RESET PASSWORD ERROR');
+
+      console.log('MESSAGE:', error?.message);
+
+      console.log('STATUS:', error?.response?.status);
+
+      console.log('RESPONSE:', JSON.stringify(error?.response?.data, null, 2));
+
+      console.log('======================================');
+
+      const errorMessage = axios.isAxiosError(error)
+        ? getApiErrorMessage(error)
+        : 'An unexpected error occurred. Please try again.';
+
+      Alert.alert('Reset Failed', errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* =======================================================
    * BACK
    * ======================================================= */
 
-  const handleBack =
-    () => {
-      if (
-        loading ||
-        loadingResetSession
-      ) {
-        return;
-      }
+  const handleBack = () => {
+    if (loading || loadingResetSession) {
+      return;
+    }
 
-      navigation.goBack();
-    };
+    navigation.goBack();
+  };
 
   /* =======================================================
    * LOGIN
    * ======================================================= */
 
-  const handleGoToLogin =
-    async () => {
-      if (
-        loading ||
-        loadingResetSession
-      ) {
-        return;
-      }
+  const handleGoToLogin = async () => {
+    if (loading || loadingResetSession) {
+      return;
+    }
 
-      await clearResetSession();
+    await clearResetSession();
 
-      navigation.reset({
-        index:
-          0,
+    navigation.reset({
+      index: 0,
 
-        routes: [
-          {
-            name:
-              'Login',
-          },
-        ],
-      });
-    };
+      routes: [
+        {
+          name: 'Login',
+        },
+      ],
+    });
+  };
 
   /* =======================================================
    * SESSION LOADER
    * ======================================================= */
 
-  if (
-    loadingResetSession
-  ) {
+  if (loadingResetSession) {
     return (
-      <SafeAreaView
-        style={
-          styles.screen
-        }
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFF8F4"
-        />
+      <SafeAreaView style={styles.screen}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF8F4" />
 
-        <View
-          style={
-            styles.fullScreenLoader
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color="#A00B0F"
-          />
+        <View style={styles.fullScreenLoader}>
+          <ActivityIndicator size="large" color="#A00B0F" />
 
-          <Text
-            style={
-              styles.sessionLoadingText
-            }
-          >
+          <Text style={styles.sessionLoadingText}>
             Preparing password reset...
           </Text>
         </View>
@@ -1060,53 +684,61 @@ const ResetPassword = ({
    * ======================================================= */
 
   return (
-    <SafeAreaView
-      style={
-        styles.screen
-      }
-    >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFF8F4"
-      />
+    <SafeAreaView style={styles.screen}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFF8F4" />
+
+      {/* ==================================================
+          KEYBOARD + SCROLL FIX
+          ================================================== */}
 
       <KeyboardAvoidingView
-        style={
-          styles.keyboardContainer
-        }
-        behavior={
-          Platform.OS ===
-          'ios'
-            ? 'padding'
-            : undefined
-        }
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={[
             styles.scrollContent,
 
-            isShortScreen &&
-              styles.scrollContentShort,
+            isShortScreen && styles.scrollContentShort,
           ]}
-          showsVerticalScrollIndicator={
-            false
-          }
+          showsVerticalScrollIndicator={false}
+          /*
+           * Buttons / inputs remain usable
+           * while keyboard is open.
+           */
           keyboardShouldPersistTaps="handled"
+          /*
+           * User can scroll without
+           * automatically dismissing
+           * the keyboard.
+           */
+          keyboardDismissMode="none"
+          /*
+           * Explicitly enable scrolling
+           * while typing.
+           */
+          scrollEnabled={true}
+          /*
+           * Better scrolling support
+           * on Android.
+           */
+          nestedScrollEnabled={true}
+          bounces={false}
+          overScrollMode="never"
         >
           <View
             style={[
               styles.card,
 
               {
-                width:
-                  containerWidth,
+                width: containerWidth,
               },
 
-              isSmallScreen &&
-                styles.cardSmall,
+              isSmallScreen && styles.cardSmall,
 
-              isShortScreen &&
-                styles.cardShort,
+              isShortScreen && styles.cardShort,
             ]}
           >
             {/* ================================================= */}
@@ -1114,39 +746,18 @@ const ResetPassword = ({
             {/* ================================================= */}
 
             <Pressable
-              disabled={
-                loading
-              }
-              hitSlop={
-                10
-              }
-              onPress={
-                handleBack
-              }
-              style={({
-                pressed,
-              }) => [
+              disabled={loading}
+              hitSlop={10}
+              onPress={handleBack}
+              style={({ pressed }) => [
                 styles.backButton,
 
-                pressed &&
-                  styles.pressed,
+                pressed && styles.pressed,
               ]}
             >
-              <Text
-                style={
-                  styles.backArrow
-                }
-              >
-                ‹
-              </Text>
+              <Text style={styles.backArrow}>‹</Text>
 
-              <Text
-                style={
-                  styles.backText
-                }
-              >
-                Back
-              </Text>
+              <Text style={styles.backText}>Back</Text>
             </Pressable>
 
             {/* ================================================= */}
@@ -1158,11 +769,9 @@ const ResetPassword = ({
               style={[
                 styles.logo,
 
-                isSmallScreen &&
-                  styles.logoSmall,
+                isSmallScreen && styles.logoSmall,
 
-                isShortScreen &&
-                  styles.logoShort,
+                isShortScreen && styles.logoShort,
               ]}
               resizeMode="contain"
             />
@@ -1171,38 +780,14 @@ const ResetPassword = ({
             {/* LOCK ICON */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.lockIconCircle
-              }
-            >
-              <View
-                style={
-                  styles.lockIcon
-                }
-              >
-                <View
-                  style={
-                    styles.lockTop
-                  }
-                />
+            <View style={styles.lockIconCircle}>
+              <View style={styles.lockIcon}>
+                <View style={styles.lockTop} />
 
-                <View
-                  style={
-                    styles.lockBody
-                  }
-                >
-                  <View
-                    style={
-                      styles.keyHoleTop
-                    }
-                  />
+                <View style={styles.lockBody}>
+                  <View style={styles.keyHoleTop} />
 
-                  <View
-                    style={
-                      styles.keyHoleBottom
-                    }
-                  />
+                  <View style={styles.keyHoleBottom} />
                 </View>
               </View>
             </View>
@@ -1211,26 +796,15 @@ const ResetPassword = ({
             {/* TITLE */}
             {/* ================================================= */}
 
-            <Text
-              style={[
-                styles.title,
-
-                isSmallScreen &&
-                  styles.titleSmall,
-              ]}
-            >
+            <Text style={[styles.title, isSmallScreen && styles.titleSmall]}>
               Create New Password
             </Text>
 
             <Text
-              style={[
-                styles.subtitle,
-
-                isSmallScreen &&
-                  styles.subtitleSmall,
-              ]}
+              style={[styles.subtitle, isSmallScreen && styles.subtitleSmall]}
             >
-              Create a strong password that you have not previously used for this account.
+              Create a strong password that you have not previously used for
+              this account.
             </Text>
 
             {/* ================================================= */}
@@ -1238,50 +812,20 @@ const ResetPassword = ({
             {/* ================================================= */}
 
             {!!email ? (
-              <View
-                style={
-                  styles.emailContainer
-                }
-              >
-                <Text
-                  style={
-                    styles.emailLabel
-                  }
-                >
-                  Resetting password for
-                </Text>
+              <View style={styles.emailContainer}>
+                <Text style={styles.emailLabel}>Resetting password for</Text>
 
-                <Text
-                  numberOfLines={
-                    1
-                  }
-                  style={
-                    styles.emailText
-                  }
-                >
+                <Text numberOfLines={1} style={styles.emailText}>
                   {email}
                 </Text>
               </View>
             ) : (
-              <View
-                style={
-                  styles.emailWarningContainer
-                }
-              >
-                <Text
-                  style={
-                    styles.emailWarningTitle
-                  }
-                >
-                  Email not found
-                </Text>
+              <View style={styles.emailWarningContainer}>
+                <Text style={styles.emailWarningTitle}>Email not found</Text>
 
-                <Text
-                  style={
-                    styles.emailWarningText
-                  }
-                >
-                  Return to Forgot Password and request another verification code.
+                <Text style={styles.emailWarningText}>
+                  Return to Forgot Password and request another verification
+                  code.
                 </Text>
               </View>
             )}
@@ -1290,77 +834,49 @@ const ResetPassword = ({
             {/* NEW PASSWORD */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                New Password
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>New Password</Text>
 
               <View
                 style={[
                   styles.inputContainer,
 
-                  loading &&
-                    styles.inputContainerDisabled,
+                  loading && styles.inputContainerDisabled,
                 ]}
               >
                 <Image
                   source={require('../assets/login-icons/unlock.png')}
-                  style={
-                    styles.inputIconImage
-                  }
+                  style={styles.inputIconImage}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.password
-                  }
-                  onChangeText={value =>
-                    updateField(
-                      'password',
-                      value,
-                    )
-                  }
+                  value={formData.password}
+                  onChangeText={value => updateField('password', value)}
                   placeholder="Enter your new password"
                   placeholderTextColor="#9B9B9B"
-                  secureTextEntry={
-                    !showPassword
-                  }
+                  secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   autoComplete="new-password"
                   textContentType="newPassword"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  /*
+                   * NEXT moves directly to
+                   * Confirm New Password.
+                   */
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    confirmPasswordInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
 
                 <Pressable
-                  disabled={
-                    loading
-                  }
-                  hitSlop={
-                    10
-                  }
-                  onPress={() =>
-                    setShowPassword(
-                      current =>
-                        !current,
-                    )
-                  }
+                  disabled={loading}
+                  hitSlop={10}
+                  onPress={() => setShowPassword(current => !current)}
                 >
                   <Image
                     source={
@@ -1368,9 +884,7 @@ const ResetPassword = ({
                         ? require('../assets/login-icons/eye.png')
                         : require('../assets/login-icons/close-eye.png')
                     }
-                    style={
-                      styles.passwordEyeImage
-                    }
+                    style={styles.passwordEyeImage}
                     resizeMode="contain"
                   />
                 </Pressable>
@@ -1381,69 +895,43 @@ const ResetPassword = ({
               {/* =============================================== */}
 
               {!!formData.password && (
-                <View
-                  style={
-                    styles.strengthSection
-                  }
-                >
-                  <View
-                    style={
-                      styles.strengthHeader
-                    }
-                  >
-                    <Text
-                      style={
-                        styles.strengthLabel
-                      }
-                    >
-                      Password strength
-                    </Text>
+                <View style={styles.strengthSection}>
+                  <View style={styles.strengthHeader}>
+                    <Text style={styles.strengthLabel}>Password strength</Text>
 
                     <Text
                       style={[
                         styles.strengthText,
 
-                        passwordStrength.label ===
-                          'Strong' &&
+                        passwordStrength.label === 'Strong' &&
                           styles.strongText,
 
-                        passwordStrength.label ===
-                          'Medium' &&
+                        passwordStrength.label === 'Medium' &&
                           styles.mediumText,
 
-                        passwordStrength.label ===
-                          'Weak' &&
-                          styles.weakText,
+                        passwordStrength.label === 'Weak' && styles.weakText,
                       ]}
                     >
                       {passwordStrength.label}
                     </Text>
                   </View>
 
-                  <View
-                    style={
-                      styles.strengthTrack
-                    }
-                  >
+                  <View style={styles.strengthTrack}>
                     <View
                       style={[
                         styles.strengthProgress,
 
                         {
-                          width:
-                            passwordStrength.width,
+                          width: passwordStrength.width,
                         },
 
-                        passwordStrength.label ===
-                          'Strong' &&
+                        passwordStrength.label === 'Strong' &&
                           styles.strongProgress,
 
-                        passwordStrength.label ===
-                          'Medium' &&
+                        passwordStrength.label === 'Medium' &&
                           styles.mediumProgress,
 
-                        passwordStrength.label ===
-                          'Weak' &&
+                        passwordStrength.label === 'Weak' &&
                           styles.weakProgress,
                       ]}
                     />
@@ -1456,80 +944,46 @@ const ResetPassword = ({
             {/* CONFIRM PASSWORD */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Confirm New Password
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Confirm New Password</Text>
 
               <View
                 style={[
                   styles.inputContainer,
 
-                  loading &&
-                    styles.inputContainerDisabled,
+                  loading && styles.inputContainerDisabled,
                 ]}
               >
                 <Image
                   source={require('../assets/login-icons/unlock.png')}
-                  style={
-                    styles.inputIconImage
-                  }
+                  style={styles.inputIconImage}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.passwordConfirmation
-                  }
+                  ref={confirmPasswordInputRef}
+                  value={formData.passwordConfirmation}
                   onChangeText={value =>
-                    updateField(
-                      'passwordConfirmation',
-                      value,
-                    )
+                    updateField('passwordConfirmation', value)
                   }
                   placeholder="Confirm your new password"
                   placeholderTextColor="#9B9B9B"
-                  secureTextEntry={
-                    !showPasswordConfirmation
-                  }
+                  secureTextEntry={!showPasswordConfirmation}
                   autoCapitalize="none"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   autoComplete="new-password"
                   textContentType="newPassword"
-                  editable={
-                    !loading
-                  }
+                  editable={!loading}
                   returnKeyType="done"
-                  onSubmitEditing={
-                    handleResetPassword
-                  }
-                  style={
-                    styles.input
-                  }
+                  onSubmitEditing={handleResetPassword}
+                  style={styles.input}
                 />
 
                 <Pressable
-                  disabled={
-                    loading
-                  }
-                  hitSlop={
-                    10
-                  }
+                  disabled={loading}
+                  hitSlop={10}
                   onPress={() =>
-                    setShowPasswordConfirmation(
-                      current =>
-                        !current,
-                    )
+                    setShowPasswordConfirmation(current => !current)
                   }
                 >
                   <Image
@@ -1538,9 +992,7 @@ const ResetPassword = ({
                         ? require('../assets/login-icons/eye.png')
                         : require('../assets/login-icons/close-eye.png')
                     }
-                    style={
-                      styles.passwordEyeImage
-                    }
+                    style={styles.passwordEyeImage}
                     resizeMode="contain"
                   />
                 </Pressable>
@@ -1551,14 +1003,12 @@ const ResetPassword = ({
                   style={[
                     styles.passwordMatchText,
 
-                    formData.password ===
-                    formData.passwordConfirmation
+                    formData.password === formData.passwordConfirmation
                       ? styles.passwordMatchedText
                       : styles.passwordNotMatchedText,
                   ]}
                 >
-                  {formData.password ===
-                  formData.passwordConfirmation
+                  {formData.password === formData.passwordConfirmation
                     ? '✓ Passwords match'
                     : 'Passwords do not match'}
                 </Text>
@@ -1569,51 +1019,33 @@ const ResetPassword = ({
             {/* REQUIREMENTS */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.requirementsCard
-              }
-            >
-              <Text
-                style={
-                  styles.requirementsTitle
-                }
-              >
+            <View style={styles.requirementsCard}>
+              <Text style={styles.requirementsTitle}>
                 Your password must contain:
               </Text>
 
               <PasswordRequirement
-                completed={
-                  passwordChecks.minimumLength
-                }
+                completed={passwordChecks.minimumLength}
                 label="At least 8 characters"
               />
 
               <PasswordRequirement
-                completed={
-                  passwordChecks.uppercase
-                }
+                completed={passwordChecks.uppercase}
                 label="At least one uppercase letter"
               />
 
               <PasswordRequirement
-                completed={
-                  passwordChecks.lowercase
-                }
+                completed={passwordChecks.lowercase}
                 label="At least one lowercase letter"
               />
 
               <PasswordRequirement
-                completed={
-                  passwordChecks.number
-                }
+                completed={passwordChecks.number}
                 label="At least one number"
               />
 
               <PasswordRequirement
-                completed={
-                  passwordChecks.specialCharacter
-                }
+                completed={passwordChecks.specialCharacter}
                 label="At least one special character"
               />
             </View>
@@ -1623,64 +1055,26 @@ const ResetPassword = ({
             {/* ================================================= */}
 
             <TouchableOpacity
-              activeOpacity={
-                0.85
-              }
-              disabled={
-                loading ||
-                !email ||
-                !otp
-              }
+              activeOpacity={0.85}
+              disabled={loading || !email || !otp}
               style={[
                 styles.resetButton,
 
-                (
-                  loading ||
-                  !email ||
-                  !otp
-                ) &&
-                  styles.resetButtonDisabled,
+                (loading || !email || !otp) && styles.resetButtonDisabled,
               ]}
-              onPress={
-                handleResetPassword
-              }
+              onPress={handleResetPassword}
             >
               {loading ? (
-                <View
-                  style={
-                    styles.loadingContainer
-                  }
-                >
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
 
-                  <Text
-                    style={
-                      styles.loadingText
-                    }
-                  >
-                    Updating Password...
-                  </Text>
+                  <Text style={styles.loadingText}>Updating Password...</Text>
                 </View>
               ) : (
                 <>
-                  <Text
-                    style={
-                      styles.resetButtonText
-                    }
-                  >
-                    Reset Password
-                  </Text>
+                  <Text style={styles.resetButtonText}>Reset Password</Text>
 
-                  <Text
-                    style={
-                      styles.resetArrow
-                    }
-                  >
-                    →
-                  </Text>
+                  <Text style={styles.resetArrow}>→</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1689,34 +1083,11 @@ const ResetPassword = ({
             {/* LOGIN */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.loginContainer
-              }
-            >
-              <Text
-                style={
-                  styles.loginQuestion
-                }
-              >
-                Remember your password?{' '}
-              </Text>
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginQuestion}>Remember your password? </Text>
 
-              <Pressable
-                disabled={
-                  loading
-                }
-                onPress={
-                  handleGoToLogin
-                }
-              >
-                <Text
-                  style={
-                    styles.loginText
-                  }
-                >
-                  Sign In
-                </Text>
+              <Pressable disabled={loading} onPress={handleGoToLogin}>
+                <Text style={styles.loginText}>Sign In</Text>
               </Pressable>
             </View>
 
@@ -1724,31 +1095,14 @@ const ResetPassword = ({
             {/* SECURITY */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.securityCard
-              }
-            >
-              <View
-                style={
-                  styles.securityIconCircle
-                }
-              >
-                <Text
-                  style={
-                    styles.securityIcon
-                  }
-                >
-                  ✓
-                </Text>
+            <View style={styles.securityCard}>
+              <View style={styles.securityIconCircle}>
+                <Text style={styles.securityIcon}>✓</Text>
               </View>
 
-              <Text
-                style={
-                  styles.securityText
-                }
-              >
-                Your new password is securely encrypted and cannot be viewed by anyone.
+              <Text style={styles.securityText}>
+                Your new password is securely encrypted and cannot be viewed by
+                anyone.
               </Text>
             </View>
 
@@ -1756,32 +1110,12 @@ const ResetPassword = ({
             {/* FOOTER */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.footerContainer
-              }
-            >
-              <Text
-                style={
-                  styles.footerText
-                }
-              >
-                Privacy Policy
-              </Text>
+            <View style={styles.footerContainer}>
+              <Text style={styles.footerText}>Privacy Policy</Text>
 
-              <View
-                style={
-                  styles.footerSeparator
-                }
-              />
+              <View style={styles.footerSeparator} />
 
-              <Text
-                style={
-                  styles.footerText
-                }
-              >
-                Terms of Service
-              </Text>
+              <Text style={styles.footerText}>Terms of Service</Text>
             </View>
           </View>
         </ScrollView>
@@ -1794,34 +1128,23 @@ const ResetPassword = ({
  * PASSWORD REQUIREMENT
  * ========================================================= */
 
-const PasswordRequirement = ({
-  completed,
-  label,
-}) => (
-  <View
-    style={
-      styles.requirementRow
-    }
-  >
+const PasswordRequirement = ({ completed, label }) => (
+  <View style={styles.requirementRow}>
     <View
       style={[
         styles.requirementIcon,
 
-        completed &&
-          styles.requirementIconCompleted,
+        completed && styles.requirementIconCompleted,
       ]}
     >
       <Text
         style={[
           styles.requirementIconText,
 
-          completed &&
-            styles.requirementIconTextCompleted,
+          completed && styles.requirementIconTextCompleted,
         ]}
       >
-        {completed
-          ? '✓'
-          : '•'}
+        {completed ? '✓' : '•'}
       </Text>
     </View>
 
@@ -1829,8 +1152,7 @@ const PasswordRequirement = ({
       style={[
         styles.requirementText,
 
-        completed &&
-          styles.requirementTextCompleted,
+        completed && styles.requirementTextCompleted,
       ]}
     >
       {label}
@@ -1844,1093 +1166,819 @@ export default ResetPassword;
  * STYLES
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    screen: {
-      flex:
-        1,
-
-      backgroundColor:
-        '#FFF8F4',
-    },
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
 
-    keyboardContainer: {
-      flex:
-        1,
-    },
+    backgroundColor: '#FFF8F4',
+  },
 
-    /* =====================================================
-     * LOADER
-     * ===================================================== */
+  keyboardContainer: {
+    flex: 1,
+  },
 
-    fullScreenLoader: {
-      flex:
-        1,
+  /*
+   * IMPORTANT:
+   * Allows ScrollView to use
+   * the complete available space.
+   */
+  scrollView: {
+    flex: 1,
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * LOADER
+   * ===================================================== */
 
-      justifyContent:
-        'center',
-    },
+  fullScreenLoader: {
+    flex: 1,
 
-    sessionLoadingText: {
-      marginTop:
-        12,
+    alignItems: 'center',
 
-      color:
-        '#6D5D57',
+    justifyContent: 'center',
+  },
 
-      fontSize:
-        11,
+  sessionLoadingText: {
+    marginTop: 12,
 
-      fontWeight:
-        '700',
-    },
+    color: '#6D5D57',
 
-    /* =====================================================
-     * PAGE
-     * ===================================================== */
+    fontSize: 11,
 
-    scrollContent: {
-      flexGrow:
-        1,
+    fontWeight: '700',
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * PAGE
+   * ===================================================== */
 
-      justifyContent:
-        'center',
+  scrollContent: {
+    flexGrow: 1,
 
-      paddingHorizontal:
-        16,
+    alignItems: 'center',
 
-      paddingVertical:
-        24,
-    },
+    justifyContent: 'center',
 
-    scrollContentShort: {
-      justifyContent:
-        'flex-start',
+    paddingHorizontal: 16,
 
-      paddingTop:
-        16,
-    },
+    paddingTop: 24,
 
-    card: {
-      maxWidth:
-        500,
+    /*
+     * Extra bottom space allows the
+     * password fields, requirements
+     * and Reset button to scroll
+     * above the keyboard.
+     */
+    paddingBottom: 120,
+  },
 
-      paddingHorizontal:
-        22,
+  scrollContentShort: {
+    justifyContent: 'flex-start',
 
-      paddingTop:
-        18,
+    paddingTop: 16,
+  },
 
-      paddingBottom:
-        20,
+  card: {
+    maxWidth: 500,
 
-      borderRadius:
-        24,
+    paddingHorizontal: 22,
 
-      backgroundColor:
-        '#FFFFFF',
+    paddingTop: 18,
 
-      shadowColor:
-        '#7D6B63',
+    paddingBottom: 20,
 
-      shadowOffset: {
-        width:
-          0,
+    borderRadius: 24,
 
-        height:
-          6,
-      },
+    backgroundColor: '#FFFFFF',
 
-      shadowOpacity:
-        0.14,
+    shadowColor: '#7D6B63',
 
-      shadowRadius:
-        16,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        6,
+      height: 6,
     },
 
-    cardSmall: {
-      paddingHorizontal:
-        16,
+    shadowOpacity: 0.14,
 
-      borderRadius:
-        20,
-    },
+    shadowRadius: 16,
 
-    cardShort: {
-      paddingTop:
-        14,
+    elevation: 6,
+  },
 
-      paddingBottom:
-        17,
-    },
+  cardSmall: {
+    paddingHorizontal: 16,
 
-    pressed: {
-      opacity:
-        0.6,
-    },
+    borderRadius: 20,
+  },
 
-    /* =====================================================
-     * BACK
-     * ===================================================== */
+  cardShort: {
+    paddingTop: 14,
 
-    backButton: {
-      alignSelf:
-        'flex-start',
+    paddingBottom: 17,
+  },
 
-      minHeight:
-        38,
+  pressed: {
+    opacity: 0.6,
+  },
 
-      flexDirection:
-        'row',
+  /* =====================================================
+   * BACK
+   * ===================================================== */
 
-      alignItems:
-        'center',
+  backButton: {
+    alignSelf: 'flex-start',
 
-      paddingRight:
-        12,
-    },
+    minHeight: 38,
 
-    backArrow: {
-      color:
-        '#A00B0F',
+    flexDirection: 'row',
 
-      fontSize:
-        31,
+    alignItems: 'center',
 
-      lineHeight:
-        32,
-    },
+    paddingRight: 12,
+  },
 
-    backText: {
-      color:
-        '#A00B0F',
+  backArrow: {
+    color: '#A00B0F',
 
-      fontSize:
-        12,
+    fontSize: 31,
 
-      fontWeight:
-        '700',
+    lineHeight: 32,
+  },
 
-      marginLeft:
-        3,
-    },
+  backText: {
+    color: '#A00B0F',
 
-    /* =====================================================
-     * LOGO
-     * ===================================================== */
+    fontSize: 12,
 
-    logo: {
-      width:
-        110,
+    fontWeight: '700',
 
-      height:
-        110,
+    marginLeft: 3,
+  },
 
-      alignSelf:
-        'center',
+  /* =====================================================
+   * LOGO
+   * ===================================================== */
 
-      marginTop:
-        -5,
+  logo: {
+    width: 110,
 
-      marginBottom:
-        5,
-    },
+    height: 110,
 
-    logoSmall: {
-      width:
-        95,
+    alignSelf: 'center',
 
-      height:
-        95,
-    },
+    marginTop: -5,
 
-    logoShort: {
-      width:
-        80,
+    marginBottom: 5,
+  },
 
-      height:
-        80,
-    },
+  logoSmall: {
+    width: 95,
 
-    /* =====================================================
-     * LOCK
-     * ===================================================== */
+    height: 95,
+  },
 
-    lockIconCircle: {
-      width:
-        64,
+  logoShort: {
+    width: 80,
 
-      height:
-        64,
+    height: 80,
+  },
 
-      borderRadius:
-        32,
+  /* =====================================================
+   * LOCK
+   * ===================================================== */
 
-      backgroundColor:
-        '#FFF1F1',
+  lockIconCircle: {
+    width: 64,
 
-      alignSelf:
-        'center',
+    height: 64,
 
-      alignItems:
-        'center',
+    borderRadius: 32,
 
-      justifyContent:
-        'center',
+    backgroundColor: '#FFF1F1',
 
-      marginBottom:
-        16,
-    },
+    alignSelf: 'center',
 
-    lockIcon: {
-      width:
-        31,
+    alignItems: 'center',
 
-      height:
-        35,
+    justifyContent: 'center',
 
-      alignItems:
-        'center',
-    },
+    marginBottom: 16,
+  },
 
-    lockTop: {
-      width:
-        19,
+  lockIcon: {
+    width: 31,
 
-      height:
-        16,
+    height: 35,
 
-      borderWidth:
-        3,
+    alignItems: 'center',
+  },
 
-      borderBottomWidth:
-        0,
+  lockTop: {
+    width: 19,
 
-      borderColor:
-        '#A00B0F',
+    height: 16,
 
-      borderTopLeftRadius:
-        10,
+    borderWidth: 3,
 
-      borderTopRightRadius:
-        10,
-    },
+    borderBottomWidth: 0,
 
-    lockBody: {
-      width:
-        30,
+    borderColor: '#A00B0F',
 
-      height:
-        23,
+    borderTopLeftRadius: 10,
 
-      marginTop:
-        -1,
+    borderTopRightRadius: 10,
+  },
 
-      borderRadius:
-        5,
+  lockBody: {
+    width: 30,
 
-      backgroundColor:
-        '#A00B0F',
+    height: 23,
 
-      alignItems:
-        'center',
+    marginTop: -1,
 
-      justifyContent:
-        'center',
-    },
+    borderRadius: 5,
 
-    keyHoleTop: {
-      width:
-        6,
+    backgroundColor: '#A00B0F',
 
-      height:
-        6,
+    alignItems: 'center',
 
-      borderRadius:
-        3,
+    justifyContent: 'center',
+  },
 
-      backgroundColor:
-        '#FFFFFF',
-    },
+  keyHoleTop: {
+    width: 6,
 
-    keyHoleBottom: {
-      width:
-        3,
+    height: 6,
 
-      height:
-        7,
+    borderRadius: 3,
 
-      marginTop:
-        -1,
+    backgroundColor: '#FFFFFF',
+  },
 
-      borderRadius:
-        2,
+  keyHoleBottom: {
+    width: 3,
 
-      backgroundColor:
-        '#FFFFFF',
-    },
+    height: 7,
 
-    /* =====================================================
-     * TITLE
-     * ===================================================== */
+    marginTop: -1,
 
-    title: {
-      color:
-        '#111111',
+    borderRadius: 2,
 
-      fontSize:
-        27,
+    backgroundColor: '#FFFFFF',
+  },
 
-      fontWeight:
-        '800',
+  /* =====================================================
+   * TITLE
+   * ===================================================== */
 
-      textAlign:
-        'center',
-    },
+  title: {
+    color: '#111111',
 
-    titleSmall: {
-      fontSize:
-        23,
-    },
+    fontSize: 27,
 
-    subtitle: {
-      maxWidth:
-        400,
+    fontWeight: '800',
 
-      alignSelf:
-        'center',
+    textAlign: 'center',
+  },
 
-      marginTop:
-        7,
+  titleSmall: {
+    fontSize: 23,
+  },
 
-      marginBottom:
-        18,
+  subtitle: {
+    maxWidth: 400,
 
-      color:
-        '#777777',
+    alignSelf: 'center',
 
-      fontSize:
-        13,
+    marginTop: 7,
 
-      lineHeight:
-        20,
+    marginBottom: 18,
 
-      textAlign:
-        'center',
-    },
+    color: '#777777',
 
-    subtitleSmall: {
-      fontSize:
-        12,
+    fontSize: 13,
 
-      lineHeight:
-        18,
-    },
+    lineHeight: 20,
 
-    /* =====================================================
-     * EMAIL
-     * ===================================================== */
+    textAlign: 'center',
+  },
 
-    emailContainer: {
-      width:
-        '100%',
+  subtitleSmall: {
+    fontSize: 12,
 
-      marginBottom:
-        22,
+    lineHeight: 18,
+  },
 
-      padding:
-        12,
+  /* =====================================================
+   * EMAIL
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  emailContainer: {
+    width: '100%',
 
-      borderColor:
-        '#F0D6D4',
+    marginBottom: 22,
 
-      borderRadius:
-        11,
+    padding: 12,
 
-      backgroundColor:
-        '#FFF8F7',
+    borderWidth: 1,
 
-      alignItems:
-        'center',
-    },
+    borderColor: '#F0D6D4',
 
-    emailLabel: {
-      color:
-        '#85706F',
+    borderRadius: 11,
 
-      fontSize:
-        9.5,
-    },
+    backgroundColor: '#FFF8F7',
 
-    emailText: {
-      maxWidth:
-        '100%',
+    alignItems: 'center',
+  },
 
-      marginTop:
-        3,
+  emailLabel: {
+    color: '#85706F',
 
-      color:
-        '#A00B0F',
+    fontSize: 9.5,
+  },
 
-      fontSize:
-        12,
+  emailText: {
+    maxWidth: '100%',
 
-      fontWeight:
-        '800',
-    },
+    marginTop: 3,
 
-    emailWarningContainer: {
-      width:
-        '100%',
+    color: '#A00B0F',
 
-      marginBottom:
-        22,
+    fontSize: 12,
 
-      padding:
-        12,
+    fontWeight: '800',
+  },
 
-      borderWidth:
-        1,
+  emailWarningContainer: {
+    width: '100%',
 
-      borderColor:
-        '#F1C9C9',
+    marginBottom: 22,
 
-      borderRadius:
-        11,
+    padding: 12,
 
-      backgroundColor:
-        '#FFF1F1',
-    },
+    borderWidth: 1,
 
-    emailWarningTitle: {
-      color:
-        '#A00B0F',
+    borderColor: '#F1C9C9',
 
-      fontSize:
-        11,
+    borderRadius: 11,
 
-      fontWeight:
-        '900',
-    },
+    backgroundColor: '#FFF1F1',
+  },
 
-    emailWarningText: {
-      marginTop:
-        4,
+  emailWarningTitle: {
+    color: '#A00B0F',
 
-      color:
-        '#7D6666',
+    fontSize: 11,
 
-      fontSize:
-        9.5,
+    fontWeight: '900',
+  },
 
-      lineHeight:
-        15,
-    },
+  emailWarningText: {
+    marginTop: 4,
 
-    /* =====================================================
-     * INPUTS
-     * ===================================================== */
+    color: '#7D6666',
 
-    fieldGroup: {
-      width:
-        '100%',
+    fontSize: 9.5,
 
-      marginBottom:
-        18,
-    },
+    lineHeight: 15,
+  },
 
-    label: {
-      marginBottom:
-        8,
+  /* =====================================================
+   * INPUTS
+   * ===================================================== */
 
-      color:
-        '#202020',
+  fieldGroup: {
+    width: '100%',
 
-      fontSize:
-        13,
+    marginBottom: 18,
+  },
 
-      fontWeight:
-        '600',
-    },
+  label: {
+    marginBottom: 8,
 
-    inputContainer: {
-      width:
-        '100%',
+    color: '#202020',
 
-      minHeight:
-        54,
+    fontSize: 13,
 
-      paddingHorizontal:
-        14,
+    fontWeight: '600',
+  },
 
-      borderRadius:
-        13,
+  inputContainer: {
+    width: '100%',
 
-      backgroundColor:
-        '#F2F2F2',
+    minHeight: 54,
 
-      flexDirection:
-        'row',
+    paddingHorizontal: 14,
 
-      alignItems:
-        'center',
-    },
+    borderRadius: 13,
 
-    inputContainerDisabled: {
-      opacity:
-        0.65,
-    },
+    backgroundColor: '#F2F2F2',
 
-    inputIconImage: {
-      width:
-        20,
+    flexDirection: 'row',
 
-      height:
-        20,
+    alignItems: 'center',
+  },
 
-      marginRight:
-        10,
-    },
+  inputContainerDisabled: {
+    opacity: 0.65,
+  },
 
-    input: {
-      flex:
-        1,
+  inputIconImage: {
+    width: 20,
 
-      minHeight:
-        52,
+    height: 20,
 
-      paddingVertical:
-        0,
+    marginRight: 10,
+  },
 
-      color:
-        '#222222',
+  input: {
+    flex: 1,
 
-      fontSize:
-        14,
-    },
+    minHeight: 52,
 
-    passwordEyeImage: {
-      width:
-        20,
+    paddingVertical: 0,
 
-      height:
-        20,
+    color: '#222222',
 
-      marginLeft:
-        10,
-    },
+    fontSize: 14,
+  },
 
-    /* =====================================================
-     * STRENGTH
-     * ===================================================== */
+  passwordEyeImage: {
+    width: 20,
 
-    strengthSection: {
-      marginTop:
-        10,
-    },
+    height: 20,
 
-    strengthHeader: {
-      flexDirection:
-        'row',
+    marginLeft: 10,
+  },
 
-      justifyContent:
-        'space-between',
+  /* =====================================================
+   * STRENGTH
+   * ===================================================== */
 
-      alignItems:
-        'center',
-    },
+  strengthSection: {
+    marginTop: 10,
+  },
 
-    strengthLabel: {
-      color:
-        '#777777',
+  strengthHeader: {
+    flexDirection: 'row',
 
-      fontSize:
-        9.5,
-    },
+    justifyContent: 'space-between',
 
-    strengthText: {
-      fontSize:
-        9.5,
+    alignItems: 'center',
+  },
 
-      fontWeight:
-        '800',
-    },
+  strengthLabel: {
+    color: '#777777',
 
-    weakText: {
-      color:
-        '#D14343',
-    },
+    fontSize: 9.5,
+  },
 
-    mediumText: {
-      color:
-        '#C27B00',
-    },
+  strengthText: {
+    fontSize: 9.5,
 
-    strongText: {
-      color:
-        '#278A4D',
-    },
+    fontWeight: '800',
+  },
 
-    strengthTrack: {
-      width:
-        '100%',
+  weakText: {
+    color: '#D14343',
+  },
 
-      height:
-        5,
+  mediumText: {
+    color: '#C27B00',
+  },
 
-      marginTop:
-        6,
+  strongText: {
+    color: '#278A4D',
+  },
 
-      borderRadius:
-        3,
+  strengthTrack: {
+    width: '100%',
 
-      overflow:
-        'hidden',
+    height: 5,
 
-      backgroundColor:
-        '#E5E5E5',
-    },
+    marginTop: 6,
 
-    strengthProgress: {
-      height:
-        '100%',
+    borderRadius: 3,
 
-      borderRadius:
-        3,
-    },
+    overflow: 'hidden',
 
-    weakProgress: {
-      backgroundColor:
-        '#D14343',
-    },
+    backgroundColor: '#E5E5E5',
+  },
 
-    mediumProgress: {
-      backgroundColor:
-        '#D89520',
-    },
+  strengthProgress: {
+    height: '100%',
 
-    strongProgress: {
-      backgroundColor:
-        '#278A4D',
-    },
+    borderRadius: 3,
+  },
 
-    passwordMatchText: {
-      marginTop:
-        8,
+  weakProgress: {
+    backgroundColor: '#D14343',
+  },
 
-      fontSize:
-        10,
+  mediumProgress: {
+    backgroundColor: '#D89520',
+  },
 
-      fontWeight:
-        '700',
-    },
+  strongProgress: {
+    backgroundColor: '#278A4D',
+  },
 
-    passwordMatchedText: {
-      color:
-        '#278A4D',
-    },
+  passwordMatchText: {
+    marginTop: 8,
 
-    passwordNotMatchedText: {
-      color:
-        '#D14343',
-    },
+    fontSize: 10,
 
-    /* =====================================================
-     * REQUIREMENTS
-     * ===================================================== */
+    fontWeight: '700',
+  },
 
-    requirementsCard: {
-      width:
-        '100%',
+  passwordMatchedText: {
+    color: '#278A4D',
+  },
 
-      marginBottom:
-        22,
+  passwordNotMatchedText: {
+    color: '#D14343',
+  },
 
-      padding:
-        14,
+  /* =====================================================
+   * REQUIREMENTS
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  requirementsCard: {
+    width: '100%',
 
-      borderColor:
-        '#E8E8E8',
+    marginBottom: 22,
 
-      borderRadius:
-        12,
+    padding: 14,
 
-      backgroundColor:
-        '#FAFAFA',
-    },
+    borderWidth: 1,
 
-    requirementsTitle: {
-      marginBottom:
-        9,
+    borderColor: '#E8E8E8',
 
-      color:
-        '#303030',
+    borderRadius: 12,
 
-      fontSize:
-        11,
+    backgroundColor: '#FAFAFA',
+  },
 
-      fontWeight:
-        '800',
-    },
+  requirementsTitle: {
+    marginBottom: 9,
 
-    requirementRow: {
-      marginTop:
-        6,
+    color: '#303030',
 
-      flexDirection:
-        'row',
+    fontSize: 11,
 
-      alignItems:
-        'center',
-    },
+    fontWeight: '800',
+  },
 
-    requirementIcon: {
-      width:
-        17,
+  requirementRow: {
+    marginTop: 6,
 
-      height:
-        17,
+    flexDirection: 'row',
 
-      marginRight:
-        8,
+    alignItems: 'center',
+  },
 
-      borderWidth:
-        1,
+  requirementIcon: {
+    width: 17,
 
-      borderColor:
-        '#C6C6C6',
+    height: 17,
 
-      borderRadius:
-        9,
+    marginRight: 8,
 
-      alignItems:
-        'center',
+    borderWidth: 1,
 
-      justifyContent:
-        'center',
-    },
+    borderColor: '#C6C6C6',
 
-    requirementIconCompleted: {
-      borderColor:
-        '#278A4D',
+    borderRadius: 9,
 
-      backgroundColor:
-        '#278A4D',
-    },
+    alignItems: 'center',
 
-    requirementIconText: {
-      color:
-        '#9B9B9B',
+    justifyContent: 'center',
+  },
 
-      fontSize:
-        11,
+  requirementIconCompleted: {
+    borderColor: '#278A4D',
 
-      fontWeight:
-        '800',
-    },
+    backgroundColor: '#278A4D',
+  },
 
-    requirementIconTextCompleted: {
-      color:
-        '#FFFFFF',
+  requirementIconText: {
+    color: '#9B9B9B',
 
-      fontSize:
-        9,
-    },
+    fontSize: 11,
 
-    requirementText: {
-      flex:
-        1,
+    fontWeight: '800',
+  },
 
-      color:
-        '#777777',
+  requirementIconTextCompleted: {
+    color: '#FFFFFF',
 
-      fontSize:
-        10.5,
+    fontSize: 9,
+  },
 
-      lineHeight:
-        15,
-    },
+  requirementText: {
+    flex: 1,
 
-    requirementTextCompleted: {
-      color:
-        '#278A4D',
-    },
+    color: '#777777',
 
-    /* =====================================================
-     * RESET BUTTON
-     * ===================================================== */
+    fontSize: 10.5,
 
-    resetButton: {
-      width:
-        '100%',
+    lineHeight: 15,
+  },
 
-      minHeight:
-        54,
+  requirementTextCompleted: {
+    color: '#278A4D',
+  },
 
-      borderRadius:
-        13,
+  /* =====================================================
+   * RESET BUTTON
+   * ===================================================== */
 
-      backgroundColor:
-        '#A00B0F',
+  resetButton: {
+    width: '100%',
 
-      flexDirection:
-        'row',
+    minHeight: 54,
 
-      alignItems:
-        'center',
+    borderRadius: 13,
 
-      justifyContent:
-        'center',
+    backgroundColor: '#A00B0F',
 
-      shadowColor:
-        '#A00B0F',
+    flexDirection: 'row',
 
-      shadowOffset: {
-        width:
-          0,
+    alignItems: 'center',
 
-        height:
-          5,
-      },
+    justifyContent: 'center',
 
-      shadowOpacity:
-        0.28,
+    shadowColor: '#A00B0F',
 
-      shadowRadius:
-        10,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        5,
+      height: 5,
     },
 
-    resetButtonDisabled: {
-      opacity:
-        0.5,
-    },
+    shadowOpacity: 0.28,
 
-    resetButtonText: {
-      color:
-        '#FFFFFF',
+    shadowRadius: 10,
 
-      fontSize:
-        15,
+    elevation: 5,
+  },
 
-      fontWeight:
-        '800',
-    },
+  resetButtonDisabled: {
+    opacity: 0.5,
+  },
 
-    resetArrow: {
-      marginLeft:
-        8,
+  resetButtonText: {
+    color: '#FFFFFF',
 
-      color:
-        '#FFFFFF',
+    fontSize: 15,
 
-      fontSize:
-        20,
+    fontWeight: '800',
+  },
 
-      fontWeight:
-        '700',
-    },
+  resetArrow: {
+    marginLeft: 8,
 
-    loadingContainer: {
-      flexDirection:
-        'row',
+    color: '#FFFFFF',
 
-      alignItems:
-        'center',
+    fontSize: 20,
 
-      justifyContent:
-        'center',
-    },
+    fontWeight: '700',
+  },
 
-    loadingText: {
-      marginLeft:
-        10,
+  loadingContainer: {
+    flexDirection: 'row',
 
-      color:
-        '#FFFFFF',
+    alignItems: 'center',
 
-      fontSize:
-        14,
+    justifyContent: 'center',
+  },
 
-      fontWeight:
-        '700',
-    },
+  loadingText: {
+    marginLeft: 10,
 
-    /* =====================================================
-     * LOGIN
-     * ===================================================== */
+    color: '#FFFFFF',
 
-    loginContainer: {
-      marginTop:
-        26,
+    fontSize: 14,
 
-      flexDirection:
-        'row',
+    fontWeight: '700',
+  },
 
-      justifyContent:
-        'center',
+  /* =====================================================
+   * LOGIN
+   * ===================================================== */
 
-      alignItems:
-        'center',
+  loginContainer: {
+    marginTop: 26,
 
-      flexWrap:
-        'wrap',
-    },
+    flexDirection: 'row',
 
-    loginQuestion: {
-      color:
-        '#555555',
+    justifyContent: 'center',
 
-      fontSize:
-        12,
-    },
+    alignItems: 'center',
 
-    loginText: {
-      color:
-        '#A00B0F',
+    flexWrap: 'wrap',
+  },
 
-      fontSize:
-        12,
+  loginQuestion: {
+    color: '#555555',
 
-      fontWeight:
-        '800',
-    },
+    fontSize: 12,
+  },
 
-    /* =====================================================
-     * SECURITY
-     * ===================================================== */
+  loginText: {
+    color: '#A00B0F',
 
-    securityCard: {
-      width:
-        '100%',
+    fontSize: 12,
 
-      marginTop:
-        23,
+    fontWeight: '800',
+  },
 
-      padding:
-        13,
+  /* =====================================================
+   * SECURITY
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  securityCard: {
+    width: '100%',
 
-      borderColor:
-        '#D8ECDD',
+    marginTop: 23,
 
-      borderRadius:
-        12,
+    padding: 13,
 
-      backgroundColor:
-        '#F4FBF6',
+    borderWidth: 1,
 
-      flexDirection:
-        'row',
+    borderColor: '#D8ECDD',
 
-      alignItems:
-        'flex-start',
-    },
+    borderRadius: 12,
 
-    securityIconCircle: {
-      width:
-        24,
+    backgroundColor: '#F4FBF6',
 
-      height:
-        24,
+    flexDirection: 'row',
 
-      marginRight:
-        10,
+    alignItems: 'flex-start',
+  },
 
-      borderRadius:
-        12,
+  securityIconCircle: {
+    width: 24,
 
-      backgroundColor:
-        '#278A4D',
+    height: 24,
 
-      alignItems:
-        'center',
+    marginRight: 10,
 
-      justifyContent:
-        'center',
-    },
+    borderRadius: 12,
 
-    securityIcon: {
-      color:
-        '#FFFFFF',
+    backgroundColor: '#278A4D',
 
-      fontSize:
-        12,
+    alignItems: 'center',
 
-      fontWeight:
-        '800',
-    },
+    justifyContent: 'center',
+  },
 
-    securityText: {
-      flex:
-        1,
+  securityIcon: {
+    color: '#FFFFFF',
 
-      color:
-        '#52705B',
+    fontSize: 12,
 
-      fontSize:
-        10.5,
+    fontWeight: '800',
+  },
 
-      lineHeight:
-        16,
-    },
+  securityText: {
+    flex: 1,
 
-    /* =====================================================
-     * FOOTER
-     * ===================================================== */
+    color: '#52705B',
 
-    footerContainer: {
-      marginTop:
-        26,
+    fontSize: 10.5,
 
-      flexDirection:
-        'row',
+    lineHeight: 16,
+  },
 
-      justifyContent:
-        'center',
+  /* =====================================================
+   * FOOTER
+   * ===================================================== */
 
-      alignItems:
-        'center',
-    },
+  footerContainer: {
+    marginTop: 26,
 
-    footerText: {
-      color:
-        '#A0A0A0',
+    flexDirection: 'row',
 
-      fontSize:
-        10,
-    },
+    justifyContent: 'center',
 
-    footerSeparator: {
-      width:
-        1,
+    alignItems: 'center',
+  },
 
-      height:
-        11,
+  footerText: {
+    color: '#A0A0A0',
 
-      marginHorizontal:
-        10,
+    fontSize: 10,
+  },
 
-      backgroundColor:
-        '#D0D0D0',
-    },
-  });
+  footerSeparator: {
+    width: 1,
+
+    height: 11,
+
+    marginHorizontal: 10,
+
+    backgroundColor: '#D0D0D0',
+  },
+});

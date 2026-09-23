@@ -1,6 +1,4 @@
-import React, {
-  useState,
-} from 'react';
+import React, { useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -18,9 +16,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import axios from 'axios';
 
@@ -35,616 +31,409 @@ const REGISTER_API_URL =
  * REGISTER COMPONENT
  * ========================================================= */
 
-const Register = ({
-  navigation,
-}) => {
-  const {
-    width,
-  } =
-    useWindowDimensions();
+const Register = ({ navigation }) => {
+  const { width } = useWindowDimensions();
 
   /* =======================================================
    * FORM
-   *
-   * API PAYLOAD:
-   *
-   * first_name
-   * last_name
-   * email
-   * phone
-   * password
-   * password_confirmation
-   * pincode
-   * address
    * ======================================================= */
 
-  const [
-    formData,
-    setFormData,
-  ] =
-    useState({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      password: '',
-      password_confirmation:
-        '',
-      pincode: '',
-      address: '',
-    });
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    password: '',
+    password_confirmation: '',
+    pincode: '',
+    address: '',
+  });
 
   /* =======================================================
    * PASSWORD VISIBILITY
    * ======================================================= */
 
-  const [
-    showPassword,
-    setShowPassword,
-  ] =
-    useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [
-    showConfirmPassword,
-    setShowConfirmPassword,
-  ] =
-    useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   /* =======================================================
    * LOADING
    * ======================================================= */
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
+
+  /* =======================================================
+   * INPUT REFS
+   * ======================================================= */
+
+  const lastNameInputRef = useRef(null);
+
+  const emailInputRef = useRef(null);
+
+  const phoneInputRef = useRef(null);
+
+  const pincodeInputRef = useRef(null);
+
+  const addressInputRef = useRef(null);
+
+  const passwordInputRef = useRef(null);
+
+  const confirmPasswordInputRef = useRef(null);
 
   /* =======================================================
    * RESPONSIVE WIDTH
    * ======================================================= */
 
-  const formWidth =
-    width >= 768
-      ? 520
-      : width - 32;
+  const formWidth = width >= 768 ? 520 : width - 32;
 
   /* =======================================================
    * UPDATE FIELD
    * ======================================================= */
 
-  const updateField = (
-    field,
-    value,
-  ) => {
-    setFormData(
-      previousData => ({
-        ...previousData,
+  const updateField = (field, value) => {
+    setFormData(previousData => ({
+      ...previousData,
 
-        [field]:
-          value,
-      }),
-    );
+      [field]: value,
+    }));
   };
 
   /* =======================================================
    * API ERROR MESSAGE
    * ======================================================= */
 
-  const getApiErrorMessage =
-    error => {
-      if (
-        !error.response
-      ) {
-        return 'Unable to connect to the server. Please check your internet connection.';
-      }
+  const getApiErrorMessage = error => {
+    if (!error.response) {
+      return 'Unable to connect to the server. Please check your internet connection.';
+    }
 
-      const responseData =
-        error.response
-          ?.data;
+    const responseData = error.response?.data;
 
-      /* ===================================================
-       * LARAVEL VALIDATION ERRORS
-       *
-       * Example:
-       *
-       * {
-       *   errors: {
-       *     email: ["Email already exists."]
-       *   }
-       * }
-       * =================================================== */
+    /*
+     * Laravel validation errors
+     */
+    if (responseData?.errors) {
+      const messages = [];
 
-      if (
-        responseData
-          ?.errors
-      ) {
-        const messages =
-          [];
+      Object.keys(responseData.errors).forEach(field => {
+        const fieldErrors = responseData.errors[field];
 
-        Object.keys(
-          responseData.errors,
-        ).forEach(
-          field => {
-            const fieldErrors =
-              responseData
-                .errors[
-                field
-              ];
-
-            if (
-              Array.isArray(
-                fieldErrors,
-              )
-            ) {
-              fieldErrors.forEach(
-                message => {
-                  if (
-                    message
-                  ) {
-                    messages.push(
-                      message,
-                    );
-                  }
-                },
-              );
-            } else if (
-              fieldErrors
-            ) {
-              messages.push(
-                String(
-                  fieldErrors,
-                ),
-              );
+        if (Array.isArray(fieldErrors)) {
+          fieldErrors.forEach(message => {
+            if (message) {
+              messages.push(message);
             }
-          },
-        );
-
-        if (
-          messages.length >
-          0
-        ) {
-          return messages.join(
-            '\n',
-          );
+          });
+        } else if (fieldErrors) {
+          messages.push(String(fieldErrors));
         }
-      }
+      });
 
-      if (
-        responseData
-          ?.message
-      ) {
-        return responseData
-          .message;
+      if (messages.length > 0) {
+        return messages.join('\n');
       }
+    }
 
-      if (
-        responseData
-          ?.error
-      ) {
-        return responseData
-          .error;
-      }
+    if (responseData?.message) {
+      return responseData.message;
+    }
 
-      return `Registration failed. Server returned status ${
-        error.response
-          ?.status ||
-        'unknown'
-      }.`;
-    };
+    if (responseData?.error) {
+      return responseData.error;
+    }
+
+    return `Registration failed. Server returned status ${
+      error.response?.status || 'unknown'
+    }.`;
+  };
 
   /* =======================================================
    * REGISTER
    * ======================================================= */
 
-  const handleRegister =
-    async () => {
-      const {
-        first_name,
-        last_name,
-        email,
-        phone,
-        password,
-        password_confirmation,
-        pincode,
-        address,
-      } =
-        formData;
+  const handleRegister = async () => {
+    /*
+     * Prevent multiple requests
+     */
+    if (loading) {
+      return;
+    }
 
-      /* ===================================================
-       * REQUIRED FIELDS
-       * =================================================== */
+    const {
+      first_name,
+      last_name,
+      email,
+      phone,
+      password,
+      password_confirmation,
+      pincode,
+      address,
+    } = formData;
 
-      if (
-        !first_name?.trim() ||
-        !last_name?.trim() ||
-        !email?.trim() ||
-        !phone?.trim() ||
-        !password ||
-        !password_confirmation ||
-        !pincode?.trim() ||
-        !address?.trim()
-      ) {
-        Alert.alert(
-          'Required Fields',
+    /* ===================================================
+     * REQUIRED FIELDS
+     * =================================================== */
 
-          'Please fill in all the registration fields.',
-        );
+    if (
+      !first_name?.trim() ||
+      !last_name?.trim() ||
+      !email?.trim() ||
+      !phone?.trim() ||
+      !password ||
+      !password_confirmation ||
+      !pincode?.trim() ||
+      !address?.trim()
+    ) {
+      Alert.alert(
+        'Required Fields',
 
-        return;
-      }
-
-      /* ===================================================
-       * FIRST NAME
-       * =================================================== */
-
-      if (
-        first_name
-          .trim()
-          .length <
-        2
-      ) {
-        Alert.alert(
-          'Invalid First Name',
-
-          'Please enter a valid first name.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * LAST NAME
-       * =================================================== */
-
-      if (
-        last_name
-          .trim()
-          .length <
-        2
-      ) {
-        Alert.alert(
-          'Invalid Last Name',
-
-          'Please enter a valid last name.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * EMAIL
-       * =================================================== */
-
-      const emailPattern =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (
-        !emailPattern.test(
-          email.trim(),
-        )
-      ) {
-        Alert.alert(
-          'Invalid Email',
-
-          'Please enter a valid email address.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * PHONE
-       * =================================================== */
-
-      const cleanPhone =
-        phone.replace(
-          /\s+/g,
-          '',
-        );
-
-      if (
-        cleanPhone.length <
-        8
-      ) {
-        Alert.alert(
-          'Invalid Mobile Number',
-
-          'Please enter a valid mobile number.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * PINCODE
-       * =================================================== */
-
-      const cleanPincode =
-        pincode
-          .trim()
-          .replace(
-            /\s+/g,
-            '',
-          );
-
-      if (
-        cleanPincode.length <
-        3
-      ) {
-        Alert.alert(
-          'Invalid Pincode',
-
-          'Please enter a valid pincode.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * PASSWORD
-       * =================================================== */
-
-      if (
-        password.length <
-        8
-      ) {
-        Alert.alert(
-          'Invalid Password',
-
-          'Password must contain at least 8 characters.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * PASSWORD CONFIRMATION
-       * =================================================== */
-
-      if (
-        password !==
-        password_confirmation
-      ) {
-        Alert.alert(
-          'Password Mismatch',
-
-          'Password and confirm password do not match.',
-        );
-
-        return;
-      }
-
-      /* ===================================================
-       * PAYLOAD
-       *
-       * EXACT PAYLOAD REQUIRED BY BACKEND
-       * =================================================== */
-
-      const payload = {
-        first_name:
-          first_name.trim(),
-
-        last_name:
-          last_name.trim(),
-
-        email:
-          email
-            .trim()
-            .toLowerCase(),
-
-        phone:
-          phone.trim(),
-
-        password,
-
-        password_confirmation,
-
-        pincode:
-          pincode.trim(),
-
-        address:
-          address.trim(),
-      };
-
-      /* ===================================================
-       * DEBUG
-       * =================================================== */
-
-      console.log(
-        '======================================',
+        'Please fill in all the registration fields.',
       );
 
-      console.log(
-        'CUSTOMER REGISTER',
+      return;
+    }
+
+    /* ===================================================
+     * FIRST NAME
+     * =================================================== */
+
+    if (first_name.trim().length < 2) {
+      Alert.alert(
+        'Invalid First Name',
+
+        'Please enter a valid first name.',
       );
 
-      console.log(
-        'REGISTER URL:',
-        REGISTER_API_URL,
+      return;
+    }
+
+    /* ===================================================
+     * LAST NAME
+     * =================================================== */
+
+    if (last_name.trim().length < 2) {
+      Alert.alert(
+        'Invalid Last Name',
+
+        'Please enter a valid last name.',
       );
 
-      console.log(
-        'REGISTER PAYLOAD:',
+      return;
+    }
+
+    /* ===================================================
+     * EMAIL
+     * =================================================== */
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(email.trim())) {
+      Alert.alert(
+        'Invalid Email',
+
+        'Please enter a valid email address.',
       );
 
-      console.log({
-        ...payload,
+      return;
+    }
 
-        password:
-          '********',
+    /* ===================================================
+     * PHONE
+     * =================================================== */
 
-        password_confirmation:
-          '********',
-      });
+    const cleanPhone = phone.replace(/\s+/g, '');
 
-      console.log(
-        '======================================',
+    if (cleanPhone.length < 8) {
+      Alert.alert(
+        'Invalid Mobile Number',
+
+        'Please enter a valid mobile number.',
       );
 
-      /* ===================================================
-       * API REQUEST
-       * =================================================== */
+      return;
+    }
 
-      try {
-        setLoading(
-          true,
-        );
+    /* ===================================================
+     * PINCODE
+     * =================================================== */
 
-        const response =
-          await axios.post(
-            REGISTER_API_URL,
+    const cleanPincode = pincode.trim().replace(/\s+/g, '');
 
-            payload,
+    if (cleanPincode.length < 3) {
+      Alert.alert(
+        'Invalid Pincode',
 
-            {
-              headers: {
-                Accept:
-                  'application/json',
+        'Please enter a valid pincode.',
+      );
 
-                'Content-Type':
-                  'application/json',
-              },
+      return;
+    }
 
-              timeout:
-                20000,
-            },
-          );
+    /* ===================================================
+     * PASSWORD
+     * =================================================== */
 
-        /* =================================================
-         * SUCCESS
-         * ================================================= */
+    if (password.length < 8) {
+      Alert.alert(
+        'Invalid Password',
 
-        console.log(
-          '======================================',
-        );
+        'Password must contain at least 8 characters.',
+      );
 
-        console.log(
-          'REGISTER SUCCESS',
-        );
+      return;
+    }
 
-        console.log(
-          'STATUS:',
-          response.status,
-        );
+    /* ===================================================
+     * PASSWORD CONFIRMATION
+     * =================================================== */
 
-        console.log(
-          'RESPONSE DATA:',
-        );
+    if (password !== password_confirmation) {
+      Alert.alert(
+        'Password Mismatch',
 
-        console.log(
-          JSON.stringify(
-            response.data,
-            null,
-            2,
-          ),
-        );
+        'Password and confirm password do not match.',
+      );
 
-        console.log(
-          '======================================',
-        );
+      return;
+    }
 
-        Alert.alert(
-          'Registration Successful',
+    /* ===================================================
+     * PAYLOAD
+     * =================================================== */
 
-          response.data
-            ?.message ||
-            'Your account has been created successfully.',
+    const payload = {
+      first_name: first_name.trim(),
 
-          [
-            {
-              text:
-                'Continue',
+      last_name: last_name.trim(),
 
-              onPress:
-                () => {
-                  navigation.replace(
-                    'Login',
-                  );
-                },
-            },
-          ],
-        );
-      } catch (error) {
-        console.log(
-          '======================================',
-        );
+      email: email.trim().toLowerCase(),
 
-        console.log(
-          'REGISTER FAILED',
-        );
+      phone: phone.trim(),
 
-        console.log(
-          'ERROR MESSAGE:',
-          error.message,
-        );
+      password,
 
-        console.log(
-          'STATUS:',
-          error.response
-            ?.status,
-        );
+      password_confirmation,
 
-        console.log(
-          'SERVER RESPONSE:',
-        );
+      pincode: pincode.trim(),
 
-        console.log(
-          JSON.stringify(
-            error.response
-              ?.data,
-            null,
-            2,
-          ),
-        );
-
-        console.log(
-          '======================================',
-        );
-
-        if (
-          !error.response
-        ) {
-          Alert.alert(
-            'Connection Error',
-
-            'Unable to connect to the server. Please check your internet connection.',
-          );
-
-          return;
-        }
-
-        const message =
-          getApiErrorMessage(
-            error,
-          );
-
-        Alert.alert(
-          'Registration Failed',
-
-          message,
-        );
-      } finally {
-        setLoading(
-          false,
-        );
-      }
+      address: address.trim(),
     };
+
+    console.log('======================================');
+
+    console.log('CUSTOMER REGISTER');
+
+    console.log('REGISTER URL:', REGISTER_API_URL);
+
+    console.log('REGISTER PAYLOAD:');
+
+    console.log({
+      ...payload,
+
+      password: '********',
+
+      password_confirmation: '********',
+    });
+
+    console.log('======================================');
+
+    /* ===================================================
+     * API REQUEST
+     * =================================================== */
+
+    try {
+      setLoading(true);
+
+      const response = await axios.post(
+        REGISTER_API_URL,
+
+        payload,
+
+        {
+          headers: {
+            Accept: 'application/json',
+
+            'Content-Type': 'application/json',
+          },
+
+          timeout: 20000,
+        },
+      );
+
+      console.log('======================================');
+
+      console.log('REGISTER SUCCESS');
+
+      console.log('STATUS:', response.status);
+
+      console.log('RESPONSE DATA:');
+
+      console.log(JSON.stringify(response.data, null, 2));
+
+      console.log('======================================');
+
+      Alert.alert(
+        'Registration Successful',
+
+        response.data?.message || 'Your account has been created successfully.',
+
+        [
+          {
+            text: 'Continue',
+
+            onPress: () => {
+              navigation.replace('Login');
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.log('======================================');
+
+      console.log('REGISTER FAILED');
+
+      console.log('ERROR MESSAGE:', error.message);
+
+      console.log('STATUS:', error.response?.status);
+
+      console.log('SERVER RESPONSE:');
+
+      console.log(JSON.stringify(error.response?.data, null, 2));
+
+      console.log('======================================');
+
+      if (!error.response) {
+        Alert.alert(
+          'Connection Error',
+
+          'Unable to connect to the server. Please check your internet connection.',
+        );
+
+        return;
+      }
+
+      const message = getApiErrorMessage(error);
+
+      Alert.alert(
+        'Registration Failed',
+
+        message,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   /* =======================================================
    * LOGIN
    * ======================================================= */
 
-  const handleLogin =
-    () => {
-      if (
-        navigation
-      ) {
-        navigation.navigate(
-          'Login',
-        );
-      }
-    };
+  const handleLogin = () => {
+    if (navigation && !loading) {
+      navigation.navigate('Login');
+    }
+  };
 
   /* =======================================================
    * UI
@@ -652,43 +441,56 @@ const Register = ({
 
   return (
     <SafeAreaView
-      style={
-        styles.screen
-      }
-      edges={[
-        'top',
-        'left',
-        'right',
-        'bottom',
-      ]}
+      style={styles.screen}
+      edges={['top', 'left', 'right', 'bottom']}
     >
+      {/* ==================================================
+          KEYBOARD AVOIDING VIEW
+          ================================================== */}
+
       <KeyboardAvoidingView
-        style={
-          styles.keyboardContainer
-        }
-        behavior={
-          Platform.OS ===
-          'ios'
-            ? 'padding'
-            : undefined
-        }
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
       >
+        {/* ================================================
+            SCROLL VIEW
+            ================================================ */}
+
         <ScrollView
-          contentContainerStyle={
-            styles.scrollContent
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          /*
+           * IMPORTANT:
+           *
+           * Allows inputs/buttons to work
+           * while keyboard is visible.
+           */
           keyboardShouldPersistTaps="handled"
+          /*
+           * Scrolling will NOT close
+           * keyboard automatically.
+           */
+          keyboardDismissMode="none"
+          /*
+           * User can scroll while
+           * typing.
+           */
+          scrollEnabled={true}
+          /*
+           * Better Android support.
+           */
+          nestedScrollEnabled={true}
+          bounces={false}
+          overScrollMode="never"
         >
           <View
             style={[
               styles.formContainer,
 
               {
-                width:
-                  formWidth,
+                width: formWidth,
               },
             ]}
           >
@@ -698,9 +500,7 @@ const Register = ({
 
             <Image
               source={require('../assets/logo.png')}
-              style={
-                styles.logo
-              }
+              style={styles.logo}
               resizeMode="contain"
             />
 
@@ -708,19 +508,9 @@ const Register = ({
             {/* HEADING */}
             {/* ================================================= */}
 
-            <Text
-              style={
-                styles.title
-              }
-            >
-              Create Account
-            </Text>
+            <Text style={styles.title}>Create Account</Text>
 
-            <Text
-              style={
-                styles.subtitle
-              }
-            >
+            <Text style={styles.subtitle}>
               Complete your profile to start your meal journey.
             </Text>
 
@@ -728,56 +518,38 @@ const Register = ({
             {/* FIRST NAME */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                First Name
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>First Name</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/user-1.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.first_name
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'first_name',
-                        value,
-                      )
-                  }
+                  value={formData.first_name}
+                  onChangeText={value => updateField('first_name', value)}
                   placeholder="Jane"
                   placeholderTextColor="#9B9B9B"
                   autoCapitalize="words"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  /*
+                   * Do not close keyboard
+                   * when pressing Next.
+                   */
+                  blurOnSubmit={false}
+                  /*
+                   * Next:
+                   * First Name → Last Name
+                   */
+                  onSubmitEditing={() => {
+                    lastNameInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -786,56 +558,31 @@ const Register = ({
             {/* LAST NAME */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Last Name
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Last Name</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/user-1.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.last_name
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'last_name',
-                        value,
-                      )
-                  }
+                  ref={lastNameInputRef}
+                  value={formData.last_name}
+                  onChangeText={value => updateField('last_name', value)}
                   placeholder="Doe"
                   placeholderTextColor="#9B9B9B"
                   autoCapitalize="words"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    emailInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -844,57 +591,32 @@ const Register = ({
             {/* EMAIL */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Email Address
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email Address</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/mail.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.email
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'email',
-                        value,
-                      )
-                  }
+                  ref={emailInputRef}
+                  value={formData.email}
+                  onChangeText={value => updateField('email', value)}
                   placeholder="jane.doe@example.com"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    phoneInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -903,56 +625,31 @@ const Register = ({
             {/* PHONE */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Mobile Number
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Mobile Number</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/phone-call.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.phone
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'phone',
-                        value,
-                      )
-                  }
+                  ref={phoneInputRef}
+                  value={formData.phone}
+                  onChangeText={value => updateField('phone', value)}
                   placeholder="0412345678"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="phone-pad"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    pincodeInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -961,53 +658,30 @@ const Register = ({
             {/* PINCODE */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Pincode
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Pincode</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/residential-area.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.pincode
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'pincode',
-                        value,
-                      )
-                  }
+                  ref={pincodeInputRef}
+                  value={formData.pincode}
+                  onChangeText={value => updateField('pincode', value)}
                   placeholder="5000"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="number-pad"
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    addressInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
               </View>
             </View>
@@ -1016,60 +690,30 @@ const Register = ({
             {/* ADDRESS */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Address
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Address</Text>
 
               <View
-                style={[
-                  styles.inputContainer,
-                  styles.addressInputContainer,
-                ]}
+                style={[styles.inputContainer, styles.addressInputContainer]}
               >
                 <Image
                   source={require('../assets/login-icons/location.png')}
-                  style={[
-                    styles.inputImageIcon,
-                    styles.addressImageIcon,
-                  ]}
+                  style={[styles.inputImageIcon, styles.addressImageIcon]}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.address
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'address',
-                        value,
-                      )
-                  }
+                  ref={addressInputRef}
+                  value={formData.address}
+                  onChangeText={value => updateField('address', value)}
                   placeholder="12 Adelaide St, Town/Suburbs, 5000"
                   placeholderTextColor="#9B9B9B"
                   autoCapitalize="sentences"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   multiline
                   textAlignVertical="top"
-                  editable={
-                    !loading
-                  }
-                  style={[
-                    styles.input,
-                    styles.addressInput,
-                  ]}
+                  editable={!loading}
+                  style={[styles.input, styles.addressInput]}
                 />
               </View>
             </View>
@@ -1078,73 +722,46 @@ const Register = ({
             {/* PASSWORD */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Password
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/unlock.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData.password
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'password',
-                        value,
-                      )
-                  }
+                  ref={passwordInputRef}
+                  value={formData.password}
+                  onChangeText={value => updateField('password', value)}
                   placeholder="Enter password"
                   placeholderTextColor="#9B9B9B"
-                  secureTextEntry={
-                    !showPassword
-                  }
+                  secureTextEntry={!showPassword}
                   autoCapitalize="none"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="next"
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  /*
+                   * Keep keyboard active
+                   */
+                  blurOnSubmit={false}
+                  /*
+                   * Password →
+                   * Confirm Password
+                   */
+                  onSubmitEditing={() => {
+                    confirmPasswordInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
                 />
 
                 <Pressable
-                  hitSlop={
-                    10
-                  }
-                  disabled={
-                    loading
-                  }
+                  hitSlop={10}
+                  disabled={loading}
                   onPress={() =>
-                    setShowPassword(
-                      previousValue =>
-                        !previousValue,
-                    )
+                    setShowPassword(previousValue => !previousValue)
                   }
                 >
                   <Image
@@ -1153,98 +770,55 @@ const Register = ({
                         ? require('../assets/login-icons/eye.png')
                         : require('../assets/login-icons/close-eye.png')
                     }
-                    style={
-                      styles.passwordEye
-                    }
+                    style={styles.passwordEye}
                     resizeMode="contain"
                   />
                 </Pressable>
               </View>
 
-              <Text
-                style={
-                  styles.passwordHint
-                }
-              >
-                Minimum 8 characters
-              </Text>
+              <Text style={styles.passwordHint}>Minimum 8 characters</Text>
             </View>
 
             {/* ================================================= */}
             {/* CONFIRM PASSWORD */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.fieldGroup
-              }
-            >
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Confirm Password
-              </Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Confirm Password</Text>
 
-              <View
-                style={
-                  styles.inputContainer
-                }
-              >
+              <View style={styles.inputContainer}>
                 <Image
                   source={require('../assets/login-icons/unlock.png')}
-                  style={
-                    styles.inputImageIcon
-                  }
+                  style={styles.inputImageIcon}
                   resizeMode="contain"
                 />
 
                 <TextInput
-                  value={
-                    formData
-                      .password_confirmation
-                  }
-                  onChangeText={
-                    value =>
-                      updateField(
-                        'password_confirmation',
-                        value,
-                      )
+                  ref={confirmPasswordInputRef}
+                  value={formData.password_confirmation}
+                  onChangeText={value =>
+                    updateField('password_confirmation', value)
                   }
                   placeholder="Confirm password"
                   placeholderTextColor="#9B9B9B"
-                  secureTextEntry={
-                    !showConfirmPassword
-                  }
+                  secureTextEntry={!showConfirmPassword}
                   autoCapitalize="none"
-                  autoCorrect={
-                    false
-                  }
+                  autoCorrect={false}
                   returnKeyType="done"
-                  onSubmitEditing={
-                    handleRegister
-                  }
-                  editable={
-                    !loading
-                  }
-                  style={
-                    styles.input
-                  }
+                  /*
+                   * Done button submits
+                   * registration.
+                   */
+                  onSubmitEditing={handleRegister}
+                  editable={!loading}
+                  style={styles.input}
                 />
 
                 <Pressable
-                  hitSlop={
-                    10
-                  }
-                  disabled={
-                    loading
-                  }
+                  hitSlop={10}
+                  disabled={loading}
                   onPress={() =>
-                    setShowConfirmPassword(
-                      previousValue =>
-                        !previousValue,
-                    )
+                    setShowConfirmPassword(previousValue => !previousValue)
                   }
                 >
                   <Image
@@ -1253,32 +827,23 @@ const Register = ({
                         ? require('../assets/login-icons/eye.png')
                         : require('../assets/login-icons/close-eye.png')
                     }
-                    style={
-                      styles.passwordEye
-                    }
+                    style={styles.passwordEye}
                     resizeMode="contain"
                   />
                 </Pressable>
               </View>
 
-              {formData
-                .password_confirmation
-                .length >
-                0 && (
+              {formData.password_confirmation.length > 0 && (
                 <Text
                   style={[
                     styles.passwordHint,
 
-                    formData.password ===
-                    formData
-                      .password_confirmation
+                    formData.password === formData.password_confirmation
                       ? styles.passwordMatchText
                       : styles.passwordMismatchText,
                   ]}
                 >
-                  {formData.password ===
-                  formData
-                    .password_confirmation
+                  {formData.password === formData.password_confirmation
                     ? 'Passwords match'
                     : 'Passwords do not match'}
                 </Text>
@@ -1286,53 +851,29 @@ const Register = ({
             </View>
 
             {/* ================================================= */}
-            {/* REGISTER */}
+            {/* REGISTER BUTTON */}
             {/* ================================================= */}
 
             <TouchableOpacity
-              activeOpacity={
-                0.85
-              }
-              disabled={
-                loading
-              }
+              activeOpacity={0.85}
+              disabled={loading}
               style={[
                 styles.registerButton,
 
-                loading &&
-                  styles.registerButtonDisabled,
+                loading && styles.registerButtonDisabled,
               ]}
-              onPress={
-                handleRegister
-              }
+              onPress={handleRegister}
             >
               {loading ? (
-                <View
-                  style={
-                    styles.buttonLoadingContainer
-                  }
-                >
-                  <ActivityIndicator
-                    size="small"
-                    color="#FFFFFF"
-                  />
+                <View style={styles.buttonLoadingContainer}>
+                  <ActivityIndicator size="small" color="#FFFFFF" />
 
-                  <Text
-                    style={
-                      styles.buttonLoadingText
-                    }
-                  >
+                  <Text style={styles.buttonLoadingText}>
                     Creating Account...
                   </Text>
                 </View>
               ) : (
-                <Text
-                  style={
-                    styles.registerButtonText
-                  }
-                >
-                  Create My Account
-                </Text>
+                <Text style={styles.registerButtonText}>Create My Account</Text>
               )}
             </TouchableOpacity>
 
@@ -1340,34 +881,11 @@ const Register = ({
             {/* LOGIN */}
             {/* ================================================= */}
 
-            <View
-              style={
-                styles.loginContainer
-              }
-            >
-              <Text
-                style={
-                  styles.loginText
-                }
-              >
-                Already have an account?{' '}
-              </Text>
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginText}>Already have an account? </Text>
 
-              <Pressable
-                disabled={
-                  loading
-                }
-                onPress={
-                  handleLogin
-                }
-              >
-                <Text
-                  style={
-                    styles.loginLink
-                  }
-                >
-                  Log In
-                </Text>
+              <Pressable disabled={loading} onPress={handleLogin}>
+                <Text style={styles.loginLink}>Log In</Text>
               </Pressable>
             </View>
           </View>
@@ -1383,414 +901,331 @@ export default Register;
  * STYLES
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    /* =====================================================
-     * SCREEN
-     * ===================================================== */
+const styles = StyleSheet.create({
+  /* =====================================================
+   * SCREEN
+   * ===================================================== */
 
-    screen: {
-      flex: 1,
+  screen: {
+    flex: 1,
 
-      backgroundColor:
-        '#FFF9F4',
+    backgroundColor: '#FFF9F4',
+  },
+
+  keyboardContainer: {
+    flex: 1,
+  },
+
+  /*
+   * IMPORTANT:
+   * ScrollView needs full
+   * available screen height.
+   */
+  scrollView: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+
+    alignItems: 'center',
+
+    paddingHorizontal: 16,
+
+    paddingTop: 24,
+
+    /*
+     * Extra bottom space allows
+     * the Password / Confirm
+     * Password fields and button
+     * to scroll above keyboard.
+     */
+    paddingBottom: 120,
+  },
+
+  /* =====================================================
+   * FORM
+   * ===================================================== */
+
+  formContainer: {
+    maxWidth: 520,
+
+    backgroundColor: '#FFFFFF',
+
+    borderRadius: 22,
+
+    paddingHorizontal: 20,
+
+    paddingTop: 24,
+
+    paddingBottom: 22,
+
+    shadowColor: '#8D6E63',
+
+    shadowOffset: {
+      width: 0,
+
+      height: 4,
     },
 
-    keyboardContainer: {
-      flex: 1,
+    shadowOpacity: 0.1,
+
+    shadowRadius: 12,
+
+    elevation: 4,
+  },
+
+  /* =====================================================
+   * LOGO
+   * ===================================================== */
+
+  logo: {
+    width: 200,
+
+    height: 100,
+
+    alignSelf: 'center',
+
+    marginBottom: 12,
+  },
+
+  /* =====================================================
+   * TITLE
+   * ===================================================== */
+
+  title: {
+    color: '#172A46',
+
+    fontSize: 25,
+
+    fontWeight: '800',
+
+    textAlign: 'center',
+  },
+
+  subtitle: {
+    color: '#8A8A8A',
+
+    fontSize: 13,
+
+    lineHeight: 19,
+
+    textAlign: 'center',
+
+    marginTop: 6,
+
+    marginBottom: 25,
+  },
+
+  /* =====================================================
+   * FIELD
+   * ===================================================== */
+
+  fieldGroup: {
+    marginBottom: 16,
+  },
+
+  label: {
+    color: '#25344A',
+
+    fontSize: 13,
+
+    fontWeight: '600',
+
+    marginBottom: 7,
+  },
+
+  /* =====================================================
+   * INPUT
+   * ===================================================== */
+
+  inputContainer: {
+    width: '100%',
+
+    minHeight: 52,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    backgroundColor: '#FFFFFF',
+
+    borderWidth: 1,
+
+    borderColor: '#DDE2E8',
+
+    borderRadius: 12,
+
+    paddingHorizontal: 14,
+  },
+
+  inputImageIcon: {
+    width: 20,
+
+    height: 20,
+
+    marginRight: 10,
+  },
+
+  input: {
+    flex: 1,
+
+    minHeight: 50,
+
+    color: '#182230',
+
+    fontSize: 14,
+
+    paddingVertical: 0,
+  },
+
+  /* =====================================================
+   * ADDRESS
+   * ===================================================== */
+
+  addressInputContainer: {
+    minHeight: 90,
+
+    alignItems: 'flex-start',
+
+    paddingTop: 14,
+  },
+
+  addressImageIcon: {
+    marginTop: 2,
+  },
+
+  addressInput: {
+    minHeight: 75,
+
+    paddingTop: 0,
+
+    paddingBottom: 10,
+  },
+
+  /* =====================================================
+   * PASSWORD
+   * ===================================================== */
+
+  passwordEye: {
+    width: 20,
+
+    height: 20,
+
+    marginLeft: 10,
+  },
+
+  passwordHint: {
+    color: '#9198A3',
+
+    fontSize: 10,
+
+    marginTop: 6,
+
+    marginLeft: 2,
+  },
+
+  passwordMatchText: {
+    color: '#23834B',
+
+    fontWeight: '700',
+  },
+
+  passwordMismatchText: {
+    color: '#A00B0F',
+
+    fontWeight: '700',
+  },
+
+  /* =====================================================
+   * REGISTER
+   * ===================================================== */
+
+  registerButton: {
+    width: '100%',
+
+    minHeight: 53,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    backgroundColor: '#A00B0F',
+
+    borderRadius: 13,
+
+    marginTop: 8,
+
+    shadowColor: '#A00B0F',
+
+    shadowOffset: {
+      width: 0,
+
+      height: 4,
     },
 
-    scrollContent: {
-      flexGrow: 1,
+    shadowOpacity: 0.25,
 
-      alignItems:
-        'center',
+    shadowRadius: 8,
 
-      paddingHorizontal:
-        16,
+    elevation: 4,
+  },
 
-      paddingTop:
-        24,
+  registerButtonDisabled: {
+    opacity: 0.7,
+  },
 
-      paddingBottom:
-        30,
-    },
+  registerButtonText: {
+    color: '#FFFFFF',
 
-    /* =====================================================
-     * FORM
-     * ===================================================== */
+    fontSize: 14,
 
-    formContainer: {
-      maxWidth:
-        520,
+    fontWeight: '800',
+  },
 
-      backgroundColor:
-        '#FFFFFF',
+  buttonLoadingContainer: {
+    flexDirection: 'row',
 
-      borderRadius:
-        22,
+    alignItems: 'center',
 
-      paddingHorizontal:
-        20,
+    justifyContent: 'center',
+  },
 
-      paddingTop:
-        24,
+  buttonLoadingText: {
+    color: '#FFFFFF',
 
-      paddingBottom:
-        22,
+    fontSize: 14,
 
-      shadowColor:
-        '#8D6E63',
+    fontWeight: '700',
 
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
+    marginLeft: 10,
+  },
 
-      shadowOpacity:
-        0.1,
+  /* =====================================================
+   * LOGIN
+   * ===================================================== */
 
-      shadowRadius:
-        12,
+  loginContainer: {
+    flexDirection: 'row',
 
-      elevation:
-        4,
-    },
+    justifyContent: 'center',
 
-    /* =====================================================
-     * LOGO
-     * ===================================================== */
+    flexWrap: 'wrap',
 
-    logo: {
-      width:
-        200,
+    marginTop: 18,
+  },
 
-      height:
-        100,
+  loginText: {
+    color: '#828A96',
 
-      alignSelf:
-        'center',
+    fontSize: 12,
+  },
 
-      marginBottom:
-        12,
-    },
+  loginLink: {
+    color: '#A00B0F',
 
-    /* =====================================================
-     * TITLE
-     * ===================================================== */
+    fontSize: 12,
 
-    title: {
-      color:
-        '#172A46',
-
-      fontSize:
-        25,
-
-      fontWeight:
-        '800',
-
-      textAlign:
-        'center',
-    },
-
-    subtitle: {
-      color:
-        '#8A8A8A',
-
-      fontSize:
-        13,
-
-      lineHeight:
-        19,
-
-      textAlign:
-        'center',
-
-      marginTop:
-        6,
-
-      marginBottom:
-        25,
-    },
-
-    /* =====================================================
-     * FIELD
-     * ===================================================== */
-
-    fieldGroup: {
-      marginBottom:
-        16,
-    },
-
-    label: {
-      color:
-        '#25344A',
-
-      fontSize:
-        13,
-
-      fontWeight:
-        '600',
-
-      marginBottom:
-        7,
-    },
-
-    /* =====================================================
-     * INPUT
-     * ===================================================== */
-
-    inputContainer: {
-      width:
-        '100%',
-
-      minHeight:
-        52,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      backgroundColor:
-        '#FFFFFF',
-
-      borderWidth:
-        1,
-
-      borderColor:
-        '#DDE2E8',
-
-      borderRadius:
-        12,
-
-      paddingHorizontal:
-        14,
-    },
-
-    inputImageIcon: {
-      width:
-        20,
-
-      height:
-        20,
-
-      marginRight:
-        10,
-    },
-
-    input: {
-      flex: 1,
-
-      minHeight:
-        50,
-
-      color:
-        '#182230',
-
-      fontSize:
-        14,
-
-      paddingVertical:
-        0,
-    },
-
-    /* =====================================================
-     * ADDRESS
-     * ===================================================== */
-
-    addressInputContainer: {
-      minHeight:
-        90,
-
-      alignItems:
-        'flex-start',
-
-      paddingTop:
-        14,
-    },
-
-    addressImageIcon: {
-      marginTop:
-        2,
-    },
-
-    addressInput: {
-      minHeight:
-        75,
-
-      paddingTop:
-        0,
-
-      paddingBottom:
-        10,
-    },
-
-    /* =====================================================
-     * PASSWORD
-     * ===================================================== */
-
-    passwordEye: {
-      width:
-        20,
-
-      height:
-        20,
-
-      marginLeft:
-        10,
-    },
-
-    passwordHint: {
-      color:
-        '#9198A3',
-
-      fontSize:
-        10,
-
-      marginTop:
-        6,
-
-      marginLeft:
-        2,
-    },
-
-    passwordMatchText: {
-      color:
-        '#23834B',
-
-      fontWeight:
-        '700',
-    },
-
-    passwordMismatchText: {
-      color:
-        '#A00B0F',
-
-      fontWeight:
-        '700',
-    },
-
-    /* =====================================================
-     * REGISTER
-     * ===================================================== */
-
-    registerButton: {
-      width:
-        '100%',
-
-      minHeight:
-        53,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#A00B0F',
-
-      borderRadius:
-        13,
-
-      marginTop:
-        8,
-
-      shadowColor:
-        '#A00B0F',
-
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-
-      shadowOpacity:
-        0.25,
-
-      shadowRadius:
-        8,
-
-      elevation:
-        4,
-    },
-
-    registerButtonDisabled: {
-      opacity:
-        0.7,
-    },
-
-    registerButtonText: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        14,
-
-      fontWeight:
-        '800',
-    },
-
-    buttonLoadingContainer: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-    },
-
-    buttonLoadingText: {
-      color:
-        '#FFFFFF',
-
-      fontSize:
-        14,
-
-      fontWeight:
-        '700',
-
-      marginLeft:
-        10,
-    },
-
-    /* =====================================================
-     * LOGIN
-     * ===================================================== */
-
-    loginContainer: {
-      flexDirection:
-        'row',
-
-      justifyContent:
-        'center',
-
-      flexWrap:
-        'wrap',
-
-      marginTop:
-        18,
-    },
-
-    loginText: {
-      color:
-        '#828A96',
-
-      fontSize:
-        12,
-    },
-
-    loginLink: {
-      color:
-        '#A00B0F',
-
-      fontSize:
-        12,
-
-      fontWeight:
-        '700',
-    },
-  });
+    fontWeight: '700',
+  },
+});
