@@ -1103,7 +1103,11 @@ const Home = ({ navigation }) => {
 
         extrasPrice: 0,
 
-        selections: [],
+        selections: meal?.default_selections ?? {},
+
+        components: Array.isArray(meal?.components) ? meal.components : [],
+
+        default_selections: meal?.default_selections ?? {},
 
         customizations: [],
 
@@ -1141,6 +1145,10 @@ const Home = ({ navigation }) => {
           price,
 
           items: sanitizeDefaultItems(meal?.items),
+
+          components: Array.isArray(meal?.components) ? meal.components : [],
+
+          default_selections: meal?.default_selections ?? {},
         },
 
         addedAt: new Date().toISOString(),
@@ -1988,7 +1996,7 @@ const Home = ({ navigation }) => {
                     activeHomeTab === 'custom' && styles.activeTabText,
                   ]}
                 >
-                  Customise Your Own
+                  Make Your Own
                 </Text>
               </Pressable>
             </View>

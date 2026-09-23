@@ -446,6 +446,114 @@ const CustomizeTiffin =
       );
 
     /* =====================================================
+     * CHOICE COMPONENTS (e.g. rice: Tawa pulaw / Jeera Rice)
+     * ===================================================== */
+
+    const components =
+      useMemo(
+        () =>
+          Array.isArray(
+            tiffin?.components,
+          )
+            ? tiffin.components.filter(
+                component =>
+                  component?.key &&
+                  Array.isArray(
+                    component?.options,
+                  ) &&
+                  component.options.length >
+                    0,
+              )
+            : [],
+        [
+          tiffin,
+        ],
+      );
+
+    const choiceComponents =
+      components.filter(
+        component =>
+          component?.type !==
+            'fixed' &&
+          component.options.length >
+            1,
+      );
+
+    const [
+      selectedOptions,
+      setSelectedOptions,
+    ] =
+      useState(
+        () => {
+          const initial =
+            {};
+
+          components.forEach(
+            component => {
+              const option =
+                component.options.find(
+                  value =>
+                    value?.default,
+                ) ??
+                component.options[0];
+
+              initial[
+                component.key
+              ] =
+                tiffin?.default_selections?.[
+                  component.key
+                ] ??
+                option?.name;
+            },
+          );
+
+          return initial;
+        },
+      );
+
+    const customizationPrice =
+      components.reduce(
+        (
+          total,
+          component,
+        ) => {
+          const option =
+            component.options.find(
+              value =>
+                value?.name ===
+                selectedOptions[
+                  component.key
+                ],
+            );
+
+          return (
+            total +
+            normalizeMoney(
+              option?.price_delta ??
+              0,
+            )
+          );
+        },
+        0,
+      );
+
+    const customizations =
+      components.map(
+        component => ({
+          key:
+            component.key,
+
+          label:
+            component.label,
+
+          name:
+            selectedOptions[
+              component.key
+            ],
+        }),
+      );
+
+    /* =====================================================
      * ADDONS
      * ===================================================== */
 
@@ -720,6 +828,7 @@ const CustomizeTiffin =
 
     const subtotal =
       basePrice +
+      customizationPrice +
       extrasPrice;
 
     const shippingCharge =
@@ -807,8 +916,7 @@ const CustomizeTiffin =
             rawPrice:
               basePrice,
 
-            customizationPrice:
-              0,
+            customizationPrice,
 
             extrasPrice,
 
@@ -820,10 +928,15 @@ const CustomizeTiffin =
               total,
 
             selections:
-              [],
+              selectedOptions,
 
-            customizations:
-              [],
+            components,
+
+            default_selections:
+              tiffin?.default_selections ??
+              {},
+
+            customizations,
 
             extras:
               selectedExtras,
@@ -1189,6 +1302,126 @@ const CustomizeTiffin =
                     )}
                   </View>
                 </View>
+              )}
+
+              {choiceComponents.map(
+                component => (
+                  <View
+                    key={
+                      component.key
+                    }
+                    style={
+                      styles.section
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.sectionLabel
+                      }
+                    >
+                      CHOOSE ONE
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.sectionTitle
+                      }
+                    >
+                      {component.label}
+                    </Text>
+
+                    {component.options.map(
+                      option => {
+                        const selected =
+                          selectedOptions[
+                            component.key
+                          ] ===
+                          option.name;
+
+                        const delta =
+                          normalizeMoney(
+                            option?.price_delta ??
+                            0,
+                          );
+
+                        return (
+                          <Pressable
+                            key={
+                              option.name
+                            }
+                            onPress={() =>
+                              setSelectedOptions(
+                                current => ({
+                                  ...current,
+
+                                  [component.key]:
+                                    option.name,
+                                }),
+                              )
+                            }
+                            style={[
+                              styles.addonCard,
+
+                              selected &&
+                                styles.optionCardSelected,
+                            ]}
+                          >
+                            <View
+                              style={[
+                                styles.radio,
+
+                                selected &&
+                                  styles.radioSelected,
+                              ]}
+                            >
+                              {selected && (
+                                <View
+                                  style={
+                                    styles.radioDot
+                                  }
+                                />
+                              )}
+                            </View>
+
+                            <View
+                              style={{
+                                flex: 1,
+                              }}
+                            >
+                              <Text
+                                style={
+                                  styles.addonName
+                                }
+                              >
+                                {option.name}
+                              </Text>
+
+                              {delta !==
+                                0 && (
+                                <Text
+                                  style={
+                                    styles.addonPrice
+                                  }
+                                >
+                                  {delta >
+                                  0
+                                    ? '+'
+                                    : '-'}
+                                  $
+                                  {Math.abs(
+                                    delta,
+                                  ).toFixed(
+                                    2,
+                                  )}
+                                </Text>
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      },
+                    )}
+                  </View>
+                ),
               )}
 
               <View
@@ -1609,6 +1842,33 @@ const styles =
       marginBottom: 9,
       flexDirection: 'row',
       alignItems: 'center',
+    },
+
+    optionCardSelected: {
+      borderColor: '#8B210C',
+      backgroundColor: '#FFF7EB',
+    },
+
+    radio: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: '#C9B3A4',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+
+    radioSelected: {
+      borderColor: '#8B210C',
+    },
+
+    radioDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#8B210C',
     },
 
     addonName: {

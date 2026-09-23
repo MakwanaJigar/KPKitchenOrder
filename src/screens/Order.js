@@ -338,6 +338,55 @@ const getCartUnitPrice = item => {
   );
 };
 
+/*
+ * Backend expects selections as { componentKey: optionName },
+ * e.g. { "rice-1": "Tawa pulaw" }. Required single_choice
+ * components fail with "Please choose an option for ..."
+ * when missing, so fall back to the tiffin's defaults.
+ */
+const getCartSelections = item => {
+  const selections = {};
+
+  const tiffin = item?.originalTiffin ?? {};
+
+  const defaults =
+    item?.default_selections ?? tiffin?.default_selections ?? null;
+
+  if (defaults && typeof defaults === 'object' && !Array.isArray(defaults)) {
+    Object.assign(selections, defaults);
+  }
+
+  const components = Array.isArray(item?.components)
+    ? item.components
+    : Array.isArray(tiffin?.components)
+    ? tiffin.components
+    : [];
+
+  components.forEach(component => {
+    const key = component?.key;
+
+    const options = Array.isArray(component?.options) ? component.options : [];
+
+    if (!key || selections[key] || options.length === 0) {
+      return;
+    }
+
+    const option = options.find(value => value?.default) ?? options[0];
+
+    if (option?.name) {
+      selections[key] = option.name;
+    }
+  });
+
+  const chosen = item?.selections;
+
+  if (chosen && typeof chosen === 'object' && !Array.isArray(chosen)) {
+    Object.assign(selections, chosen);
+  }
+
+  return selections;
+};
+
 /* =========================================================
  * ORDER COMPONENT
  * ========================================================= */
@@ -929,9 +978,7 @@ const Order = ({ navigation }) => {
               ? cartItem.customizations
               : [],
 
-            selections: Array.isArray(cartItem?.selections)
-              ? cartItem.selections
-              : [],
+            selections: getCartSelections(cartItem),
 
             addons: normalAddons,
 
@@ -995,6 +1042,8 @@ const Order = ({ navigation }) => {
           adons_total: custom
             ? 0
             : Number((normalAddonsTotal * quantity).toFixed(2)),
+
+          selections: custom ? {} : orderItem.selections,
 
           addons: custom ? [] : normalAddons,
 

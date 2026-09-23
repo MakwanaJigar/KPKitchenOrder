@@ -179,8 +179,8 @@ const getWeekRange = value => {
 
   const day = working.getDay();
 
-  // const distanceToMonday = day === 0 ? -6 : 1 - day;
-  const distanceToMonday = day === 0 ;
+  const distanceToMonday = day === 0 ? -6 : 1 - day;
+  // const distanceToMonday = day === 0 ;
 
   const start = new Date(working);
 
