@@ -268,7 +268,7 @@ const GlassTabBar = ({ state, descriptors, navigation }) => {
             {/* Description */}
 
             <Text style={styles.popupDescription}>
-              Please sign in to access your profile and manage your account.
+              Please sign in to access your profile.
             </Text>
 
             {/* Buttons */}

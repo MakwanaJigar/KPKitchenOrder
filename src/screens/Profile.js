@@ -2193,6 +2193,23 @@ const Profile = ({
               </TouchableOpacity>
             </View>
 
+             {/* ORDERS */}
+
+            <Section
+              title="Orders"
+            >
+              <MenuRow
+                title="Your Orders"
+                subtitle="View your previous tiffin orders"
+                image={require('../assets/login-icons/spoon-and-fork-crossed.png')}
+                onPress={() =>
+                  navigation.navigate(
+                    'PreviousOrder',
+                  )
+                }
+              />
+            </Section>
+
             {/* DETAILS */}
 
             <Section
@@ -2321,7 +2338,7 @@ const Profile = ({
               />
 
               <MenuRow
-                title="Weekly Invoices"
+                title="Invoices"
                 subtitle="View generated weekly invoices"
                 image={require('../assets/login-icons/invoice.png')}
                 onPress={() =>
@@ -2332,22 +2349,7 @@ const Profile = ({
               />
             </Section>
 
-            {/* ORDERS */}
-
-            <Section
-              title="Orders"
-            >
-              <MenuRow
-                title="Your Orders"
-                subtitle="View your previous tiffin orders"
-                image={require('../assets/login-icons/spoon-and-fork-crossed.png')}
-                onPress={() =>
-                  navigation.navigate(
-                    'PreviousOrder',
-                  )
-                }
-              />
-            </Section>
+           
 
             {/* LOGOUT */}
 

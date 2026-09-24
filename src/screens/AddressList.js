@@ -821,13 +821,13 @@ const AddressList = ({
             </Pressable>
 
             <View>
-              <Text
+              {/* <Text
                 style={
                   styles.eyebrow
                 }
               >
                 DELIVERY DETAILS
-              </Text>
+              </Text> */}
 
               <Text
                 style={
@@ -841,7 +841,7 @@ const AddressList = ({
 
           {/* INFO */}
 
-          <View
+          {/* <View
             style={
               styles.infoCard
             }
@@ -875,7 +875,7 @@ const AddressList = ({
                 All addresses here are synchronized with your profile.
               </Text>
             </View>
-          </View>
+          </View> */}
 
           <View
             style={
@@ -1329,6 +1329,9 @@ const styles =
 
       marginBottom:
         10,
+
+        margintop:
+        30,
     },
 
     sectionTitle: {

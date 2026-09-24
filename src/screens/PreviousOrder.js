@@ -1,8 +1,4 @@
-import React, {
-  useCallback,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -18,13 +14,9 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  useFocusEffect,
-} from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
@@ -42,22 +34,12 @@ const ORDERS_API_URL =
  * ========================================================= */
 
 const toSafeNumber = value => {
-  const number = Number(
-    String(
-      value ?? 0,
-    ).replace(
-      /[^0-9.-]/g,
-      '',
-    ),
-  );
+  const number = Number(String(value ?? 0).replace(/[^0-9.-]/g, ''));
 
-  return Number.isFinite(number)
-    ? number
-    : 0;
+  return Number.isFinite(number) ? number : 0;
 };
 
-const formatPrice = value =>
-  `$${toSafeNumber(value).toFixed(2)}`;
+const formatPrice = value => `$${toSafeNumber(value).toFixed(2)}`;
 
 /* =========================================================
  * DATE
@@ -71,22 +53,15 @@ const formatOrderDate = value => {
   try {
     const date = new Date(value);
 
-    if (
-      Number.isNaN(
-        date.getTime(),
-      )
-    ) {
+    if (Number.isNaN(date.getTime())) {
       return String(value);
     }
 
-    return date.toLocaleDateString(
-      'en-AU',
-      {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      },
-    );
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   } catch (error) {
     return String(value);
   }
@@ -100,22 +75,15 @@ const formatOrderTime = value => {
   try {
     const date = new Date(value);
 
-    if (
-      Number.isNaN(
-        date.getTime(),
-      )
-    ) {
+    if (Number.isNaN(date.getTime())) {
       return '';
     }
 
-    return date.toLocaleTimeString(
-      'en-AU',
-      {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      },
-    );
+    return date.toLocaleTimeString('en-AU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   } catch (error) {
     return '';
   }
@@ -130,21 +98,13 @@ const normalizeStatus = value => {
     return 'Processing';
   }
 
-  const status = String(value)
-    .trim()
-    .toLowerCase();
+  const status = String(value).trim().toLowerCase();
 
-  if (
-    status === 'delivered' ||
-    status === 'completed'
-  ) {
+  if (status === 'delivered' || status === 'completed') {
     return 'Delivered';
   }
 
-  if (
-    status === 'cancelled' ||
-    status === 'canceled'
-  ) {
+  if (status === 'cancelled' || status === 'canceled') {
     return 'Cancelled';
   }
 
@@ -157,19 +117,11 @@ const normalizeStatus = value => {
     return 'Processing';
   }
 
-  if (
-    status === 'out_for_delivery' ||
-    status === 'out for delivery'
-  ) {
+  if (status === 'out_for_delivery' || status === 'out for delivery') {
     return 'Out for Delivery';
   }
 
-  return (
-    String(value)
-      .charAt(0)
-      .toUpperCase() +
-    String(value).slice(1)
-  );
+  return String(value).charAt(0).toUpperCase() + String(value).slice(1);
 };
 
 /* =========================================================
@@ -185,19 +137,13 @@ const isCustomOrderItem = item => {
     item?.is_custom === true ||
     item?.is_custom === 1 ||
     item?.is_custom === '1' ||
-
     item?.is_custom_box === true ||
     item?.is_custom_box === 1 ||
     item?.is_custom_box === '1' ||
-
     item?.is_custom_tiffin === true ||
-
     item?.custom_tiffin === true ||
-
     item?.type === 'custom_tiffin' ||
-
-    item?.order_item_type ===
-      'custom_tiffin'
+    item?.order_item_type === 'custom_tiffin'
   ) {
     return true;
   }
@@ -210,9 +156,7 @@ const isCustomOrderItem = item => {
   ];
 
   return possibleCustomItems.some(
-    value =>
-      Array.isArray(value) &&
-      value.length > 0,
+    value => Array.isArray(value) && value.length > 0,
   );
 };
 
@@ -236,10 +180,7 @@ const getCustomItems = item => {
   ];
 
   for (const candidate of candidates) {
-    if (
-      Array.isArray(candidate) &&
-      candidate.length > 0
-    ) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
       return candidate;
     }
   }
@@ -251,50 +192,25 @@ const getCustomItems = item => {
  * NORMALIZE CUSTOM DISH
  * ========================================================= */
 
-const normalizeCustomDish = (
-  dish,
-  index,
-) => {
+const normalizeCustomDish = (dish, index) => {
   if (!dish) {
     return null;
   }
 
-  const nested =
-    dish?.item ??
-    dish?.addon ??
-    dish?.adon ??
-    dish?.product ??
-    {};
+  const nested = dish?.item ?? dish?.addon ?? dish?.adon ?? dish?.product ?? {};
 
-  const quantity = Math.max(
-    1,
-    Number(
-      dish?.quantity ??
-      dish?.qty ??
-      1,
-    ) || 1,
-  );
+  const quantity = Math.max(1, Number(dish?.quantity ?? dish?.qty ?? 1) || 1);
 
   const price = toSafeNumber(
-    dish?.price ??
-    dish?.unit_price ??
-    dish?.rawPrice ??
-    nested?.price ??
-    0,
+    dish?.price ?? dish?.unit_price ?? dish?.rawPrice ?? nested?.price ?? 0,
   );
 
   let total = toSafeNumber(
-    dish?.total ??
-    dish?.subtotal ??
-    dish?.line_total ??
-    dish?.total_price ??
-    0,
+    dish?.total ?? dish?.subtotal ?? dish?.line_total ?? dish?.total_price ?? 0,
   );
 
   if (total <= 0) {
-    total =
-      price *
-      quantity;
+    total = price * quantity;
   }
 
   const name =
@@ -308,30 +224,21 @@ const normalizeCustomDish = (
   return {
     id: String(
       dish?.item_id ??
-      dish?.itemId ??
-      dish?.id ??
-      nested?.id ??
-      `custom-${index}`,
+        dish?.itemId ??
+        dish?.id ??
+        nested?.id ??
+        `custom-${index}`,
     ),
 
-    item_id:
-      dish?.item_id ??
-      dish?.itemId ??
-      nested?.id ??
-      dish?.id ??
-      null,
+    item_id: dish?.item_id ?? dish?.itemId ?? nested?.id ?? dish?.id ?? null,
 
     name,
 
     quantity,
 
-    price: Number(
-      price.toFixed(2),
-    ),
+    price: Number(price.toFixed(2)),
 
-    total: Number(
-      total.toFixed(2),
-    ),
+    total: Number(total.toFixed(2)),
   };
 };
 
@@ -339,47 +246,24 @@ const normalizeCustomDish = (
  * NORMALIZE ORDER ITEM
  * ========================================================= */
 
-const normalizeOrderItem = (
-  orderItem,
-  itemIndex,
-  parentOrder,
-) => {
-  const custom =
-    isCustomOrderItem(
-      orderItem,
-    );
+const normalizeOrderItem = (orderItem, itemIndex, parentOrder) => {
+  const custom = isCustomOrderItem(orderItem);
 
   const customItems = custom
-    ? getCustomItems(
-        orderItem,
-      )
-        .map(
-          normalizeCustomDish,
-        )
-        .filter(Boolean)
+    ? getCustomItems(orderItem).map(normalizeCustomDish).filter(Boolean)
     : [];
 
   const quantity = Math.max(
     1,
-    Number(
-      orderItem?.quantity ??
-      orderItem?.qty ??
-      1,
-    ) || 1,
+    Number(orderItem?.quantity ?? orderItem?.qty ?? 1) || 1,
   );
 
   const unitPrice = toSafeNumber(
-    orderItem?.unit_price ??
-    orderItem?.price ??
-    orderItem?.base_price ??
-    0,
+    orderItem?.unit_price ?? orderItem?.price ?? orderItem?.base_price ?? 0,
   );
 
   let total = toSafeNumber(
-    orderItem?.total ??
-    orderItem?.line_total ??
-    orderItem?.total_price ??
-    0,
+    orderItem?.total ?? orderItem?.line_total ?? orderItem?.total_price ?? 0,
   );
 
   /*
@@ -389,33 +273,17 @@ const normalizeOrderItem = (
    * custom_items contain actual prices
    */
 
-  if (
-    custom &&
-    total <= 0
-  ) {
-    const selectedTotal =
-      customItems.reduce(
-        (
-          sum,
-          selectedItem,
-        ) =>
-          sum +
-          selectedItem.total,
-        0,
-      );
+  if (custom && total <= 0) {
+    const selectedTotal = customItems.reduce(
+      (sum, selectedItem) => sum + selectedItem.total,
+      0,
+    );
 
-    total =
-      selectedTotal *
-      quantity;
+    total = selectedTotal * quantity;
   }
 
-  if (
-    !custom &&
-    total <= 0
-  ) {
-    total =
-      unitPrice *
-      quantity;
+  if (!custom && total <= 0) {
+    total = unitPrice * quantity;
   }
 
   return {
@@ -423,8 +291,8 @@ const normalizeOrderItem = (
 
     id: String(
       orderItem?.id ??
-      orderItem?.tiffin_id ??
-      `${parentOrder?.id ?? 'order'}-${itemIndex}`,
+        orderItem?.tiffin_id ??
+        `${parentOrder?.id ?? 'order'}-${itemIndex}`,
     ),
 
     name:
@@ -433,22 +301,15 @@ const normalizeOrderItem = (
       orderItem?.product_name ??
       orderItem?.tiffin?.name ??
       orderItem?.product?.name ??
-      (
-        custom
-          ? 'Custom Tiffin'
-          : 'Tiffin'
-      ),
+      (custom ? 'Custom Tiffin' : 'Tiffin'),
 
     quantity,
 
     unitPrice,
 
-    total: Number(
-      total.toFixed(2),
-    ),
+    total: Number(total.toFixed(2)),
 
-    isCustom:
-      custom,
+    isCustom: custom,
 
     customItems,
   };
@@ -458,37 +319,20 @@ const normalizeOrderItem = (
  * NORMALIZE ORDER
  * ========================================================= */
 
-const normalizeOrder = (
-  item,
-  index,
-) => {
+const normalizeOrder = (item, index) => {
   /* =====================================================
    * ORDER ITEMS
    * ===================================================== */
 
   const rawItems =
-    item?.items ??
-    item?.order_items ??
-    item?.orderItems ??
-    item?.details ??
-    [];
+    item?.items ?? item?.order_items ?? item?.orderItems ?? item?.details ?? [];
 
   let orderItems = [];
 
-  if (
-    Array.isArray(rawItems)
-  ) {
+  if (Array.isArray(rawItems)) {
     orderItems = rawItems
-      .map(
-        (
-          orderItem,
-          itemIndex,
-        ) =>
-          normalizeOrderItem(
-            orderItem,
-            itemIndex,
-            item,
-          ),
+      .map((orderItem, itemIndex) =>
+        normalizeOrderItem(orderItem, itemIndex, item),
       )
       .filter(Boolean);
   }
@@ -497,33 +341,19 @@ const normalizeOrder = (
    * DIRECT TIFFIN FALLBACK
    * ===================================================== */
 
-  if (
-    orderItems.length === 0 &&
-    item?.tiffin
-  ) {
+  if (orderItems.length === 0 && item?.tiffin) {
     const directItem = {
       ...item,
 
       ...item.tiffin,
 
-      id:
-        item?.tiffin?.id ??
-        item?.id ??
-        index,
+      id: item?.tiffin?.id ?? item?.id ?? index,
 
-      tiffin_id:
-        item?.tiffin?.id ??
-        item?.tiffin_id,
+      tiffin_id: item?.tiffin?.id ?? item?.tiffin_id,
 
-      name:
-        item?.tiffin?.name ??
-        item?.tiffin_name ??
-        item?.name ??
-        'Tiffin',
+      name: item?.tiffin?.name ?? item?.tiffin_name ?? item?.name ?? 'Tiffin',
 
-      quantity:
-        item?.quantity ??
-        1,
+      quantity: item?.quantity ?? 1,
 
       custom_items:
         item?.custom_items ??
@@ -531,51 +361,32 @@ const normalizeOrder = (
         item?.selected_items ??
         [],
 
-      is_custom:
-        item?.is_custom,
+      is_custom: item?.is_custom,
 
-      is_custom_box:
-        item?.is_custom_box,
+      is_custom_box: item?.is_custom_box,
 
-      type:
-        item?.type,
+      type: item?.type,
     };
 
-    orderItems = [
-      normalizeOrderItem(
-        directItem,
-        0,
-        item,
-      ),
-    ];
+    orderItems = [normalizeOrderItem(directItem, 0, item)];
   }
 
   /* =====================================================
    * CUSTOM ITEMS AT ORDER LEVEL
    * ===================================================== */
 
-  if (
-    orderItems.length === 0
-  ) {
-    const orderLevelCustomItems =
-      getCustomItems(item);
+  if (orderItems.length === 0) {
+    const orderLevelCustomItems = getCustomItems(item);
 
-    if (
-      orderLevelCustomItems.length > 0
-    ) {
+    if (orderLevelCustomItems.length > 0) {
       orderItems = [
         normalizeOrderItem(
           {
             ...item,
 
-            id:
-              item?.tiffin_id ??
-              item?.id ??
-              index,
+            id: item?.tiffin_id ?? item?.id ?? index,
 
-            tiffin_id:
-              item?.tiffin_id ??
-              item?.tiffin?.id,
+            tiffin_id: item?.tiffin_id ?? item?.tiffin?.id,
 
             name:
               item?.tiffin_name ??
@@ -583,14 +394,11 @@ const normalizeOrder = (
               item?.name ??
               'Custom Tiffin',
 
-            type:
-              'custom_tiffin',
+            type: 'custom_tiffin',
 
-            is_custom:
-              true,
+            is_custom: true,
 
-            custom_items:
-              orderLevelCustomItems,
+            custom_items: orderLevelCustomItems,
           },
           0,
           item,
@@ -603,44 +411,22 @@ const normalizeOrder = (
    * FINAL FALLBACK
    * ===================================================== */
 
-  if (
-    orderItems.length === 0
-  ) {
+  if (orderItems.length === 0) {
     orderItems = [
       {
-        id:
-          `${item?.id ?? index}-default`,
+        id: `${item?.id ?? index}-default`,
 
-        name:
-          item?.tiffin_name ??
-          item?.name ??
-          'Tiffin Order',
+        name: item?.tiffin_name ?? item?.name ?? 'Tiffin Order',
 
-        quantity: Math.max(
-          1,
-          Number(
-            item?.quantity ??
-            1,
-          ) || 1,
+        quantity: Math.max(1, Number(item?.quantity ?? 1) || 1),
+
+        unitPrice: toSafeNumber(item?.price ?? item?.unit_price ?? 0),
+
+        total: toSafeNumber(
+          item?.subtotal ?? item?.total_amount ?? item?.grand_total ?? 0,
         ),
 
-        unitPrice:
-          toSafeNumber(
-            item?.price ??
-            item?.unit_price ??
-            0,
-          ),
-
-        total:
-          toSafeNumber(
-            item?.subtotal ??
-            item?.total_amount ??
-            item?.grand_total ??
-            0,
-          ),
-
-        isCustom:
-          false,
+        isCustom: false,
 
         customItems: [],
       },
@@ -663,40 +449,26 @@ const normalizeOrder = (
 
   let selections = [];
 
-  if (
-    Array.isArray(
-      rawSelections,
-    )
-  ) {
+  if (Array.isArray(rawSelections)) {
     selections = rawSelections
-      .map(
-        selection => {
-          if (
-            typeof selection ===
-              'string'
-          ) {
-            return selection;
-          }
+      .map(selection => {
+        if (typeof selection === 'string') {
+          return selection;
+        }
 
-          if (
-            typeof selection ===
-              'number'
-          ) {
-            return String(
-              selection,
-            );
-          }
+        if (typeof selection === 'number') {
+          return String(selection);
+        }
 
-          return (
-            selection?.name ??
-            selection?.option_name ??
-            selection?.value ??
-            selection?.title ??
-            selection?.label ??
-            null
-          );
-        },
-      )
+        return (
+          selection?.name ??
+          selection?.option_name ??
+          selection?.value ??
+          selection?.title ??
+          selection?.label ??
+          null
+        );
+      })
       .filter(Boolean);
   }
 
@@ -704,77 +476,52 @@ const normalizeOrder = (
    * PRICES
    * ===================================================== */
 
-  let subtotal =
-    toSafeNumber(
-      item?.subtotal ??
+  let subtotal = toSafeNumber(
+    item?.subtotal ??
       item?.sub_total ??
       item?.food_subtotal ??
       item?.amount ??
       0,
-    );
+  );
 
-  if (
-    subtotal <= 0
-  ) {
-    subtotal =
-      orderItems.reduce(
-        (
-          total,
-          orderItem,
-        ) =>
-          total +
-          toSafeNumber(
-            orderItem.total,
-          ),
-        0,
-      );
+  if (subtotal <= 0) {
+    subtotal = orderItems.reduce(
+      (total, orderItem) => total + toSafeNumber(orderItem.total),
+      0,
+    );
   }
 
-  const shippingCharge =
-    toSafeNumber(
-      item?.shipping_charge ??
+  const shippingCharge = toSafeNumber(
+    item?.shipping_charge ??
       item?.shippingCharge ??
       item?.delivery_charge ??
       item?.delivery_fee ??
       item?.shipping ??
       0,
-    );
+  );
 
-  let total =
-    toSafeNumber(
-      item?.total ??
+  let total = toSafeNumber(
+    item?.total ??
       item?.total_amount ??
       item?.grand_total ??
       item?.final_total ??
       0,
-    );
+  );
 
-  if (
-    total <= 0
-  ) {
-    total =
-      subtotal +
-      shippingCharge;
+  if (total <= 0) {
+    total = subtotal + shippingCharge;
   }
 
   /* =====================================================
    * DATE
    * ===================================================== */
 
-  const dateValue =
-    item?.created_at ??
-    item?.order_date ??
-    item?.date ??
-    null;
+  const dateValue = item?.created_at ?? item?.order_date ?? item?.date ?? null;
 
   return {
     ...item,
 
-    id: String(
-      item?.id ??
-      item?.order_id ??
-      index,
-    ),
+    id: String(item?.id ?? item?.order_id ?? index),
 
     orderNumber:
       item?.order_number ??
@@ -784,48 +531,23 @@ const normalizeOrder = (
       item?.id ??
       index + 1,
 
-    date:
-      formatOrderDate(
-        dateValue,
-      ),
+    date: formatOrderDate(dateValue),
 
-    time:
-      item?.order_time ??
-      item?.time ??
-      formatOrderTime(
-        dateValue,
-      ),
+    time: item?.order_time ?? item?.time ?? formatOrderTime(dateValue),
 
-    status:
-      normalizeStatus(
-        item?.status ??
-        item?.order_status,
-      ),
+    status: normalizeStatus(item?.status ?? item?.order_status),
 
-    items:
-      orderItems,
+    items: orderItems,
 
     selections,
 
-    subtotal: Number(
-      subtotal.toFixed(2),
-    ),
+    subtotal: Number(subtotal.toFixed(2)),
 
-    shippingCharge: Number(
-      shippingCharge.toFixed(
-        2,
-      ),
-    ),
+    shippingCharge: Number(shippingCharge.toFixed(2)),
 
-    total: Number(
-      total.toFixed(2),
-    ),
+    total: Number(total.toFixed(2)),
 
-    hasCustomTiffin:
-      orderItems.some(
-        orderItem =>
-          orderItem.isCustom,
-      ),
+    hasCustomTiffin: orderItems.some(orderItem => orderItem.isCustom),
   };
 };
 
@@ -833,1044 +555,489 @@ const normalizeOrder = (
  * COMPONENT
  * ========================================================= */
 
-const PreviousOrders = ({
-  navigation,
-}) => {
-  const {
-    width,
-  } =
-    useWindowDimensions();
+const PreviousOrders = ({ navigation }) => {
+  const { width } = useWindowDimensions();
 
   /* =======================================================
    * STATE
    * ======================================================= */
 
-  const [
-    orders,
-    setOrders,
-  ] =
-    useState([]);
+  const [orders, setOrders] = useState([]);
 
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] =
-    useState(null);
+  const [error, setError] = useState(null);
 
   /* =======================================================
    * RESPONSIVE
    * ======================================================= */
 
-  const responsive =
-    useMemo(
-      () => {
-        const isTablet =
-          width >= 768;
+  const responsive = useMemo(() => {
+    const isTablet = width >= 768;
 
-        return {
-          isTablet,
+    return {
+      isTablet,
 
-          contentWidth:
-            isTablet
-              ? Math.min(
-                  width - 80,
-                  720,
-                )
-              : width,
+      contentWidth: isTablet ? Math.min(width - 80, 720) : width,
 
-          horizontalPadding:
-            isTablet
-              ? 28
-              : 16,
-        };
-      },
-      [
-        width,
-      ],
-    );
+      horizontalPadding: isTablet ? 28 : 16,
+    };
+  }, [width]);
 
   /* =======================================================
    * FETCH ORDERS
    * ======================================================= */
 
-  const fetchOrders =
-    useCallback(
-      async (
-        isRefresh = false,
-      ) => {
-        try {
-          if (
-            isRefresh
-          ) {
-            setRefreshing(
-              true,
-            );
-          } else {
-            setLoading(
-              true,
-            );
-          }
+  const fetchOrders = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
-          setError(null);
+      setError(null);
 
-          const token =
-            await AsyncStorage.getItem(
-              'token',
-            );
+      const token = await AsyncStorage.getItem('token');
 
-          if (!token) {
-            throw new Error(
-              'Authentication token not found. Please login again.',
-            );
-          }
+      if (!token) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
 
-          console.log(
-            '======================================',
-          );
+      console.log('======================================');
 
-          console.log(
-            'PREVIOUS ORDERS REQUEST',
-          );
+      console.log('PREVIOUS ORDERS REQUEST');
 
-          console.log(
-            'URL:',
-            ORDERS_API_URL,
-          );
+      console.log('URL:', ORDERS_API_URL);
 
-          console.log(
-            '======================================',
-          );
+      console.log('======================================');
 
-          const response =
-            await fetch(
-              `${ORDERS_API_URL}?_=${Date.now()}`,
-              {
-                method: 'GET',
+      const response = await fetch(`${ORDERS_API_URL}?_=${Date.now()}`, {
+        method: 'GET',
 
-                headers: {
-                  Accept:
-                    'application/json',
+        headers: {
+          Accept: 'application/json',
 
-                  'Content-Type':
-                    'application/json',
+          'Content-Type': 'application/json',
 
-                  Authorization:
-                    `Bearer ${token}`,
-                },
-              },
-            );
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-          const responseText =
-            await response.text();
+      const responseText = await response.text();
 
-          console.log(
-            'ORDERS STATUS:',
-            response.status,
-          );
+      console.log('ORDERS STATUS:', response.status);
 
-          console.log(
-            'RAW ORDERS RESPONSE:',
-            responseText,
-          );
+      console.log('RAW ORDERS RESPONSE:', responseText);
 
-          let result = {};
+      let result = {};
 
-          try {
-            result =
-              responseText
-                ? JSON.parse(
-                    responseText,
-                  )
-                : {};
-          } catch (jsonError) {
-            console.log(
-              'JSON PARSE ERROR:',
-              jsonError,
-            );
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch (jsonError) {
+        console.log('JSON PARSE ERROR:', jsonError);
 
-            throw new Error(
-              'The server returned an invalid response.',
-            );
-          }
+        throw new Error('The server returned an invalid response.');
+      }
 
-          if (
-            response.status === 401
-          ) {
-            throw new Error(
-              result?.message ??
-              'Unable to authenticate your account.',
-            );
-          }
+      if (response.status === 401) {
+        throw new Error(
+          result?.message ?? 'Unable to authenticate your account.',
+        );
+      }
 
-          if (
-            !response.ok
-          ) {
-            throw new Error(
-              result?.message ??
-              result?.error ??
-              `Unable to load orders. Status: ${response.status}`,
-            );
-          }
+      if (!response.ok) {
+        throw new Error(
+          result?.message ??
+            result?.error ??
+            `Unable to load orders. Status: ${response.status}`,
+        );
+      }
 
-          /* =============================================
-           * EXTRACT ARRAY
-           * ============================================= */
+      /* =============================================
+       * EXTRACT ARRAY
+       * ============================================= */
 
-          let apiOrders = [];
+      let apiOrders = [];
 
-          if (
-            Array.isArray(result)
-          ) {
-            apiOrders =
-              result;
-          } else if (
-            Array.isArray(
-              result?.data,
-            )
-          ) {
-            apiOrders =
-              result.data;
-          } else if (
-            Array.isArray(
-              result?.orders,
-            )
-          ) {
-            apiOrders =
-              result.orders;
-          } else if (
-            Array.isArray(
-              result?.data?.orders,
-            )
-          ) {
-            apiOrders =
-              result.data.orders;
-          } else if (
-            Array.isArray(
-              result?.data?.data,
-            )
-          ) {
-            apiOrders =
-              result.data.data;
-          } else if (
-            Array.isArray(
-              result?.orders?.data,
-            )
-          ) {
-            apiOrders =
-              result.orders.data;
-          }
+      if (Array.isArray(result)) {
+        apiOrders = result;
+      } else if (Array.isArray(result?.data)) {
+        apiOrders = result.data;
+      } else if (Array.isArray(result?.orders)) {
+        apiOrders = result.orders;
+      } else if (Array.isArray(result?.data?.orders)) {
+        apiOrders = result.data.orders;
+      } else if (Array.isArray(result?.data?.data)) {
+        apiOrders = result.data.data;
+      } else if (Array.isArray(result?.orders?.data)) {
+        apiOrders = result.orders.data;
+      }
 
-          const finalOrders =
-            apiOrders
-              .map(
-                (
-                  order,
-                  index,
-                ) =>
-                  normalizeOrder(
-                    order,
-                    index,
-                  ),
-              );
+      const finalOrders = apiOrders.map((order, index) =>
+        normalizeOrder(order, index),
+      );
 
-          console.log(
-            '======================================',
-          );
+      console.log('======================================');
 
-          console.log(
-            'NORMALIZED ORDERS:',
-            JSON.stringify(
-              finalOrders,
-              null,
-              2,
-            ),
-          );
+      console.log('NORMALIZED ORDERS:', JSON.stringify(finalOrders, null, 2));
 
-          console.log(
-            'TOTAL ORDERS:',
-            finalOrders.length,
-          );
+      console.log('TOTAL ORDERS:', finalOrders.length);
 
-          console.log(
-            '======================================',
-          );
+      console.log('======================================');
 
-          setOrders(
-            finalOrders,
-          );
-        } catch (err) {
-          console.log(
-            'PREVIOUS ORDERS ERROR:',
-            err,
-          );
+      setOrders(finalOrders);
+    } catch (err) {
+      console.log('PREVIOUS ORDERS ERROR:', err);
 
-          setError(
-            err?.message ??
-            'Unable to load your previous orders.',
-          );
-        } finally {
-          setLoading(
-            false,
-          );
+      setError(err?.message ?? 'Unable to load your previous orders.');
+    } finally {
+      setLoading(false);
 
-          setRefreshing(
-            false,
-          );
-        }
-      },
-      [],
-    );
+      setRefreshing(false);
+    }
+  }, []);
 
   /* =======================================================
    * REFRESH PAGE WHEN OPENED
    * ======================================================= */
 
   useFocusEffect(
-    useCallback(
-      () => {
-        fetchOrders();
+    useCallback(() => {
+      fetchOrders();
 
-        return () => {};
-      },
-      [
-        fetchOrders,
-      ],
-    ),
+      return () => {};
+    }, [fetchOrders]),
   );
 
   /* =======================================================
    * STATUS UI
    * ======================================================= */
 
-  const getStatusStyle =
-    status => {
-      switch (
-        status
-      ) {
-        case 'Delivered':
-          return {
-            container:
-              styles.statusDelivered,
+  const getStatusStyle = status => {
+    switch (status) {
+      case 'Delivered':
+        return {
+          container: styles.statusDelivered,
 
-            text:
-              styles.statusDeliveredText,
+          text: styles.statusDeliveredText,
 
-            icon:
-              'checkmark-circle',
+          icon: 'checkmark-circle',
 
-            iconColor:
-              '#2F7D32',
-          };
+          iconColor: '#2F7D32',
+        };
 
-        case 'Cancelled':
-          return {
-            container:
-              styles.statusCancelled,
+      case 'Cancelled':
+        return {
+          container: styles.statusCancelled,
 
-            text:
-              styles.statusCancelledText,
+          text: styles.statusCancelledText,
 
-            icon:
-              'close-circle',
+          icon: 'close-circle',
 
-            iconColor:
-              '#C84336',
-          };
+          iconColor: '#A00B0F',
+        };
 
-        case 'Out for Delivery':
-          return {
-            container:
-              styles.statusProcessing,
+      case 'Out for Delivery':
+        return {
+          container: styles.statusProcessing,
 
-            text:
-              styles.statusProcessingText,
+          text: styles.statusProcessingText,
 
-            icon:
-              'car-outline',
+          icon: 'car-outline',
 
-            iconColor:
-              '#A96B11',
-          };
+          iconColor: '#A96B11',
+        };
 
-        case 'Processing':
-          return {
-            container:
-              styles.statusProcessing,
+      case 'Processing':
+        return {
+          container: styles.statusProcessing,
 
-            text:
-              styles.statusProcessingText,
+          text: styles.statusProcessingText,
 
-            icon:
-              'time-outline',
+          icon: 'time-outline',
 
-            iconColor:
-              '#A96B11',
-          };
+          iconColor: '#A96B11',
+        };
 
-        default:
-          return {
-            container:
-              styles.statusDefault,
+      default:
+        return {
+          container: styles.statusDefault,
 
-            text:
-              styles.statusDefaultText,
+          text: styles.statusDefaultText,
 
-            icon:
-              'ellipse',
+          icon: 'ellipse',
 
-            iconColor:
-              '#76665E',
-          };
-      }
-    };
+          iconColor: '#76665E',
+        };
+    }
+  };
 
   /* =======================================================
    * CUSTOM DISH ROW
    * ======================================================= */
 
-  const renderCustomDish =
-    (
-      customItem,
-      customIndex,
-    ) => {
-      return (
-        <View
-          key={`${customItem.id}-${customIndex}`}
-          style={
-            styles.customDishRow
-          }
-        >
-          <View
-            style={
-              styles.customDishBullet
-            }
-          />
+  const renderCustomDish = (customItem, customIndex) => {
+    return (
+      <View
+        key={`${customItem.id}-${customIndex}`}
+        style={styles.customDishRow}
+      >
+        <View style={styles.customDishBullet} />
 
-          <View
-            style={
-              styles.customDishInfo
-            }
-          >
-            <Text
-              style={
-                styles.customDishName
-              }
-            >
-              {
-                customItem.name
-              }
-            </Text>
+        <View style={styles.customDishInfo}>
+          <Text style={styles.customDishName}>{customItem.name}</Text>
 
-            <Text
-              style={
-                styles.customDishUnitPrice
-              }
-            >
-              {formatPrice(
-                customItem.price,
-              )}{' '}
-              each
-            </Text>
-          </View>
-
-          <Text
-            style={
-              styles.customDishQty
-            }
-          >
-            ×
-            {
-              customItem.quantity
-            }
-          </Text>
-
-          <Text
-            style={
-              styles.customDishPrice
-            }
-          >
-            {formatPrice(
-              customItem.total,
-            )}
+          <Text style={styles.customDishUnitPrice}>
+            {formatPrice(customItem.price)} each
           </Text>
         </View>
-      );
-    };
+
+        <Text style={styles.customDishQty}>×{customItem.quantity}</Text>
+
+        <Text style={styles.customDishPrice}>
+          {formatPrice(customItem.total)}
+        </Text>
+      </View>
+    );
+  };
 
   /* =======================================================
    * ORDER CARD
    * ======================================================= */
 
-  const renderOrder =
-    ({
-      item,
-    }) => {
-      const statusStyle =
-        getStatusStyle(
-          item.status,
-        );
+  const renderOrder = ({ item }) => {
+    const statusStyle = getStatusStyle(item.status);
 
-      return (
-        <View
-          style={
-            styles.orderCard
-          }
-        >
-          {/* =============================================
+    return (
+      <View style={styles.orderCard}>
+        {/* =============================================
               HEADER
           ============================================= */}
 
-          <View
-            style={
-              styles.orderHeader
-            }
-          >
-            <View
-              style={
-                styles.orderNumberContainer
-              }
-            >
-              <View
-                style={
-                  styles.orderIcon
-                }
-              >
-                <Ionicons
-                  name="receipt-outline"
-                  size={20}
-                  color="#A00B0F"
-                />
-              </View>
-
-              <View>
-                <Text
-                  style={
-                    styles.orderNumberLabel
-                  }
-                >
-                  Order
-                </Text>
-
-                <Text
-                  style={
-                    styles.orderNumber
-                  }
-                >
-                  #
-                  {
-                    item.orderNumber
-                  }
-                </Text>
-              </View>
+        <View style={styles.orderHeader}>
+          <View style={styles.orderNumberContainer}>
+            <View style={styles.orderIcon}>
+              <Ionicons name="receipt-outline" size={20} color="#A00B0F" />
             </View>
 
-            <View
-              style={[
-                styles.statusBadge,
+            <View>
+              <Text style={styles.orderNumberLabel}>Order</Text>
 
-                statusStyle.container,
-              ]}
-            >
-              <Ionicons
-                name={
-                  statusStyle.icon
-                }
-                size={12}
-                color={
-                  statusStyle.iconColor
-                }
-              />
-
-              <Text
-                style={[
-                  styles.statusText,
-
-                  statusStyle.text,
-                ]}
-              >
-                {
-                  item.status
-                }
-              </Text>
+              <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
             </View>
           </View>
 
-          {/* =============================================
-              DATE
-          ============================================= */}
+          <View style={[styles.statusBadge, statusStyle.container]}>
+            <Ionicons
+              name={statusStyle.icon}
+              size={12}
+              color={statusStyle.iconColor}
+            />
 
-          {(item.date ||
-            item.time) && (
-            <View
-              style={
-                styles.dateRow
-              }
-            >
-              {!!item.date && (
-                <>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={13}
-                    color="#89756B"
-                  />
-
-                  <Text
-                    style={
-                      styles.dateText
-                    }
-                  >
-                    {
-                      item.date
-                    }
-                  </Text>
-                </>
-              )}
-
-              {!!item.date &&
-                !!item.time && (
-                <View
-                  style={
-                    styles.dateDot
-                  }
-                />
-              )}
-
-              {!!item.time && (
-                <>
-                  <Ionicons
-                    name="time-outline"
-                    size={13}
-                    color="#89756B"
-                  />
-
-                  <Text
-                    style={
-                      styles.dateText
-                    }
-                  >
-                    {
-                      item.time
-                    }
-                  </Text>
-                </>
-              )}
-            </View>
-          )}
-
-          <View
-            style={
-              styles.divider
-            }
-          />
-
-          {/* =============================================
-              ORDER ITEMS
-          ============================================= */}
-
-          <Text
-            style={
-              styles.smallHeading
-            }
-          >
-            ORDER ITEMS
-          </Text>
-
-          {Array.isArray(
-            item.items,
-          ) &&
-            item.items.map(
-              (
-                orderItem,
-                orderItemIndex,
-              ) => (
-                <View
-                  key={`${orderItem.id}-${orderItemIndex}`}
-                  style={
-                    styles.orderItemContainer
-                  }
-                >
-                  <View
-                    style={
-                      styles.itemRow
-                    }
-                  >
-                    <View
-                      style={
-                        styles.itemBullet
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.itemNameContainer
-                      }
-                    >
-                      <View
-                        style={
-                          styles.itemNameRow
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.itemName
-                          }
-                        >
-                          {
-                            orderItem.name
-                          }
-                        </Text>
-
-                        {orderItem
-                          .isCustom && (
-                          <View
-                            style={
-                              styles.customBadge
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.customBadgeText
-                              }
-                            >
-                              CUSTOM BUILT
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <Text
-                      style={
-                        styles.itemQuantity
-                      }
-                    >
-                      ×
-                      {
-                        orderItem.quantity
-                      }
-                    </Text>
-                  </View>
-
-                  {/* =====================================
-                      CUSTOM TIFFIN SELECTED ITEMS
-                  ===================================== */}
-
-                  {orderItem
-                    .isCustom &&
-                    Array.isArray(
-                      orderItem
-                        .customItems,
-                    ) &&
-                    orderItem
-                      .customItems
-                      .length >
-                      0 && (
-                      <View
-                        style={
-                          styles.customItemsBox
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.customItemsHeading
-                          }
-                        >
-                          ITEMS IN YOUR CUSTOM TIFFIN
-                        </Text>
-
-                        {orderItem
-                          .customItems
-                          .map(
-                            renderCustomDish,
-                          )}
-                      </View>
-                    )}
-                </View>
-              ),
-            )}
-
-          {/* =============================================
-              NORMAL CUSTOMIZATION CHIPS
-          ============================================= */}
-
-          {Array.isArray(
-            item.selections,
-          ) &&
-            item.selections.length >
-              0 && (
-              <View
-                style={
-                  styles.selectionContainer
-                }
-              >
-                {item.selections.map(
-                  (
-                    selection,
-                    index,
-                  ) => (
-                    <View
-                      key={`${item.id}-selection-${index}`}
-                      style={
-                        styles.selectionChip
-                      }
-                    >
-                      <Text
-                        style={
-                          styles.selectionChipText
-                        }
-                      >
-                        {String(
-                          selection,
-                        )}
-                      </Text>
-                    </View>
-                  ),
-                )}
-              </View>
-            )}
-
-          <View
-            style={
-              styles.divider
-            }
-          />
-
-          {/* =============================================
-              PRICING
-          ============================================= */}
-
-          <View
-            style={
-              styles.priceRow
-            }
-          >
-            <Text
-              style={
-                styles.priceLabel
-              }
-            >
-              Food Subtotal
-            </Text>
-
-            <Text
-              style={
-                styles.priceValue
-              }
-            >
-              {formatPrice(
-                item.subtotal,
-              )}
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.priceRow
-            }
-          >
-            <View
-              style={
-                styles.shippingLabelContainer
-              }
-            >
-              <Ionicons
-                name="car-outline"
-                size={13}
-                color="#76635A"
-              />
-
-              <Text
-                style={
-                  styles.priceLabel
-                }
-              >
-                Shipping
-              </Text>
-            </View>
-
-            <Text
-              style={[
-                styles.priceValue,
-
-                Number(
-                  item.shippingCharge,
-                ) ===
-                  0 &&
-                  styles.freeShipping,
-              ]}
-            >
-              {Number(
-                item.shippingCharge,
-              ) === 0
-                ? 'FREE'
-                : formatPrice(
-                    item.shippingCharge,
-                  )}
-            </Text>
-          </View>
-
-          <View
-            style={
-              styles.totalDivider
-            }
-          />
-
-          <View
-            style={
-              styles.totalRow
-            }
-          >
-            <Text
-              style={
-                styles.totalLabel
-              }
-            >
-              Total Paid
-            </Text>
-
-            <Text
-              style={
-                styles.totalValue
-              }
-            >
-              {formatPrice(
-                item.total,
-              )}
+            <Text style={[styles.statusText, statusStyle.text]}>
+              {item.status}
             </Text>
           </View>
         </View>
-      );
-    };
+
+        {/* =============================================
+              DATE
+          ============================================= */}
+
+        {(item.date || item.time) && (
+          <View style={styles.dateRow}>
+            {!!item.date && (
+              <>
+                <Ionicons name="calendar-outline" size={13} color="#89756B" />
+
+                <Text style={styles.dateText}>{item.date}</Text>
+              </>
+            )}
+
+            {!!item.date && !!item.time && <View style={styles.dateDot} />}
+
+            {!!item.time && (
+              <>
+                <Ionicons name="time-outline" size={13} color="#89756B" />
+
+                <Text style={styles.dateText}>{item.time}</Text>
+              </>
+            )}
+          </View>
+        )}
+
+        <View style={styles.divider} />
+
+        {/* =============================================
+              ORDER ITEMS
+          ============================================= */}
+
+        <Text style={styles.smallHeading}>ORDER ITEMS</Text>
+
+        {Array.isArray(item.items) &&
+          item.items.map((orderItem, orderItemIndex) => (
+            <View
+              key={`${orderItem.id}-${orderItemIndex}`}
+              style={styles.orderItemContainer}
+            >
+              <View style={styles.itemRow}>
+                <View style={styles.itemBullet} />
+
+                <View style={styles.itemNameContainer}>
+                  <View style={styles.itemNameRow}>
+                    <Text style={styles.itemName}>{orderItem.name}</Text>
+
+                    {orderItem.isCustom && (
+                      <View style={styles.customBadge}>
+                        <Text style={styles.customBadgeText}>CUSTOM BUILT</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <Text style={styles.itemQuantity}>×{orderItem.quantity}</Text>
+              </View>
+
+              {/* =====================================
+                      CUSTOM TIFFIN SELECTED ITEMS
+                  ===================================== */}
+
+              {orderItem.isCustom &&
+                Array.isArray(orderItem.customItems) &&
+                orderItem.customItems.length > 0 && (
+                  <View style={styles.customItemsBox}>
+                    <Text style={styles.customItemsHeading}>
+                      ITEMS IN YOUR CUSTOM TIFFIN
+                    </Text>
+
+                    {orderItem.customItems.map(renderCustomDish)}
+                  </View>
+                )}
+            </View>
+          ))}
+
+        {/* =============================================
+              NORMAL CUSTOMIZATION CHIPS
+          ============================================= */}
+
+        {Array.isArray(item.selections) && item.selections.length > 0 && (
+          <View style={styles.selectionContainer}>
+            {item.selections.map((selection, index) => (
+              <View
+                key={`${item.id}-selection-${index}`}
+                style={styles.selectionChip}
+              >
+                <Text style={styles.selectionChipText}>
+                  {String(selection)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.divider} />
+
+        {/* =============================================
+              PRICING
+          ============================================= */}
+
+        <View style={styles.priceRow}>
+          <Text style={styles.priceLabel}>Food Subtotal</Text>
+
+          <Text style={styles.priceValue}>{formatPrice(item.subtotal)}</Text>
+        </View>
+
+        <View style={styles.priceRow}>
+          <View style={styles.shippingLabelContainer}>
+            <Ionicons name="car-outline" size={13} color="#76635A" />
+
+            <Text style={styles.priceLabel}>Shipping</Text>
+          </View>
+
+          <Text
+            style={[
+              styles.priceValue,
+
+              Number(item.shippingCharge) === 0 && styles.freeShipping,
+            ]}
+          >
+            {Number(item.shippingCharge) === 0
+              ? 'FREE'
+              : formatPrice(item.shippingCharge)}
+          </Text>
+        </View>
+
+        <View style={styles.totalDivider} />
+
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total Paid</Text>
+
+          <Text style={styles.totalValue}>{formatPrice(item.total)}</Text>
+        </View>
+      </View>
+    );
+  };
 
   /* =======================================================
    * EMPTY STATE
    * ======================================================= */
 
-  const renderEmptyState =
-    () => {
-      if (
-        loading
-      ) {
-        return null;
-      }
+  const renderEmptyState = () => {
+    if (loading) {
+      return null;
+    }
 
-      return (
-        <View
-          style={
-            styles.emptyContainer
+    return (
+      <View style={styles.emptyContainer}>
+        <View style={styles.emptyIconContainer}>
+          <Ionicons
+            name={error ? 'alert-circle-outline' : 'receipt-outline'}
+            size={42}
+            color="#A00B0F"
+          />
+        </View>
+
+        <Text style={styles.emptyTitle}>
+          {error ? 'Unable to Load Orders' : 'No Previous Orders'}
+        </Text>
+
+        <Text style={styles.emptyDescription}>
+          {error
+            ? error
+            : 'Your previous tiffin orders will appear here once you place an order.'}
+        </Text>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.orderNowButton}
+          onPress={() =>
+            error ? fetchOrders() : navigation.navigate('MainTabs')
           }
         >
-          <View
-            style={
-              styles.emptyIconContainer
-            }
-          >
-            <Ionicons
-              name={
-                error
-                  ? 'alert-circle-outline'
-                  : 'receipt-outline'
-              }
-              size={42}
-              color="#A00B0F"
-            />
-          </View>
-
-          <Text
-            style={
-              styles.emptyTitle
-            }
-          >
-            {error
-              ? 'Unable to Load Orders'
-              : 'No Previous Orders'}
+          <Text style={styles.orderNowButtonText}>
+            {error ? 'Try Again' : 'Order a Tiffin'}
           </Text>
-
-          <Text
-            style={
-              styles.emptyDescription
-            }
-          >
-            {error
-              ? error
-              : 'Your previous tiffin orders will appear here once you place an order.'}
-          </Text>
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={
-              styles.orderNowButton
-            }
-            onPress={() =>
-              error
-                ? fetchOrders()
-                : navigation.navigate(
-                    'MainTabs',
-                  )
-            }
-          >
-            <Text
-              style={
-                styles.orderNowButtonText
-              }
-            >
-              {error
-                ? 'Try Again'
-                : 'Order a Tiffin'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      );
-    };
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   /* =======================================================
    * LOADING
    * ======================================================= */
 
-  if (
-    loading &&
-    orders.length === 0
-  ) {
+  if (loading && orders.length === 0) {
     return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor="#FFFDFB"
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFDFB" />
 
-        <View
-          style={
-            styles.loadingContainer
-          }
-        >
-          <ActivityIndicator
-            size="large"
-            color="#A00B0F"
-          />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#A00B0F" />
 
-          <Text
-            style={
-              styles.loadingText
-            }
-          >
-            Loading your orders...
-          </Text>
+          <Text style={styles.loadingText}>Loading your orders...</Text>
         </View>
       </SafeAreaView>
     );
@@ -1881,23 +1048,15 @@ const PreviousOrders = ({
    * ======================================================= */
 
   return (
-    <SafeAreaView
-      style={
-        styles.safeArea
-      }
-    >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="#FFFDFB"
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFDFB" />
 
       <View
         style={[
           styles.screenContainer,
 
           {
-            width:
-              responsive.contentWidth,
+            width: responsive.contentWidth,
           },
         ]}
       >
@@ -1910,64 +1069,35 @@ const PreviousOrders = ({
             styles.header,
 
             {
-              paddingHorizontal:
-                responsive.horizontalPadding,
+              paddingHorizontal: responsive.horizontalPadding,
             },
           ]}
         >
           <Pressable
             hitSlop={12}
-            style={
-              styles.headerIconButton
-            }
+            style={styles.headerIconButton}
             onPress={() => {
-              if (
-                navigation.canGoBack()
-              ) {
+              if (navigation.canGoBack()) {
                 navigation.goBack();
               } else {
-                navigation.replace(
-                  'MainTabs',
-                );
+                navigation.replace('MainTabs');
               }
             }}
           >
             <Image
               source={require('../assets/login-icons/back.png')}
-              style={
-                styles.headerImage
-              }
+              style={styles.headerImage}
               resizeMode="contain"
             />
           </Pressable>
 
-          <View
-            style={
-              styles.headerTitleContainer
-            }
-          >
-            <Text
-              style={
-                styles.headerTitle
-              }
-            >
-              Previous Orders
-            </Text>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.headerTitle}>Previous Orders</Text>
 
-            <Text
-              style={
-                styles.headerSubtitle
-              }
-            >
-              Your order history
-            </Text>
+            <Text style={styles.headerSubtitle}>Your order history</Text>
           </View>
 
-          <View
-            style={
-              styles.headerIconPlaceholder
-            }
-          />
+          <View style={styles.headerIconPlaceholder} />
         </View>
 
         {/* =============================================
@@ -1975,108 +1105,50 @@ const PreviousOrders = ({
         ============================================= */}
 
         <FlatList
-          data={
-            orders
+          data={orders}
+          keyExtractor={(item, index) =>
+            item?.id ? String(item.id) : String(index)
           }
-          keyExtractor={(
-            item,
-            index,
-          ) =>
-            item?.id
-              ? String(
-                  item.id,
-                )
-              : String(
-                  index,
-                )
-          }
-          renderItem={
-            renderOrder
-          }
-          showsVerticalScrollIndicator={
-            false
-          }
+          renderItem={renderOrder}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={
-                refreshing
-              }
-              onRefresh={() =>
-                fetchOrders(
-                  true,
-                )
-              }
+              refreshing={refreshing}
+              onRefresh={() => fetchOrders(true)}
               tintColor="#A00B0F"
-              colors={[
-                '#A00B0F',
-              ]}
+              colors={['#A00B0F']}
             />
           }
           contentContainerStyle={[
             styles.listContent,
 
             {
-              paddingHorizontal:
-                responsive.horizontalPadding,
+              paddingHorizontal: responsive.horizontalPadding,
             },
 
-            orders.length ===
-              0 &&
-              styles.emptyListContent,
+            orders.length === 0 && styles.emptyListContent,
           ]}
           ListHeaderComponent={
-            orders.length >
-            0 ? (
-              <View
-                style={
-                  styles.pageIntro
-                }
-              >
-                <Text
-                  style={
-                    styles.pageIntroTitle
-                  }
-                >
-                  Your Orders
-                </Text>
+            orders.length > 0 ? (
+              <View style={styles.pageIntro}>
+                <Text style={styles.pageIntroTitle}>Your Orders</Text>
 
-                <Text
-                  style={
-                    styles.pageIntroDescription
-                  }
-                >
+                <Text style={styles.pageIntroDescription}>
                   Review your previous fixed and customised tiffin orders.
                 </Text>
 
-                <View
-                  style={
-                    styles.orderCountBadge
-                  }
-                >
-                  <Ionicons
-                    name="receipt-outline"
-                    size={14}
-                    color="#A00B0F"
-                  />
+                <View style={styles.orderCountBadge}>
+                  <Ionicons name="receipt-outline" size={14} color="#A00B0F" />
 
-                  <Text
-                    style={
-                      styles.orderCountText
-                    }
-                  >
+                  <Text style={styles.orderCountText}>
                     {orders.length}{' '}
-
-                    {orders.length === 1
-                      ? 'previous order'
-                      : 'previous orders'}
+                    {orders.length === 1 ? 'previous order' : 'previous orders'}
                   </Text>
                 </View>
               </View>
             ) : null
           }
-          ListEmptyComponent={
-            renderEmptyState
-          }
+          ListEmptyComponent={renderEmptyState}
         />
       </View>
     </SafeAreaView>
@@ -2089,901 +1161,764 @@ export default PreviousOrders;
  * STYLES
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    safeArea: {
-      flex: 1,
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
 
-      backgroundColor:
-        '#F6F2EE',
-    },
+    backgroundColor: '#F6F2EE',
+  },
 
-    screenContainer: {
-      flex: 1,
+  screenContainer: {
+    flex: 1,
 
-      alignSelf:
-        'center',
+    alignSelf: 'center',
 
-      backgroundColor:
-        '#FFFDFB',
-    },
+    backgroundColor: '#FFFDFB',
+  },
 
-    /* =====================================================
-     * LOADING
-     * ===================================================== */
+  /* =====================================================
+   * LOADING
+   * ===================================================== */
 
-    loadingContainer: {
-      flex: 1,
+  loadingContainer: {
+    flex: 1,
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      justifyContent:
-        'center',
+    justifyContent: 'center',
 
-      paddingHorizontal:
-        30,
-    },
+    paddingHorizontal: 30,
+  },
 
-    loadingText: {
-      color:
-        '#806C62',
+  loadingText: {
+    color: '#806C62',
 
-      fontSize: 11,
+    fontSize: 11,
 
-      fontWeight:
-        '600',
+    fontWeight: '600',
 
-      marginTop: 12,
-    },
+    marginTop: 12,
+  },
 
-    /* =====================================================
-     * HEADER
-     * ===================================================== */
+  /* =====================================================
+   * HEADER
+   * ===================================================== */
 
-    header: {
-      minHeight: 66,
+  header: {
+    minHeight: 66,
 
-      flexDirection:
-        'row',
+    flexDirection: 'row',
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      justifyContent:
-        'space-between',
+    justifyContent: 'space-between',
 
-      backgroundColor:
-        '#FFFDFB',
+    backgroundColor: '#FFFDFB',
 
-      borderBottomWidth: 1,
+    borderBottomWidth: 1,
 
-      borderBottomColor:
-        '#EEE8E3',
-    },
+    borderBottomColor: '#EEE8E3',
+  },
 
-    headerIconButton: {
-      width: 38,
+  headerIconButton: {
+    width: 38,
 
-      height: 38,
+    height: 38,
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      justifyContent:
-        'center',
+    justifyContent: 'center',
 
-      backgroundColor:
-        '#FFF8F2',
+    backgroundColor: '#FFF8F2',
 
-      borderRadius: 19,
-    },
+    borderRadius: 19,
+  },
 
-    headerIconPlaceholder: {
-      width: 38,
+  headerIconPlaceholder: {
+    width: 38,
 
-      height: 38,
-    },
+    height: 38,
+  },
 
-    headerImage: {
-      width: 20,
+  headerImage: {
+    width: 20,
 
-      height: 20,
+    height: 20,
 
-      resizeMode:
-        'contain',
-    },
+    resizeMode: 'contain',
+  },
 
-    headerTitleContainer: {
-      flex: 1,
+  headerTitleContainer: {
+    flex: 1,
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      paddingHorizontal: 12,
-    },
+    paddingHorizontal: 12,
+  },
 
-    headerTitle: {
-      color:
-        '#A00B0F',
+  headerTitle: {
+    color: '#A00B0F',
 
-      fontSize: 18,
+    fontSize: 18,
 
-      fontWeight:
-        '800',
+    fontWeight: '800',
 
-      textAlign:
-        'center',
-    },
+    textAlign: 'center',
+  },
 
-    headerSubtitle: {
-      color:
-        '#8A746A',
+  headerSubtitle: {
+    color: '#8A746A',
 
-      fontSize: 9,
+    fontSize: 9,
 
-      fontWeight:
-        '600',
+    fontWeight: '600',
 
-      marginTop: 2,
-    },
+    marginTop: 2,
+  },
 
-    /* =====================================================
-     * LIST
-     * ===================================================== */
+  /* =====================================================
+   * LIST
+   * ===================================================== */
 
-    listContent: {
-      paddingTop: 18,
+  listContent: {
+    paddingTop: 18,
 
-      paddingBottom: 35,
-    },
+    paddingBottom: 35,
+  },
 
-    emptyListContent: {
-      flexGrow: 1,
-    },
+  emptyListContent: {
+    flexGrow: 1,
+  },
 
-    /* =====================================================
-     * INTRO
-     * ===================================================== */
+  /* =====================================================
+   * INTRO
+   * ===================================================== */
 
-    pageIntro: {
-      marginBottom: 18,
-    },
+  pageIntro: {
+    marginBottom: 18,
+  },
 
-    pageIntroTitle: {
-      color:
-        '#211713',
+  pageIntroTitle: {
+    color: '#211713',
 
-      fontSize: 21,
+    fontSize: 21,
 
-      fontWeight:
-        '900',
-    },
+    fontWeight: '900',
+  },
 
-    pageIntroDescription: {
-      color:
-        '#806C62',
+  pageIntroDescription: {
+    color: '#806C62',
 
-      fontSize: 11,
+    fontSize: 11,
 
-      lineHeight: 17,
+    lineHeight: 17,
 
-      marginTop: 5,
+    marginTop: 5,
 
-      maxWidth: 520,
-    },
+    maxWidth: 520,
+  },
 
-    orderCountBadge: {
-      alignSelf:
-        'flex-start',
+  orderCountBadge: {
+    alignSelf: 'flex-start',
 
-      flexDirection:
-        'row',
+    flexDirection: 'row',
 
-      alignItems:
-        'center',
+    alignItems: 'center',
 
-      backgroundColor:
-        '#FFF3EA',
+    backgroundColor: '#FFF3EA',
 
-      borderRadius: 20,
+    borderRadius: 20,
 
-      paddingHorizontal: 10,
+    paddingHorizontal: 10,
 
-      paddingVertical: 6,
+    paddingVertical: 6,
 
-      marginTop: 10,
-    },
+    marginTop: 10,
+  },
 
-    orderCountText: {
-      color:
-        '#A00B0F',
+  orderCountText: {
+    color: '#A00B0F',
 
-      fontSize: 9,
+    fontSize: 9,
 
-      fontWeight:
-        '800',
+    fontWeight: '800',
 
-      marginLeft: 5,
-    },
+    marginLeft: 5,
+  },
 
-    /* =====================================================
-     * ORDER CARD
-     * ===================================================== */
+  /* =====================================================
+   * ORDER CARD
+   * ===================================================== */
 
-    orderCard: {
-      width: '100%',
+  orderCard: {
+    width: '100%',
 
-      backgroundColor:
-        '#FFFFFF',
+    backgroundColor: '#FFFFFF',
 
-      borderWidth: 1,
+    borderWidth: 1,
 
-      borderColor:
-        '#EFE7E2',
+    borderColor: '#EFE7E2',
 
-      borderRadius: 18,
+    borderRadius: 18,
 
-      padding: 14,
+    padding: 14,
 
-      marginBottom: 14,
+    marginBottom: 14,
 
-      shadowColor:
-        '#5B3A2A',
+    shadowColor: '#5B3A2A',
 
-      shadowOffset: {
-        width: 0,
-
-        height: 3,
-      },
-
-      shadowOpacity:
-        0.055,
-
-      shadowRadius: 8,
-
-      elevation: 2,
-    },
-
-    orderHeader: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'space-between',
-    },
-
-    orderNumberContainer: {
-      flex: 1,
-
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      paddingRight: 10,
-    },
-
-    orderIcon: {
-      width: 42,
-
-      height: 42,
-
-      alignItems:
-        'center',
-
-      justifyContent:
-        'center',
-
-      backgroundColor:
-        '#FFF3E8',
-
-      borderRadius: 12,
-
-      marginRight: 10,
-    },
-
-    orderNumberLabel: {
-      color:
-        '#97857B',
-
-      fontSize: 8,
-
-      fontWeight:
-        '700',
-
-      textTransform:
-        'uppercase',
-    },
-
-    orderNumber: {
-      color:
-        '#241A15',
-
-      fontSize: 13,
-
-      fontWeight:
-        '900',
-
-      marginTop: 2,
-    },
-
-    /* =====================================================
-     * STATUS
-     * ===================================================== */
-
-    statusBadge: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      borderRadius: 20,
-
-      paddingHorizontal: 9,
-
-      paddingVertical: 6,
-    },
-
-    statusText: {
-      fontSize: 8,
-
-      fontWeight:
-        '800',
-
-      marginLeft: 4,
-    },
-
-    statusDelivered: {
-      backgroundColor:
-        '#EDF7EE',
-    },
-
-    statusDeliveredText: {
-      color:
-        '#2F7D32',
-    },
-
-    statusCancelled: {
-      backgroundColor:
-        '#FFF0ED',
-    },
-
-    statusCancelledText: {
-      color:
-        '#C84336',
-    },
-
-    statusProcessing: {
-      backgroundColor:
-        '#FFF7E8',
-    },
-
-    statusProcessingText: {
-      color:
-        '#A96B11',
-    },
-
-    statusDefault: {
-      backgroundColor:
-        '#F3EFEC',
-    },
-
-    statusDefaultText: {
-      color:
-        '#76665E',
-    },
-
-    /* =====================================================
-     * DATE
-     * ===================================================== */
-
-    dateRow: {
-      flexDirection:
-        'row',
-
-      alignItems:
-        'center',
-
-      marginTop: 11,
-    },
-
-    dateText: {
-      color:
-        '#89756B',
-
-      fontSize: 8.5,
-
-      fontWeight:
-        '600',
-
-      marginLeft: 4,
-    },
-
-    dateDot: {
-      width: 3,
+    shadowOffset: {
+      width: 0,
 
       height: 3,
-
-      borderRadius: 2,
-
-      backgroundColor:
-        '#C7BAB3',
-
-      marginHorizontal: 8,
     },
 
-    /* =====================================================
-     * DIVIDERS
-     * ===================================================== */
+    shadowOpacity: 0.055,
 
-    divider: {
-      height: 1,
+    shadowRadius: 8,
 
-      backgroundColor:
-        '#EFE8E3',
+    elevation: 2,
+  },
 
-      marginVertical: 12,
-    },
+  orderHeader: {
+    flexDirection: 'row',
 
-    totalDivider: {
-      height: 1,
+    alignItems: 'center',
 
-      backgroundColor:
-        '#E5D9D2',
+    justifyContent: 'space-between',
+  },
 
-      marginVertical: 9,
-    },
+  orderNumberContainer: {
+    flex: 1,
 
-    /* =====================================================
-     * ITEMS
-     * ===================================================== */
+    flexDirection: 'row',
 
-    smallHeading: {
-      color:
-        '#A00B0F',
+    alignItems: 'center',
 
-      fontSize: 8,
+    paddingRight: 10,
+  },
 
-      fontWeight:
-        '900',
+  orderIcon: {
+    width: 42,
 
-      letterSpacing: 0.5,
+    height: 42,
 
-      marginBottom: 7,
-    },
+    alignItems: 'center',
 
-    orderItemContainer: {
-      marginBottom: 10,
-    },
+    justifyContent: 'center',
 
-    itemRow: {
-      flexDirection:
-        'row',
+    backgroundColor: '#FFF3E8',
 
-      alignItems:
-        'center',
+    borderRadius: 12,
 
-      marginBottom: 5,
-    },
+    marginRight: 10,
+  },
 
-    itemBullet: {
-      width: 5,
+  orderNumberLabel: {
+    color: '#97857B',
 
-      height: 5,
+    fontSize: 8,
 
-      borderRadius: 3,
+    fontWeight: '700',
 
-      backgroundColor:
-        '#A00B0F',
+    textTransform: 'uppercase',
+  },
 
-      marginRight: 7,
-    },
+  orderNumber: {
+    color: '#241A15',
 
-    itemNameContainer: {
-      flex: 1,
+    fontSize: 13,
 
-      minWidth: 0,
-    },
+    fontWeight: '900',
 
-    itemNameRow: {
-      flexDirection:
-        'row',
+    marginTop: 2,
+  },
 
-      flexWrap:
-        'wrap',
+  /* =====================================================
+   * STATUS
+   * ===================================================== */
 
-      alignItems:
-        'center',
-    },
+  statusBadge: {
+    flexDirection: 'row',
 
-    itemName: {
-      color:
-        '#352821',
+    alignItems: 'center',
 
-      fontSize: 10,
+    borderRadius: 20,
 
-      fontWeight:
-        '700',
-    },
+    paddingHorizontal: 9,
 
-    itemQuantity: {
-      color:
-        '#8D796E',
+    paddingVertical: 6,
+  },
 
-      fontSize: 9,
+  statusText: {
+    fontSize: 8,
 
-      fontWeight:
-        '700',
+    fontWeight: '800',
 
-      marginLeft: 8,
-    },
+    marginLeft: 4,
+  },
 
-    customBadge: {
-      backgroundColor:
-        '#FFF0E2',
+  statusDelivered: {
+    backgroundColor: '#EDF7EE',
+  },
 
-      borderRadius: 8,
+  statusDeliveredText: {
+    color: '#2F7D32',
+  },
 
-      paddingHorizontal: 6,
+  statusCancelled: {
+    backgroundColor: '#FFF0ED',
+  },
 
-      paddingVertical: 3,
+  statusCancelledText: {
+    color: '#A00B0F',
+  },
 
-      marginLeft: 7,
-    },
+  statusProcessing: {
+    backgroundColor: '#FFF7E8',
+  },
 
-    customBadgeText: {
-      color:
-        '#A00B0F',
+  statusProcessingText: {
+    color: '#A96B11',
+  },
 
-      fontSize: 6.5,
+  statusDefault: {
+    backgroundColor: '#F3EFEC',
+  },
 
-      fontWeight:
-        '900',
-    },
+  statusDefaultText: {
+    color: '#76665E',
+  },
 
-    /* =====================================================
-     * CUSTOM ITEMS
-     * ===================================================== */
+  /* =====================================================
+   * DATE
+   * ===================================================== */
 
-    customItemsBox: {
-      marginTop: 8,
+  dateRow: {
+    flexDirection: 'row',
 
-      marginLeft: 12,
+    alignItems: 'center',
 
-      backgroundColor:
-        '#FFF9F2',
+    marginTop: 11,
+  },
 
-      borderWidth: 1,
+  dateText: {
+    color: '#89756B',
 
-      borderColor:
-        '#EEE2D3',
+    fontSize: 8.5,
 
-      borderRadius: 12,
+    fontWeight: '600',
 
-      padding: 10,
-    },
+    marginLeft: 4,
+  },
 
-    customItemsHeading: {
-      color:
-        '#95663B',
+  dateDot: {
+    width: 3,
 
-      fontSize: 7,
+    height: 3,
 
-      fontWeight:
-        '900',
+    borderRadius: 2,
 
-      letterSpacing: 0.5,
+    backgroundColor: '#C7BAB3',
 
-      marginBottom: 8,
-    },
+    marginHorizontal: 8,
+  },
 
-    customDishRow: {
-      minHeight: 34,
+  /* =====================================================
+   * DIVIDERS
+   * ===================================================== */
 
-      flexDirection:
-        'row',
+  divider: {
+    height: 1,
 
-      alignItems:
-        'center',
+    backgroundColor: '#EFE8E3',
 
-      borderBottomWidth: 1,
+    marginVertical: 12,
+  },
 
-      borderBottomColor:
-        '#F2E9DF',
+  totalDivider: {
+    height: 1,
 
-      paddingVertical: 5,
-    },
+    backgroundColor: '#E5D9D2',
 
-    customDishBullet: {
-      width: 5,
+    marginVertical: 9,
+  },
 
-      height: 5,
+  /* =====================================================
+   * ITEMS
+   * ===================================================== */
 
-      borderRadius: 3,
+  smallHeading: {
+    color: '#A00B0F',
 
-      backgroundColor:
-        '#A00B0F',
+    fontSize: 8,
 
-      marginRight: 7,
-    },
+    fontWeight: '900',
 
-    customDishInfo: {
-      flex: 1,
+    letterSpacing: 0.5,
 
-      minWidth: 0,
-    },
+    marginBottom: 7,
+  },
 
-    customDishName: {
-      color:
-        '#493226',
+  orderItemContainer: {
+    marginBottom: 10,
+  },
 
-      fontSize: 9,
+  itemRow: {
+    flexDirection: 'row',
 
-      fontWeight:
-        '800',
-    },
+    alignItems: 'center',
 
-    customDishUnitPrice: {
-      color:
-        '#9A887D',
+    marginBottom: 5,
+  },
 
-      fontSize: 7,
+  itemBullet: {
+    width: 5,
 
-      marginTop: 2,
-    },
+    height: 5,
 
-    customDishQty: {
-      color:
-        '#8D796E',
+    borderRadius: 3,
 
-      fontSize: 8,
+    backgroundColor: '#A00B0F',
 
-      marginHorizontal: 8,
-    },
+    marginRight: 7,
+  },
 
-    customDishPrice: {
-      minWidth: 48,
+  itemNameContainer: {
+    flex: 1,
 
-      color:
-        '#A00B0F',
+    minWidth: 0,
+  },
 
-      fontSize: 8.5,
+  itemNameRow: {
+    flexDirection: 'row',
 
-      fontWeight:
-        '900',
+    flexWrap: 'wrap',
 
-      textAlign:
-        'right',
-    },
+    alignItems: 'center',
+  },
 
-    /* =====================================================
-     * SELECTIONS
-     * ===================================================== */
+  itemName: {
+    color: '#352821',
 
-    selectionContainer: {
-      flexDirection:
-        'row',
+    fontSize: 10,
 
-      flexWrap:
-        'wrap',
+    fontWeight: '700',
+  },
 
-      marginTop: 7,
-    },
+  itemQuantity: {
+    color: '#8D796E',
 
-    selectionChip: {
-      backgroundColor:
-        '#FAF4F0',
+    fontSize: 9,
 
-      borderWidth: 1,
+    fontWeight: '700',
 
-      borderColor:
-        '#EEE1D9',
+    marginLeft: 8,
+  },
 
-      borderRadius: 12,
+  customBadge: {
+    backgroundColor: '#FFF0E2',
 
-      paddingHorizontal: 8,
+    borderRadius: 8,
 
-      paddingVertical: 5,
+    paddingHorizontal: 6,
 
-      marginRight: 5,
+    paddingVertical: 3,
 
-      marginBottom: 5,
-    },
+    marginLeft: 7,
+  },
 
-    selectionChipText: {
-      color:
-        '#725D52',
+  customBadgeText: {
+    color: '#A00B0F',
 
-      fontSize: 7.5,
+    fontSize: 6.5,
 
-      fontWeight:
-        '600',
-    },
+    fontWeight: '900',
+  },
 
-    /* =====================================================
-     * PRICE
-     * ===================================================== */
+  /* =====================================================
+   * CUSTOM ITEMS
+   * ===================================================== */
 
-    priceRow: {
-      flexDirection:
-        'row',
+  customItemsBox: {
+    marginTop: 8,
 
-      alignItems:
-        'center',
+    marginLeft: 12,
 
-      justifyContent:
-        'space-between',
+    backgroundColor: '#FFF9F2',
 
-      marginBottom: 7,
-    },
+    borderWidth: 1,
 
-    priceLabel: {
-      color:
-        '#76635A',
+    borderColor: '#EEE2D3',
 
-      fontSize: 9,
+    borderRadius: 12,
 
-      fontWeight:
-        '600',
-    },
+    padding: 10,
+  },
 
-    priceValue: {
-      color:
-        '#2B211C',
+  customItemsHeading: {
+    color: '#95663B',
 
-      fontSize: 9,
+    fontSize: 7,
 
-      fontWeight:
-        '800',
-    },
+    fontWeight: '900',
 
-    shippingLabelContainer: {
-      flexDirection:
-        'row',
+    letterSpacing: 0.5,
 
-      alignItems:
-        'center',
-    },
+    marginBottom: 8,
+  },
 
-    freeShipping: {
-      color:
-        '#2F7D32',
+  customDishRow: {
+    minHeight: 34,
 
-      fontWeight:
-        '900',
-    },
+    flexDirection: 'row',
 
-    totalRow: {
-      flexDirection:
-        'row',
+    alignItems: 'center',
 
-      alignItems:
-        'center',
+    borderBottomWidth: 1,
 
-      justifyContent:
-        'space-between',
-    },
+    borderBottomColor: '#F2E9DF',
 
-    totalLabel: {
-      color:
-        '#2A1E18',
+    paddingVertical: 5,
+  },
 
-      fontSize: 11,
+  customDishBullet: {
+    width: 5,
 
-      fontWeight:
-        '900',
-    },
+    height: 5,
 
-    totalValue: {
-      color:
-        '#A00B0F',
+    borderRadius: 3,
 
-      fontSize: 16,
+    backgroundColor: '#A00B0F',
 
-      fontWeight:
-        '900',
-    },
+    marginRight: 7,
+  },
 
-    /* =====================================================
-     * EMPTY
-     * ===================================================== */
+  customDishInfo: {
+    flex: 1,
 
-    emptyContainer: {
-      flex: 1,
+    minWidth: 0,
+  },
 
-      alignItems:
-        'center',
+  customDishName: {
+    color: '#493226',
 
-      justifyContent:
-        'center',
+    fontSize: 9,
 
-      paddingHorizontal: 30,
+    fontWeight: '800',
+  },
 
-      paddingBottom: 70,
-    },
+  customDishUnitPrice: {
+    color: '#9A887D',
 
-    emptyIconContainer: {
-      width: 86,
+    fontSize: 7,
 
-      height: 86,
+    marginTop: 2,
+  },
 
-      alignItems:
-        'center',
+  customDishQty: {
+    color: '#8D796E',
 
-      justifyContent:
-        'center',
+    fontSize: 8,
 
-      backgroundColor:
-        '#FFF3EA',
+    marginHorizontal: 8,
+  },
 
-      borderRadius: 43,
+  customDishPrice: {
+    minWidth: 48,
 
-      marginBottom: 16,
-    },
+    color: '#A00B0F',
 
-    emptyTitle: {
-      color:
-        '#211713',
+    fontSize: 8.5,
 
-      fontSize: 18,
+    fontWeight: '900',
 
-      fontWeight:
-        '900',
+    textAlign: 'right',
+  },
 
-      textAlign:
-        'center',
-    },
+  /* =====================================================
+   * SELECTIONS
+   * ===================================================== */
 
-    emptyDescription: {
-      maxWidth: 320,
+  selectionContainer: {
+    flexDirection: 'row',
 
-      color:
-        '#826F65',
+    flexWrap: 'wrap',
 
-      fontSize: 10,
+    marginTop: 7,
+  },
 
-      lineHeight: 16,
+  selectionChip: {
+    backgroundColor: '#FAF4F0',
 
-      textAlign:
-        'center',
+    borderWidth: 1,
 
-      marginTop: 7,
-    },
+    borderColor: '#EEE1D9',
 
-    orderNowButton: {
-      minWidth: 160,
+    borderRadius: 12,
 
-      minHeight: 46,
+    paddingHorizontal: 8,
 
-      alignItems:
-        'center',
+    paddingVertical: 5,
 
-      justifyContent:
-        'center',
+    marginRight: 5,
 
-      backgroundColor:
-        '#A00B0F',
+    marginBottom: 5,
+  },
 
-      borderRadius: 12,
+  selectionChipText: {
+    color: '#725D52',
 
-      paddingHorizontal: 22,
+    fontSize: 7.5,
 
-      marginTop: 18,
-    },
+    fontWeight: '600',
+  },
 
-    orderNowButtonText: {
-      color:
-        '#FFFFFF',
+  /* =====================================================
+   * PRICE
+   * ===================================================== */
 
-      fontSize: 11,
+  priceRow: {
+    flexDirection: 'row',
 
-      fontWeight:
-        '800',
-    },
-  });
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    marginBottom: 7,
+  },
+
+  priceLabel: {
+    color: '#76635A',
+
+    fontSize: 9,
+
+    fontWeight: '600',
+  },
+
+  priceValue: {
+    color: '#2B211C',
+
+    fontSize: 9,
+
+    fontWeight: '800',
+  },
+
+  shippingLabelContainer: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+  },
+
+  freeShipping: {
+    color: '#2F7D32',
+
+    fontWeight: '900',
+  },
+
+  totalRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+  },
+
+  totalLabel: {
+    color: '#2A1E18',
+
+    fontSize: 11,
+
+    fontWeight: '900',
+  },
+
+  totalValue: {
+    color: '#A00B0F',
+
+    fontSize: 16,
+
+    fontWeight: '900',
+  },
+
+  /* =====================================================
+   * EMPTY
+   * ===================================================== */
+
+  emptyContainer: {
+    flex: 1,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    paddingHorizontal: 30,
+
+    paddingBottom: 70,
+  },
+
+  emptyIconContainer: {
+    width: 86,
+
+    height: 86,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    backgroundColor: '#FFF3EA',
+
+    borderRadius: 43,
+
+    marginBottom: 16,
+  },
+
+  emptyTitle: {
+    color: '#211713',
+
+    fontSize: 18,
+
+    fontWeight: '900',
+
+    textAlign: 'center',
+  },
+
+  emptyDescription: {
+    maxWidth: 320,
+
+    color: '#826F65',
+
+    fontSize: 10,
+
+    lineHeight: 16,
+
+    textAlign: 'center',
+
+    marginTop: 7,
+  },
+
+  orderNowButton: {
+    minWidth: 160,
+
+    minHeight: 46,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    backgroundColor: '#A00B0F',
+
+    borderRadius: 12,
+
+    paddingHorizontal: 22,
+
+    marginTop: 18,
+  },
+
+  orderNowButtonText: {
+    color: '#FFFFFF',
+
+    fontSize: 11,
+
+    fontWeight: '800',
+  },
+});

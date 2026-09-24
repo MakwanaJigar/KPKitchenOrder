@@ -41,6 +41,82 @@ const CART_STORAGE_KEY = 'kp_customer_cart';
 
 const WEEKLY_ORDERS_STORAGE_KEY = 'kp_customer_weekly_orders';
 
+const ADDRESS_STORAGE_KEY = 'kp_customer_addresses';
+
+const SELECTED_ADDRESS_STORAGE_KEY = 'kp_selected_delivery_address_id';
+
+/* =========================================================
+ * DELIVERY ADDRESS HELPERS
+ * ========================================================= */
+
+const readJson = async (key, fallback) => {
+  try {
+    const stored = await AsyncStorage.getItem(key);
+
+    return stored ? JSON.parse(stored) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const firstText = (...values) => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+};
+
+const isTruthyFlag = value => value === true || value === 1 || value === '1';
+
+const getAddressText = address => {
+  const line = firstText(
+    address?.full_address,
+    address?.address_line,
+    address?.address,
+  );
+
+  const text =
+    line ||
+    [
+      address?.addressLine1 ?? address?.address_line_1,
+      address?.addressLine2 ?? address?.address_line_2,
+      address?.suburb ?? address?.city,
+      address?.state,
+    ]
+      .filter(Boolean)
+      .map(value => String(value).trim())
+      .filter(Boolean)
+      .join(', ');
+
+  const pincode = String(address?.pincode ?? address?.postcode ?? '').trim();
+
+  return pincode && !text.includes(pincode) ? `${text} ${pincode}` : text;
+};
+
+const normalizeAddresses = list => {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  return list
+    .map((item, index) => ({
+      id: String(item?.id ?? `address-${index}`),
+
+      type: String(item?.type ?? item?.address_type ?? 'Home'),
+
+      text: getAddressText(item),
+
+      pincode: String(item?.pincode ?? item?.postcode ?? '').trim(),
+
+      isDefault:
+        isTruthyFlag(item?.is_default) || isTruthyFlag(item?.isDefault),
+    }))
+    .filter(item => item.text);
+};
+
 /* =========================================================
  * HELPERS
  * ========================================================= */
@@ -402,7 +478,16 @@ const Order = ({ navigation }) => {
 
   const [notes, setNotes] = useState('');
 
-  const [location, setLocation] = useState('Set delivery address');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  const [addresses, setAddresses] = useState([]);
+
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+
+  const [addressPickerVisible, setAddressPickerVisible] = useState(false);
+
+  const selectedAddress =
+    addresses.find(item => item.id === selectedAddressId) ?? null;
 
   const [loginVisible, setLoginVisible] = useState(false);
 
@@ -549,56 +634,90 @@ const Order = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem('token');
 
-      if (!token) {
+      const loginState = await AsyncStorage.getItem('isLoggedIn');
+
+      const loggedIn = Boolean(token) && loginState === 'true';
+
+      setIsLoggedIn(loggedIn);
+
+      if (!loggedIn) {
+        setAddresses([]);
+
+        setSelectedAddressId(null);
+
         return;
       }
 
-      const response = await fetch(PROFILE_API, {
-        headers: {
-          Accept: 'application/json',
+      /*
+       * Local copy first (instant), then the profile API
+       * which is the source of truth.
+       */
+      let list = normalizeAddresses(await readJson(ADDRESS_STORAGE_KEY, []));
 
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const response = await fetch(PROFILE_API, {
+          headers: {
+            Accept: 'application/json',
 
-      if (!response.ok) {
-        return;
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+
+          const profile =
+            result?.data?.customer ??
+            result?.data?.user ??
+            result?.data ??
+            result?.customer ??
+            result;
+
+          if (Array.isArray(profile?.addresses) && profile.addresses.length) {
+            list = normalizeAddresses(profile.addresses);
+          } else if (!list.length) {
+            const single = firstText(
+              profile?.delivery_address,
+              profile?.delivery_location,
+              profile?.full_address,
+            );
+
+            if (single) {
+              list = normalizeAddresses([
+                { id: 'profile', address_line: single, is_default: true },
+              ]);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('PROFILE ERROR:', error);
       }
 
-      const result = await response.json();
+      setAddresses(list);
 
-      const profile =
-        result?.data?.customer ??
-        result?.data?.user ??
-        result?.data ??
-        result?.customer ??
-        result;
+      const savedId = await AsyncStorage.getItem(SELECTED_ADDRESS_STORAGE_KEY);
 
-      let address =
-        profile?.delivery_address ??
-        profile?.delivery_location ??
-        profile?.full_address ??
-        '';
+      const selected =
+        list.find(item => item.id === savedId) ??
+        list.find(item => item.isDefault) ??
+        list[0] ??
+        null;
 
-      if (!address && Array.isArray(profile?.addresses)) {
-        const selected =
-          profile.addresses.find(
-            value =>
-              value?.is_default === true ||
-              value?.is_default === 1 ||
-              value?.is_default === '1',
-          ) ?? profile.addresses[0];
-
-        address =
-          selected?.full_address ??
-          selected?.address ??
-          selected?.address_line ??
-          '';
-      }
-
-      setLocation(address || 'Set delivery address');
+      setSelectedAddressId(selected?.id ?? null);
     } catch (error) {
       console.log('PROFILE ERROR:', error);
+    }
+  };
+
+  const selectAddress = async address => {
+    setSelectedAddressId(address.id);
+
+    setAddressPickerVisible(false);
+
+    try {
+      await AsyncStorage.setItem(SELECTED_ADDRESS_STORAGE_KEY, address.id);
+    } catch (error) {
+      console.log('SAVE SELECTED ADDRESS ERROR:', error);
     }
   };
 
@@ -761,6 +880,16 @@ const Order = ({ navigation }) => {
 
       if (!token) {
         setLoginVisible(true);
+
+        return;
+      }
+
+      if (!selectedAddress) {
+        showCustomPopup(
+          'warning',
+          'Delivery Address Required',
+          'Please select or add a delivery address before placing your order.',
+        );
 
         return;
       }
@@ -1078,6 +1207,16 @@ const Order = ({ navigation }) => {
           is_custom_box: custom,
 
           order_type: custom ? 'custom_tiffin' : 'standard',
+
+          ...(selectedAddress && {
+            delivery_address: selectedAddress.text,
+
+            delivery_pincode: selectedAddress.pincode,
+
+            ...(/^\d+$/.test(selectedAddress.id) && {
+              address_id: Number(selectedAddress.id),
+            }),
+          }),
         };
 
         const response = await fetch(ORDER_API, {
@@ -1413,20 +1552,40 @@ const Order = ({ navigation }) => {
                   paddingBottom: 220,
                 }}
                 ListHeaderComponent={
-                  <View style={styles.delivery}>
-                    <Text style={styles.deliveryLabel}>DELIVERY TO</Text>
+                  isLoggedIn ? (
+                    <Pressable
+                      style={styles.delivery}
+                      onPress={() =>
+                        addresses.length
+                          ? setAddressPickerVisible(true)
+                          : navigation.navigate('AddAddress')
+                      }
+                    >
+                      <View style={styles.deliveryHeader}>
+                        <Text style={styles.deliveryLabel}>
+                          DELIVERY TO
+                          {selectedAddress
+                            ? ` · ${selectedAddress.type.toUpperCase()}`
+                            : ''}
+                        </Text>
 
-                    <View style={styles.deliveryRow}>
-                      <Image
-                        source={require('../assets/login-icons/location.png')}
-                        style={styles.locationIcon}
-                      />
+                        <Text style={styles.deliveryChange}>
+                          {addresses.length ? 'CHANGE' : 'ADD'}
+                        </Text>
+                      </View>
 
-                      <Text style={styles.deliveryText} numberOfLines={2}>
-                        {location}
-                      </Text>
-                    </View>
-                  </View>
+                      <View style={styles.deliveryRow}>
+                        <Image
+                          source={require('../assets/login-icons/location.png')}
+                          style={styles.locationIcon}
+                        />
+
+                        <Text style={styles.deliveryText} numberOfLines={2}>
+                          {selectedAddress?.text ?? 'Select delivery address'}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : null
                 }
                 ListFooterComponent={
                   <>
@@ -1450,7 +1609,7 @@ const Order = ({ navigation }) => {
                       <Text style={styles.sectionTitle}>Order Summary</Text>
 
                       <View style={styles.summaryRow}>
-                        <Text style={styles.summaryLabel}>Food subtotal</Text>
+                        <Text style={styles.summaryLabel}>subtotal</Text>
 
                         <Text style={styles.summaryValue}>
                           {formatMoney(foodSubtotal)}
@@ -1510,6 +1669,91 @@ const Order = ({ navigation }) => {
           )}
         </View>
       </SafeAreaView>
+
+      {/* DELIVERY ADDRESS PICKER */}
+
+      <Modal
+        visible={addressPickerVisible}
+        transparent
+        statusBarTranslucent
+        animationType="slide"
+        onRequestClose={() => setAddressPickerVisible(false)}
+      >
+        <View style={styles.addressSheetOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setAddressPickerVisible(false)}
+          />
+
+          <SafeAreaView edges={['bottom']} style={styles.addressSheet}>
+            <View style={styles.addressSheetHandle} />
+
+            <Text style={styles.sectionTitle}>Select Delivery Address</Text>
+
+            <Text style={styles.addressSheetSubtitle}>
+              Choose one of your saved addresses.
+            </Text>
+
+            <FlatList
+              data={addresses}
+              keyExtractor={item => item.id}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const active = item.id === selectedAddressId;
+
+                return (
+                  <Pressable
+                    style={[
+                      styles.addressOption,
+                      active && styles.addressOptionActive,
+                    ]}
+                    onPress={() => selectAddress(item)}
+                  >
+                    <Image
+                      source={require('../assets/login-icons/location.png')}
+                      style={styles.locationIcon}
+                    />
+
+                    <View style={styles.addressOptionBody}>
+                      <Text style={styles.addressOptionType}>
+                        {item.type}
+                        {item.isDefault ? (
+                          <Text style={styles.addressDefaultTag}>
+                            {'  '}Default
+                          </Text>
+                        ) : null}
+                      </Text>
+
+                      <Text style={styles.addressOptionText}>{item.text}</Text>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.addressRadio,
+                        active && styles.addressRadioActive,
+                      ]}
+                    >
+                      {active && <View style={styles.addressRadioDot} />}
+                    </View>
+                  </Pressable>
+                );
+              }}
+              ListFooterComponent={
+                <Pressable
+                  style={styles.addAddressButton}
+                  onPress={() => {
+                    setAddressPickerVisible(false);
+
+                    navigation.navigate('AddAddress');
+                  }}
+                >
+                  <Text style={styles.addAddressText}>+ Add New Address</Text>
+                </Pressable>
+              }
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
 
       {/* CUSTOM PAYMENT / ERROR POPUP */}
 
@@ -1791,6 +2035,184 @@ const styles = StyleSheet.create({
     fontWeight: '900',
 
     letterSpacing: 0.7,
+  },
+
+  deliveryHeader: {
+    flexDirection: 'row',
+
+    justifyContent: 'space-between',
+
+    alignItems: 'center',
+  },
+
+  deliveryChange: {
+    color: '#A00B0F',
+
+    fontSize: 8.5,
+
+    fontWeight: '900',
+
+    letterSpacing: 0.5,
+  },
+
+  addressSheetOverlay: {
+    flex: 1,
+
+    backgroundColor: 'rgba(0,0,0,0.5)',
+
+    justifyContent: 'flex-end',
+  },
+
+  addressSheet: {
+    maxHeight: '75%',
+
+    backgroundColor: '#FFFDFB',
+
+    borderTopLeftRadius: 24,
+
+    borderTopRightRadius: 24,
+
+    paddingHorizontal: 18,
+
+    paddingTop: 10,
+
+    paddingBottom: 24,
+  },
+
+  addressSheetHandle: {
+    width: 44,
+
+    height: 4,
+
+    borderRadius: 2,
+
+    backgroundColor: '#D8CBC5',
+
+    alignSelf: 'center',
+
+    marginBottom: 14,
+  },
+
+  addressSheetSubtitle: {
+    color: '#8F817B',
+
+    fontSize: 9.5,
+
+    marginTop: 3,
+
+    marginBottom: 12,
+  },
+
+  addressOption: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    backgroundColor: '#FBF7F3',
+
+    borderWidth: 1,
+
+    borderColor: '#EEE1D8',
+
+    borderRadius: 13,
+
+    padding: 12,
+
+    marginBottom: 8,
+  },
+
+  addressOptionActive: {
+    backgroundColor: '#FFF2F0',
+
+    borderColor: '#E9BDB7',
+  },
+
+  addressOptionBody: {
+    flex: 1,
+
+    marginHorizontal: 10,
+  },
+
+  addressOptionType: {
+    color: '#39261C',
+
+    fontSize: 11,
+
+    fontWeight: '900',
+  },
+
+  addressDefaultTag: {
+    color: '#278850',
+
+    fontSize: 9,
+
+    fontWeight: '800',
+  },
+
+  addressOptionText: {
+    color: '#6F5E55',
+
+    fontSize: 10,
+
+    lineHeight: 14,
+
+    marginTop: 3,
+  },
+
+  addressRadio: {
+    width: 18,
+
+    height: 18,
+
+    borderRadius: 9,
+
+    borderWidth: 2,
+
+    borderColor: '#C7BAB4',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+  addressRadioActive: {
+    borderColor: '#A00B0F',
+  },
+
+  addressRadioDot: {
+    width: 8,
+
+    height: 8,
+
+    borderRadius: 4,
+
+    backgroundColor: '#A00B0F',
+  },
+
+  addAddressButton: {
+    minHeight: 46,
+
+    borderRadius: 13,
+
+    borderWidth: 1,
+
+    borderStyle: 'dashed',
+
+    borderColor: '#D9B8B2',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginTop: 4,
+  },
+
+  addAddressText: {
+    color: '#A00B0F',
+
+    fontSize: 11,
+
+    fontWeight: '900',
   },
 
   deliveryRow: {

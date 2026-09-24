@@ -1,23 +1,12 @@
-import React, {
-  useEffect,
-  useState,
-} from 'react';
+import React, { useEffect, useState } from 'react';
 
-import {
-  NavigationContainer,
-} from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 
-import {
-  createNativeStackNavigator,
-} from '@react-navigation/native-stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import {
-  Provider,
-} from 'react-redux';
+import { Provider } from 'react-redux';
 
-import {
-  StripeProvider,
-} from '@stripe/stripe-react-native';
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -42,6 +31,7 @@ import AddAddress from './src/screens/AddAddress';
 import Welcome from './src/screens/Welcome';
 import Notification from './src/screens/Notifications';
 import WeeklyInvoice from './src/screens/WeeklyInvoice';
+import InvoiceDetails from './src/screens/InvoiceDetails';
 
 import {
   createNotificationChannel,
@@ -76,29 +66,17 @@ const STRIPE_PUBLISHABLE_KEY =
  * Stack
  * ========================================================= */
 
-const Stack =
-  createNativeStackNavigator();
+const Stack = createNativeStackNavigator();
 
 /* =========================================================
  * Navigation
  * ========================================================= */
 
-const AppNavigator = ({
-  initialRoute,
-}) => {
+const AppNavigator = ({ initialRoute }) => {
   return (
-    <NavigationContainer
-      ref={
-        navigationRef
-      }
-      onReady={
-        flushPendingNotification
-      }
-    >
+    <NavigationContainer ref={navigationRef} onReady={flushPendingNotification}>
       <Stack.Navigator
-        initialRouteName={
-          initialRoute
-        }
+        initialRouteName={initialRoute}
         screenOptions={{
           headerShown: false,
           animation: 'fade',
@@ -112,8 +90,7 @@ const AppNavigator = ({
           name="Welcome"
           component={Welcome}
           options={{
-            gestureEnabled:
-              false,
+            gestureEnabled: false,
           }}
         />
 
@@ -123,12 +100,9 @@ const AppNavigator = ({
 
         <Stack.Screen
           name="MainTabs"
-          component={
-            MainTabNavigator
-          }
+          component={MainTabNavigator}
           options={{
-            gestureEnabled:
-              false,
+            gestureEnabled: false,
           }}
         />
 
@@ -136,108 +110,41 @@ const AppNavigator = ({
         {/* Authentication */}
         {/* ================================================= */}
 
-        <Stack.Screen
-          name="Login"
-          component={
-            LoginScreen
-          }
-        />
+        <Stack.Screen name="Login" component={LoginScreen} />
 
-        <Stack.Screen
-          name="Register"
-          component={
-            RegisterScreen
-          }
-        />
+        <Stack.Screen name="Register" component={RegisterScreen} />
 
-        <Stack.Screen
-          name="ForgotPassword"
-          component={
-            ForgotPassword
-          }
-        />
+        <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
 
-        <Stack.Screen
-          name="Otp"
-          component={
-            Otp
-          }
-        />
+        <Stack.Screen name="Otp" component={Otp} />
 
-        <Stack.Screen
-          name="ResetPassword"
-          component={
-            ResetPassword
-          }
-        />
+        <Stack.Screen name="ResetPassword" component={ResetPassword} />
 
         {/* ================================================= */}
         {/* Ordering */}
         {/* ================================================= */}
 
-        <Stack.Screen
-          name="CustomizeTiffin"
-          component={
-            CustomizeTiffin
-          }
-        />
+        <Stack.Screen name="CustomizeTiffin" component={CustomizeTiffin} />
 
-        <Stack.Screen
-          name="Order"
-          component={Order}
-        />
+        <Stack.Screen name="Order" component={Order} />
 
         {/* ================================================= */}
         {/* Profile / Account */}
         {/* ================================================= */}
 
-        <Stack.Screen
-          name="Profile"
-          component={
-            Profile
-          }
-        />
+        <Stack.Screen name="Profile" component={Profile} />
 
-        <Stack.Screen
-          name="PreviousOrder"
-          component={
-            PreviousOrder
-          }
-        />
+        <Stack.Screen name="PreviousOrder" component={PreviousOrder} />
 
-        <Stack.Screen
-          name="PaymentDetails"
-          component={
-            PaymentDetails
-          }
-        />
+        <Stack.Screen name="PaymentDetails" component={PaymentDetails} />
 
-        <Stack.Screen
-          name="AddressList"
-          component={
-            AddressList
-          }
-        />
+        <Stack.Screen name="AddressList" component={AddressList} />
 
-        <Stack.Screen
-          name="AddAddress"
-          component={
-            AddAddress
-          }
-        />
+        <Stack.Screen name="AddAddress" component={AddAddress} />
 
-        <Stack.Screen
-          name="Notification"
-          component={
-            Notification
-          }
-        />
-        <Stack.Screen
-          name="WeeklyInvoice"
-          component={
-            WeeklyInvoice
-          }
-        />
+        <Stack.Screen name="Notification" component={Notification} />
+        <Stack.Screen name="WeeklyInvoice" component={WeeklyInvoice} />
+        <Stack.Screen name="InvoiceDetails" component={InvoiceDetails} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -248,27 +155,18 @@ const AppNavigator = ({
  * ========================================================= */
 
 const App = () => {
-  const [
-    showSplash,
-    setShowSplash,
-  ] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
 
-  const [
-    initialRoute,
-    setInitialRoute,
-  ] = useState(null);
+  const [initialRoute, setInitialRoute] = useState(null);
 
   /* =======================================================
    * Push Notifications
    * ======================================================= */
 
   useEffect(() => {
-    createNotificationChannel().catch(
-      () => {},
-    );
+    createNotificationChannel().catch(() => {});
 
-    const unsubscribe =
-      registerNotificationListeners();
+    const unsubscribe = registerNotificationListeners();
 
     return unsubscribe;
   }, []);
@@ -278,105 +176,59 @@ const App = () => {
    * ======================================================= */
 
   useEffect(() => {
-    const initializeApp =
-      async () => {
-        try {
-          /* =============================================
-           * Splash
-           * ============================================= */
+    const initializeApp = async () => {
+      try {
+        /* =============================================
+         * Splash
+         * ============================================= */
 
-          await new Promise(
-            resolve => {
-              setTimeout(
-                resolve,
-                3000,
-              );
-            },
-          );
+        await new Promise(resolve => {
+          setTimeout(resolve, 3000);
+        });
 
-          /* =============================================
-           * Authentication
-           * ============================================= */
+        /* =============================================
+         * Authentication
+         * ============================================= */
 
-          const token =
-            await AsyncStorage.getItem(
-              'token',
-            );
+        const token = await AsyncStorage.getItem('token');
 
-          const isLoggedIn =
-            await AsyncStorage.getItem(
-              'isLoggedIn',
-            );
+        const isLoggedIn = await AsyncStorage.getItem('isLoggedIn');
 
-          console.log(
-            '======================================',
-          );
+        console.log('======================================');
 
-          console.log(
-            'APP START AUTH CHECK',
-          );
+        console.log('APP START AUTH CHECK');
 
-          console.log(
-            'TOKEN:',
-            token,
-          );
+        console.log('TOKEN:', token);
 
-          console.log(
-            'IS LOGGED IN:',
-            isLoggedIn,
-          );
+        console.log('IS LOGGED IN:', isLoggedIn);
 
-          console.log(
-            '======================================',
-          );
+        console.log('======================================');
 
-          if (
-            token &&
-            isLoggedIn ===
-              'true'
-          ) {
-            axios.defaults.headers.common.Authorization =
-              `Bearer ${token}`;
+        if (token && isLoggedIn === 'true') {
+          axios.defaults.headers.common.Authorization = `Bearer ${token}`;
 
-            syncFcmToken();
+          syncFcmToken();
 
-            console.log(
-              'USER LOGGED IN -> MAIN TABS',
-            );
+          console.log('USER LOGGED IN -> MAIN TABS');
 
-            setInitialRoute(
-              'MainTabs',
-            );
-          } else {
-            /*
-             * Guest browsing.
-             */
+          setInitialRoute('MainTabs');
+        } else {
+          /*
+           * Guest browsing.
+           */
 
-            console.log(
-              'USER NOT LOGGED IN -> MAIN TABS',
-            );
+          console.log('USER NOT LOGGED IN -> MAIN TABS');
 
-            setInitialRoute(
-              'MainTabs',
-            );
-          }
-        } catch (
-          error
-        ) {
-          console.log(
-            'APP INITIALIZATION ERROR:',
-            error,
-          );
-
-          setInitialRoute(
-            'Welcome',
-          );
-        } finally {
-          setShowSplash(
-            false,
-          );
+          setInitialRoute('MainTabs');
         }
-      };
+      } catch (error) {
+        console.log('APP INITIALIZATION ERROR:', error);
+
+        setInitialRoute('Welcome');
+      } finally {
+        setShowSplash(false);
+      }
+    };
 
     initializeApp();
   }, []);
@@ -385,14 +237,9 @@ const App = () => {
    * Splash
    * ======================================================= */
 
-  if (
-    showSplash ||
-    !initialRoute
-  ) {
+  if (showSplash || !initialRoute) {
     return (
-      <Provider
-        store={store}
-      >
+      <Provider store={store}>
         <SplashScreen />
       </Provider>
     );
@@ -403,19 +250,9 @@ const App = () => {
    * ======================================================= */
 
   return (
-    <Provider
-      store={store}
-    >
-      <StripeProvider
-        publishableKey={
-          STRIPE_PUBLISHABLE_KEY
-        }
-      >
-        <AppNavigator
-          initialRoute={
-            initialRoute
-          }
-        />
+    <Provider store={store}>
+      <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
+        <AppNavigator initialRoute={initialRoute} />
       </StripeProvider>
     </Provider>
   );

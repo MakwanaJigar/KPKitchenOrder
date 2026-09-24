@@ -261,6 +261,62 @@ const isCurrentWeekInvoice = invoice => {
 };
 
 /* =========================================================
+ * GENERATED CHECK
+ * =========================================================
+ *
+ * Only show invoices the backend has actually generated.
+ * An invoice is hidden while:
+ *  - the backend flags it as not generated / draft, or
+ *  - its billing week is still open (unpaid and not ended yet).
+ * ========================================================= */
+
+const NOT_GENERATED_STATUSES = [
+  'draft',
+  'not_generated',
+  'pending_generation',
+  'generating',
+  'in_progress',
+  'open',
+];
+
+const isFalseFlag = value =>
+  value === false || value === 0 || value === '0' || value === 'false';
+
+const isBackendGenerated = invoice => {
+  const raw = invoice?.raw ?? {};
+
+  if (
+    isFalseFlag(raw?.is_generated) ||
+    isFalseFlag(raw?.isGenerated) ||
+    isFalseFlag(raw?.generated)
+  ) {
+    return false;
+  }
+
+  return !NOT_GENERATED_STATUSES.includes(normalizeStatus(invoice?.status));
+};
+
+const isBillingPeriodClosed = invoice => {
+  if (!invoice || invoice.paid) {
+    return true;
+  }
+
+  if (isCurrentWeekInvoice(invoice)) {
+    return false;
+  }
+
+  const end = safeDate(invoice.endDate);
+
+  return !end || end.getTime() < Date.now();
+};
+
+/* =========================================================
+ * PAGINATION
+ * ========================================================= */
+
+const PAGE_SIZE = 4;
+
+/* =========================================================
  * TOKEN
  * ========================================================= */
 
@@ -952,7 +1008,9 @@ const groupInvoicesByWeek = invoices => {
   });
 
   return Object.entries(groups)
-    .map(([key, group]) => createWeeklyInvoice(key, group.range, group.invoices))
+    .map(([key, group]) =>
+      createWeeklyInvoice(key, group.range, group.invoices),
+    )
     .filter(Boolean)
     .sort((a, b) => {
       const aTime = safeDate(a.endDate)?.getTime() ?? 0;
@@ -1028,6 +1086,8 @@ const WeeklyInvoice = ({ navigation }) => {
 
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState(null);
 
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
   const responsive = useMemo(
     () => ({
       width: width >= 768 ? Math.min(width, 720) : width,
@@ -1089,9 +1149,12 @@ const WeeklyInvoice = ({ navigation }) => {
 
         const normalized = extractInvoicesArray(result)
           .map((invoice, index) => normalizeInvoice(invoice, index))
-          .filter(Boolean);
+          .filter(Boolean)
+          .filter(isBackendGenerated);
 
-        const grouped = groupInvoicesByWeek(normalized);
+        const grouped = groupInvoicesByWeek(normalized).filter(
+          isBillingPeriodClosed,
+        );
 
         console.log(
           'WEEKLY INVOICE NORMALIZED:',
@@ -1122,6 +1185,8 @@ const WeeklyInvoice = ({ navigation }) => {
         );
 
         setInvoices(grouped);
+
+        setVisibleCount(PAGE_SIZE);
       } catch (err) {
         console.log('WEEKLY INVOICE ERROR:', err);
 
@@ -1180,6 +1245,14 @@ const WeeklyInvoice = ({ navigation }) => {
 
     return invoices;
   }, [selectedFilter, invoices, paidInvoices, unpaidInvoices, overdueInvoices]);
+
+  const visibleInvoices = useMemo(
+    () => filteredInvoices.slice(0, visibleCount),
+
+    [filteredInvoices, visibleCount],
+  );
+
+  const hasMoreInvoices = visibleCount < filteredInvoices.length;
 
   const selectedFilterData =
     FILTER_OPTIONS.find(item => item.id === selectedFilter) ??
@@ -1271,63 +1344,84 @@ const WeeklyInvoice = ({ navigation }) => {
 
     setTimeout(
       () => {
-        navigation.navigate(
-          'PaymentDetails',
-
-          {
-            weeklyPayment: true,
-
-            invoiceId: invoice.id,
-
-            invoiceNumber: invoice.invoiceNumber,
-
-            paymentBillId: invoice.paymentBillId ?? null,
-
-            weeklyBillId: invoice.paymentBillId ?? null,
-
-            weeklyBillIds: invoice.weeklyBillIds ?? [],
-
-            sourceInvoiceIds: invoice.sourceInvoiceIds ?? [],
-
-            sourceInvoiceCount: invoice.sourceInvoiceCount ?? 1,
-
-            sourceInvoices: invoice.sourceInvoices ?? [],
-
-            orders: invoice.orders ?? [],
-
-            /*
-             * These values are only a display/fallback snapshot.
-             * PaymentDetails will replace them with the live
-             * /customer/invoices values when available.
-             */
-            totalAmount: parseMoney(invoice.totalAmount),
-
-            paidAmount: parseMoney(invoice.paidAmount),
-
-            balanceAmount: parseMoney(invoice.balanceAmount),
-
-            currency: invoice.currency ?? 'AUD',
-
-            status: invoice.status,
-
-            overdue: Boolean(invoice.overdue),
-
-            startDate: invoice.startDate,
-
-            endDate: invoice.endDate,
-
-            dueDate: invoice.dueDate,
-
-            createdAt: invoice.createdAt,
-
-            source: 'WeeklyInvoice',
-          },
-        );
+        navigation.navigate('PaymentDetails', buildPaymentParams(invoice));
       },
 
       100,
     );
   };
+
+  const openInvoiceDetails = invoice => {
+    const isCurrentWeek = isCurrentWeekInvoice(invoice);
+
+    const canPay =
+      !invoice.paid && !isCurrentWeek && parseMoney(invoice.balanceAmount) > 0;
+
+    const payable =
+      canPay &&
+      (invoice.paymentBillId || (invoice.sourceInvoiceIds?.length ?? 0) <= 1);
+
+    /*
+     * JSON round-trip turns Date objects into ISO strings so
+     * navigation params stay serializable.
+     */
+    navigation.navigate('InvoiceDetails', {
+      invoice: JSON.parse(JSON.stringify(invoice)),
+
+      paymentParams: payable
+        ? JSON.parse(JSON.stringify(buildPaymentParams(invoice)))
+        : null,
+    });
+  };
+
+  const buildPaymentParams = invoice => ({
+    weeklyPayment: true,
+
+    invoiceId: invoice.id,
+
+    invoiceNumber: invoice.invoiceNumber,
+
+    paymentBillId: invoice.paymentBillId ?? null,
+
+    weeklyBillId: invoice.paymentBillId ?? null,
+
+    weeklyBillIds: invoice.weeklyBillIds ?? [],
+
+    sourceInvoiceIds: invoice.sourceInvoiceIds ?? [],
+
+    sourceInvoiceCount: invoice.sourceInvoiceCount ?? 1,
+
+    sourceInvoices: invoice.sourceInvoices ?? [],
+
+    orders: invoice.orders ?? [],
+
+    /*
+     * These values are only a display/fallback snapshot.
+     * PaymentDetails will replace them with the live
+     * /customer/invoices values when available.
+     */
+    totalAmount: parseMoney(invoice.totalAmount),
+
+    paidAmount: parseMoney(invoice.paidAmount),
+
+    balanceAmount: parseMoney(invoice.balanceAmount),
+
+    currency: invoice.currency ?? 'AUD',
+
+    status: invoice.status,
+
+    overdue: Boolean(invoice.overdue),
+
+    startDate: invoice.startDate,
+
+    endDate: invoice.endDate,
+
+    dueDate: invoice.dueDate,
+
+    createdAt: invoice.createdAt,
+
+    source: 'WeeklyInvoice',
+  });
 
   const renderInvoice = ({ item }) => {
     const expanded = expandedInvoiceId === item.id;
@@ -1338,7 +1432,10 @@ const WeeklyInvoice = ({ navigation }) => {
       !item.paid && !isCurrentWeek && parseMoney(item.balanceAmount) > 0;
 
     return (
-      <View style={styles.invoiceCard}>
+      <Pressable
+        style={styles.invoiceCard}
+        onPress={() => openInvoiceDetails(item)}
+      >
         <View style={styles.cardHeader}>
           <View style={styles.invoiceIcon}>
             <Ionicons name="receipt-outline" size={22} color="#A9090D" />
@@ -1592,7 +1689,16 @@ const WeeklyInvoice = ({ navigation }) => {
             </Text>
           </Pressable>
         )}
-      </View>
+
+        <Pressable
+          style={styles.detailsLink}
+          onPress={() => openInvoiceDetails(item)}
+        >
+          <Text style={styles.detailsLinkText}>View Invoice Details</Text>
+
+          <Ionicons name="chevron-forward" size={16} color="#A9090D" />
+        </Pressable>
+      </Pressable>
     );
   };
 
@@ -1606,7 +1712,7 @@ const WeeklyInvoice = ({ navigation }) => {
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color="#A9090D" />
 
-          <Text style={styles.loadingTitle}>Loading Weekly Invoices</Text>
+          <Text style={styles.loadingTitle}>Loading Invoices</Text>
 
           <Text style={styles.loadingSubtitle}>
             Preparing your weekly billing details...
@@ -1648,7 +1754,7 @@ const WeeklyInvoice = ({ navigation }) => {
         )}
 
         <FlatList
-          data={filteredInvoices}
+          data={visibleInvoices}
           keyExtractor={(item, index) => `${item.id}-${index}`}
           renderItem={renderInvoice}
           showsVerticalScrollIndicator={false}
@@ -1683,9 +1789,7 @@ const WeeklyInvoice = ({ navigation }) => {
                 >
                   <Text style={styles.eyebrow}>WEEKLY BILLING</Text>
 
-                  <Text style={styles.sectionTitle}>
-                    Weekly Invoice Summary
-                  </Text>
+                  <Text style={styles.sectionTitle}>Invoice Summary</Text>
 
                   <Text style={styles.summaryText}>
                     Each Monday–Sunday period is combined into one payable
@@ -1708,7 +1812,7 @@ const WeeklyInvoice = ({ navigation }) => {
                 <SummaryBox label="DUE" value={dueAmount} color="#B87300" />
               </View>
 
-              <View style={styles.billingCycleCard}>
+              {/* <View style={styles.billingCycleCard}>
                 <View style={styles.billingCycleIcon}>
                   <Ionicons name="calendar-outline" size={20} color="#A9090D" />
                 </View>
@@ -1728,13 +1832,13 @@ const WeeklyInvoice = ({ navigation }) => {
                     payment.
                   </Text>
                 </View>
-              </View>
+              </View> */}
 
               <View style={styles.listHeader}>
                 <View>
                   <Text style={styles.eyebrow}>INVOICE HISTORY</Text>
 
-                  <Text style={styles.sectionTitle}>Your Weekly Invoices</Text>
+                  <Text style={styles.sectionTitle}>Your Invoices</Text>
 
                   <Text style={styles.listSubtitle}>
                     {filteredInvoices.length}{' '}
@@ -1751,28 +1855,45 @@ const WeeklyInvoice = ({ navigation }) => {
                   <Text numberOfLines={1} style={styles.filterText}>
                     {selectedFilterData.title}
                   </Text>
-
-                  <Ionicons name="chevron-down" size={15} color="#A9090D" />
                 </Pressable>
               </View>
             </>
           }
+          ListFooterComponent={
+            hasMoreInvoices ? (
+              <TouchableOpacity
+                style={styles.showMoreButton}
+                activeOpacity={0.85}
+                onPress={() => setVisibleCount(count => count + PAGE_SIZE)}
+              >
+                <Text style={styles.showMoreText}>
+                  Show More ({filteredInvoices.length - visibleCount} remaining)
+                </Text>
+
+                <Ionicons name="chevron-down" size={16} color="#A9090D" />
+              </TouchableOpacity>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyBox}>
-              <Ionicons name="receipt-outline" size={38} color="#B9AEB2" />
+              {/* <Ionicons name="receipt-outline" size={38} color="#B9AEB2" /> */}
 
-              <Text style={styles.emptyTitle}>No Weekly Invoices Found</Text>
+              <Text style={styles.emptyTitle}>No Invoices Found</Text>
 
               <Text style={styles.emptyText}>
                 {selectedFilter === 'all'
-                  ? 'No weekly billing records are currently available.'
-                  : 'No weekly billing records match the selected filter.'}
+                  ? 'No billing records are currently available.'
+                  : 'No billing records match the selected filter.'}
               </Text>
 
               {selectedFilter !== 'all' && (
                 <TouchableOpacity
                   style={styles.showAllButton}
-                  onPress={() => setSelectedFilter('all')}
+                  onPress={() => {
+                    setSelectedFilter('all');
+
+                    setVisibleCount(PAGE_SIZE);
+                  }}
                 >
                   <Text style={styles.showAllButtonText}>Show All Weeks</Text>
                 </TouchableOpacity>
@@ -1964,6 +2085,8 @@ const WeeklyInvoice = ({ navigation }) => {
                     onPress={() => {
                       setSelectedFilter(item.id);
 
+                      setVisibleCount(PAGE_SIZE);
+
                       setFilterModalVisible(false);
                     }}
                   >
@@ -2038,7 +2161,7 @@ const Header = ({ navigation }) => (
     >
       <Text style={styles.eyebrow}>BILLING</Text>
 
-      <Text style={styles.headerTitle}>Weekly Invoices</Text>
+      <Text style={styles.headerTitle}>Invoices</Text>
     </View>
   </View>
 );
@@ -2855,6 +2978,66 @@ const styles = StyleSheet.create({
     fontWeight: '900',
 
     marginLeft: 8,
+  },
+
+  detailsLink: {
+    minHeight: 40,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    marginTop: 12,
+
+    borderTopWidth: 1,
+
+    borderTopColor: '#F0E8E4',
+
+    paddingTop: 10,
+  },
+
+  detailsLinkText: {
+    color: '#A9090D',
+
+    fontSize: 8.5,
+
+    fontWeight: '900',
+
+    marginRight: 4,
+  },
+
+  showMoreButton: {
+    minHeight: 46,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    borderRadius: 14,
+
+    borderWidth: 1,
+
+    borderColor: '#EAC9C5',
+
+    backgroundColor: '#FFF5F3',
+
+    marginTop: 2,
+
+    marginBottom: 10,
+  },
+
+  showMoreText: {
+    color: '#A9090D',
+
+    fontSize: 9,
+
+    fontWeight: '900',
+
+    marginRight: 6,
   },
 
   errorBox: {
