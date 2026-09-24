@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -324,7 +325,7 @@ const ResetPassword = ({ navigation, route }) => {
      * ============================================= */
 
     if (!cleanEmail) {
-      Alert.alert(
+      AppAlert.alert(
         'Email Missing',
         'Your email address is missing. Please restart the forgot password process.',
       );
@@ -337,7 +338,7 @@ const ResetPassword = ({ navigation, route }) => {
      * ============================================= */
 
     if (!cleanOtp) {
-      Alert.alert(
+      AppAlert.alert(
         'OTP Missing',
         'Your verification code is missing. Please restart the forgot password process.',
       );
@@ -346,7 +347,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (cleanOtp.length !== 6) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid OTP',
         'The verification code must contain 6 digits.',
       );
@@ -359,13 +360,13 @@ const ResetPassword = ({ navigation, route }) => {
      * ============================================= */
 
     if (!password) {
-      Alert.alert('Password Required', 'Please enter your new password.');
+      AppAlert.alert('Password Required', 'Please enter your new password.');
 
       return false;
     }
 
     if (password.length < 8) {
-      Alert.alert(
+      AppAlert.alert(
         'Password Too Short',
         'Your password must contain at least 8 characters.',
       );
@@ -374,7 +375,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (!passwordChecks.uppercase) {
-      Alert.alert(
+      AppAlert.alert(
         'Uppercase Required',
         'Your password must contain at least one uppercase letter.',
       );
@@ -383,7 +384,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (!passwordChecks.lowercase) {
-      Alert.alert(
+      AppAlert.alert(
         'Lowercase Required',
         'Your password must contain at least one lowercase letter.',
       );
@@ -392,7 +393,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (!passwordChecks.number) {
-      Alert.alert(
+      AppAlert.alert(
         'Number Required',
         'Your password must contain at least one number.',
       );
@@ -401,7 +402,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (!passwordChecks.specialCharacter) {
-      Alert.alert(
+      AppAlert.alert(
         'Special Character Required',
         'Your password must contain at least one special character.',
       );
@@ -414,7 +415,7 @@ const ResetPassword = ({ navigation, route }) => {
      * ============================================= */
 
     if (!confirmPassword) {
-      Alert.alert(
+      AppAlert.alert(
         'Confirm Password Required',
         'Please confirm your new password.',
       );
@@ -423,7 +424,7 @@ const ResetPassword = ({ navigation, route }) => {
     }
 
     if (password !== confirmPassword) {
-      Alert.alert(
+      AppAlert.alert(
         'Passwords Do Not Match',
         'Password and confirm password must match.',
       );
@@ -559,7 +560,7 @@ const ResetPassword = ({ navigation, route }) => {
        * ============================================= */
 
       if (response.data?.status === false || response.data?.success === false) {
-        Alert.alert(
+        AppAlert.alert(
           'Reset Failed',
 
           response.data?.message || 'Unable to reset your password.',
@@ -574,7 +575,7 @@ const ResetPassword = ({ navigation, route }) => {
 
       await clearResetSession();
 
-      Alert.alert(
+      AppAlert.alert(
         'Password Updated',
 
         response.data?.message ||
@@ -619,7 +620,7 @@ const ResetPassword = ({ navigation, route }) => {
         ? getApiErrorMessage(error)
         : 'An unexpected error occurred. Please try again.';
 
-      Alert.alert('Reset Failed', errorMessage);
+      AppAlert.alert('Reset Failed', errorMessage);
     } finally {
       setLoading(false);
     }

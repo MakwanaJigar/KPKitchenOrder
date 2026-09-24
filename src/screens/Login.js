@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -231,7 +232,7 @@ const Login = ({ navigation, route }) => {
      * =================================================== */
 
     if (!email) {
-      Alert.alert(
+      AppAlert.alert(
         'Email Required',
 
         'Please enter your email address.',
@@ -245,7 +246,7 @@ const Login = ({ navigation, route }) => {
      * =================================================== */
 
     if (!validateEmail(email)) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Email',
 
         'Please enter a valid email address.',
@@ -259,7 +260,7 @@ const Login = ({ navigation, route }) => {
      * =================================================== */
 
     if (!password.trim()) {
-      Alert.alert(
+      AppAlert.alert(
         'Password Required',
 
         'Please enter your password.',
@@ -331,7 +332,7 @@ const Login = ({ navigation, route }) => {
        * =============================================== */
 
       if (response.data?.status === false || response.data?.success === false) {
-        Alert.alert(
+        AppAlert.alert(
           'Login Failed',
 
           response.data?.message ||
@@ -360,7 +361,7 @@ const Login = ({ navigation, route }) => {
       if (!token) {
         console.log('LOGIN RESPONSE DOES NOT CONTAIN TOKEN');
 
-        Alert.alert(
+        AppAlert.alert(
           'Login Error',
 
           'Login was successful, but the authentication token was not returned by the server.',
@@ -473,7 +474,7 @@ const Login = ({ navigation, route }) => {
         ? getApiErrorMessage(error)
         : 'An unexpected error occurred. Please try again.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Login Failed',
 
         errorMessage,

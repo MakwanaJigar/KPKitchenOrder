@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   Pressable,
@@ -14,6 +13,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import {
   SafeAreaView,
@@ -1002,7 +1003,7 @@ const Home = ({ navigation }) => {
 
   const handleAddToCart = async meal => {
     if (!meal?.available) {
-      Alert.alert(
+      AppAlert.alert(
         'Unavailable',
 
         'This tiffin is currently unavailable.',
@@ -1014,7 +1015,7 @@ const Home = ({ navigation }) => {
     const tiffinId = getFixedTiffinId(meal);
 
     if (!tiffinId) {
-      Alert.alert(
+      AppAlert.alert(
         'Unable to Add',
 
         'This tiffin does not have a valid tiffin ID.',
@@ -1187,7 +1188,7 @@ const Home = ({ navigation }) => {
 
       setCartPopupVisible(true);
     } catch (err) {
-      Alert.alert(
+      AppAlert.alert(
         'Unable to Add',
 
         err?.message ?? 'Unable to add this tiffin.',
@@ -1427,7 +1428,7 @@ const Home = ({ navigation }) => {
     }
 
     if (customSummary.quantity < 3) {
-      Alert.alert(
+      AppAlert.alert(
         'Minimum 3 Items',
 
         'Please select at least 3 items.',
@@ -1555,7 +1556,7 @@ const Home = ({ navigation }) => {
 
       navigation.navigate('Order');
     } catch (err) {
-      Alert.alert(
+      AppAlert.alert(
         'Unable to Continue',
 
         err?.message ?? 'Unable to save custom tiffin.',

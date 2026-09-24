@@ -7,7 +7,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   PermissionsAndroid,
@@ -23,6 +22,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import {
   SafeAreaView,
@@ -1100,7 +1101,7 @@ const Profile = ({
         editAddresses.length <=
         1
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Address Required',
           'At least one address is required.',
         );
@@ -1151,7 +1152,7 @@ const Profile = ({
       if (
         !firstName.trim()
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Required',
           'Please enter your first name.',
         );
@@ -1162,7 +1163,7 @@ const Profile = ({
       if (
         !lastName.trim()
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Required',
           'Please enter your last name.',
         );
@@ -1173,7 +1174,7 @@ const Profile = ({
       if (
         !phone.trim()
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Required',
           'Please enter your phone.',
         );
@@ -1184,7 +1185,7 @@ const Profile = ({
       if (
         !email.trim()
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Required',
           'Please enter your email.',
         );
@@ -1206,7 +1207,7 @@ const Profile = ({
               '',
           ).trim()
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Address Required',
             `Please enter address ${
               index + 1
@@ -1222,7 +1223,7 @@ const Profile = ({
               '',
           ).trim()
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Pincode Required',
             `Please enter pincode for address ${
               index + 1
@@ -1241,7 +1242,7 @@ const Profile = ({
         if (
           !oldPassword
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Password',
             'Please enter your current password.',
           );
@@ -1252,7 +1253,7 @@ const Profile = ({
         if (
           !newPassword
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Password',
             'Please enter a new password.',
           );
@@ -1264,7 +1265,7 @@ const Profile = ({
           newPassword !==
           confirmPassword
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Password',
             'Password confirmation does not match.',
           );
@@ -1300,7 +1301,7 @@ const Profile = ({
           );
 
         if (!token) {
-          Alert.alert(
+          AppAlert.alert(
             'Login Required',
             'Please login again.',
           );
@@ -1648,7 +1649,7 @@ const Profile = ({
           updateError,
         );
 
-        Alert.alert(
+        AppAlert.alert(
           'Profile Update Failed',
           updateError?.message ??
             'Unable to update profile.',
@@ -1695,7 +1696,7 @@ const Profile = ({
       if (
         response?.errorCode
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Image Error',
           response?.errorMessage ??
             'Unable to select image.',
@@ -1760,7 +1761,7 @@ const Profile = ({
           await requestCameraPermission();
 
         if (!allowed) {
-          Alert.alert(
+          AppAlert.alert(
             'Permission Required',
             'Camera permission is required.',
           );
@@ -1832,7 +1833,7 @@ const Profile = ({
       } catch (
         galleryError
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Gallery Error',
           galleryError?.message ??
             'Unable to open gallery.',

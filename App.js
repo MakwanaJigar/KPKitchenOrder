@@ -14,6 +14,8 @@ import axios from 'axios';
 
 import store from './src/redux/Store';
 
+import { AppAlertHost } from './src/components/AppAlert';
+
 import SplashScreen from './src/screens/Spalsh';
 import LoginScreen from './src/screens/Login';
 import RegisterScreen from './src/screens/Register';
@@ -241,6 +243,8 @@ const App = () => {
     return (
       <Provider store={store}>
         <SplashScreen />
+
+        <AppAlertHost />
       </Provider>
     );
   }
@@ -253,6 +257,8 @@ const App = () => {
     <Provider store={store}>
       <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
         <AppNavigator initialRoute={initialRoute} />
+
+        <AppAlertHost />
       </StripeProvider>
     </Provider>
   );

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -359,7 +360,7 @@ const Otp = ({ navigation, route }) => {
      * ============================================= */
 
     if (!cleanEmail) {
-      Alert.alert(
+      AppAlert.alert(
         'Email Missing',
 
         'Your email address is missing. Please return to Forgot Password and request a new verification code.',
@@ -373,7 +374,7 @@ const Otp = ({ navigation, route }) => {
      * ============================================= */
 
     if (verificationCode.length !== OTP_LENGTH) {
-      Alert.alert(
+      AppAlert.alert(
         'Incomplete Code',
 
         `Please enter the complete ${OTP_LENGTH}-digit verification code.`,
@@ -427,7 +428,7 @@ const Otp = ({ navigation, route }) => {
        * ============================================= */
 
       if (response.data?.status === false || response.data?.success === false) {
-        Alert.alert(
+        AppAlert.alert(
           'Verification Failed',
 
           response.data?.message ||
@@ -478,7 +479,7 @@ const Otp = ({ navigation, route }) => {
         response.data?.message ||
         'Your verification code has been confirmed successfully.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Code Verified',
 
         successMessage,
@@ -520,7 +521,7 @@ const Otp = ({ navigation, route }) => {
         ? getApiErrorMessage(error)
         : 'An unexpected error occurred. Please try again.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Verification Failed',
 
         errorMessage,
@@ -544,7 +545,7 @@ const Otp = ({ navigation, route }) => {
       .toLowerCase();
 
     if (!cleanEmail) {
-      Alert.alert(
+      AppAlert.alert(
         'Email Missing',
 
         'Your email address is missing. Please return to the forgot password screen.',
@@ -580,7 +581,7 @@ const Otp = ({ navigation, route }) => {
       );
 
       if (response.data?.status === false || response.data?.success === false) {
-        Alert.alert(
+        AppAlert.alert(
           'Resend Failed',
 
           response.data?.message || 'Unable to resend the verification code.',
@@ -622,7 +623,7 @@ const Otp = ({ navigation, route }) => {
 
       inputRefs.current[0]?.focus();
 
-      Alert.alert(
+      AppAlert.alert(
         'Code Sent',
 
         response.data?.message ||
@@ -641,7 +642,7 @@ const Otp = ({ navigation, route }) => {
         ? getApiErrorMessage(error)
         : 'An unexpected error occurred. Please try again.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Resend Failed',
 
         errorMessage,

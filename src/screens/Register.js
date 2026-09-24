@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +14,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -39,14 +40,14 @@ const Register = ({ navigation }) => {
    * ======================================================= */
 
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
+    name: '',
     email: '',
     phone: '',
+    street_address: '',
+    city: '',
+    pincode: '',
     password: '',
     password_confirmation: '',
-    pincode: '',
-    address: '',
   });
 
   /* =======================================================
@@ -67,15 +68,15 @@ const Register = ({ navigation }) => {
    * INPUT REFS
    * ======================================================= */
 
-  const lastNameInputRef = useRef(null);
-
   const emailInputRef = useRef(null);
 
   const phoneInputRef = useRef(null);
 
-  const pincodeInputRef = useRef(null);
+  const streetAddressInputRef = useRef(null);
 
-  const addressInputRef = useRef(null);
+  const cityInputRef = useRef(null);
+
+  const pincodeInputRef = useRef(null);
 
   const passwordInputRef = useRef(null);
 
@@ -161,14 +162,14 @@ const Register = ({ navigation }) => {
     }
 
     const {
-      first_name,
-      last_name,
+      name,
       email,
       phone,
+      street_address,
+      city,
+      pincode,
       password,
       password_confirmation,
-      pincode,
-      address,
     } = formData;
 
     /* ===================================================
@@ -176,16 +177,16 @@ const Register = ({ navigation }) => {
      * =================================================== */
 
     if (
-      !first_name?.trim() ||
-      !last_name?.trim() ||
+      !name?.trim() ||
       !email?.trim() ||
       !phone?.trim() ||
-      !password ||
-      !password_confirmation ||
+      !street_address?.trim() ||
+      !city?.trim() ||
       !pincode?.trim() ||
-      !address?.trim()
+      !password ||
+      !password_confirmation
     ) {
-      Alert.alert(
+      AppAlert.alert(
         'Required Fields',
 
         'Please fill in all the registration fields.',
@@ -195,28 +196,14 @@ const Register = ({ navigation }) => {
     }
 
     /* ===================================================
-     * FIRST NAME
+     * NAME
      * =================================================== */
 
-    if (first_name.trim().length < 2) {
-      Alert.alert(
-        'Invalid First Name',
+    if (name.trim().length < 2) {
+      AppAlert.alert(
+        'Invalid Name',
 
-        'Please enter a valid first name.',
-      );
-
-      return;
-    }
-
-    /* ===================================================
-     * LAST NAME
-     * =================================================== */
-
-    if (last_name.trim().length < 2) {
-      Alert.alert(
-        'Invalid Last Name',
-
-        'Please enter a valid last name.',
+        'Please enter a valid full name.',
       );
 
       return;
@@ -229,7 +216,7 @@ const Register = ({ navigation }) => {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailPattern.test(email.trim())) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Email',
 
         'Please enter a valid email address.',
@@ -245,10 +232,24 @@ const Register = ({ navigation }) => {
     const cleanPhone = phone.replace(/\s+/g, '');
 
     if (cleanPhone.length < 8) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Mobile Number',
 
         'Please enter a valid mobile number.',
+      );
+
+      return;
+    }
+
+    /* ===================================================
+     * CITY
+     * =================================================== */
+
+    if (city.trim().length < 2) {
+      AppAlert.alert(
+        'Invalid City',
+
+        'Please enter a valid city.',
       );
 
       return;
@@ -261,7 +262,7 @@ const Register = ({ navigation }) => {
     const cleanPincode = pincode.trim().replace(/\s+/g, '');
 
     if (cleanPincode.length < 3) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Pincode',
 
         'Please enter a valid pincode.',
@@ -275,7 +276,7 @@ const Register = ({ navigation }) => {
      * =================================================== */
 
     if (password.length < 8) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Password',
 
         'Password must contain at least 8 characters.',
@@ -289,7 +290,7 @@ const Register = ({ navigation }) => {
      * =================================================== */
 
     if (password !== password_confirmation) {
-      Alert.alert(
+      AppAlert.alert(
         'Password Mismatch',
 
         'Password and confirm password do not match.',
@@ -303,9 +304,7 @@ const Register = ({ navigation }) => {
      * =================================================== */
 
     const payload = {
-      first_name: first_name.trim(),
-
-      last_name: last_name.trim(),
+      name: name.trim(),
 
       email: email.trim().toLowerCase(),
 
@@ -313,11 +312,11 @@ const Register = ({ navigation }) => {
 
       password,
 
-      password_confirmation,
+      street_address: street_address.trim(),
+
+      city: city.trim(),
 
       pincode: pincode.trim(),
-
-      address: address.trim(),
     };
 
     console.log('======================================');
@@ -332,8 +331,6 @@ const Register = ({ navigation }) => {
       ...payload,
 
       password: '********',
-
-      password_confirmation: '********',
     });
 
     console.log('======================================');
@@ -373,7 +370,7 @@ const Register = ({ navigation }) => {
 
       console.log('======================================');
 
-      Alert.alert(
+      AppAlert.alert(
         'Registration Successful',
 
         response.data?.message || 'Your account has been created successfully.',
@@ -404,7 +401,7 @@ const Register = ({ navigation }) => {
       console.log('======================================');
 
       if (!error.response) {
-        Alert.alert(
+        AppAlert.alert(
           'Connection Error',
 
           'Unable to connect to the server. Please check your internet connection.',
@@ -415,7 +412,7 @@ const Register = ({ navigation }) => {
 
       const message = getApiErrorMessage(error);
 
-      Alert.alert(
+      AppAlert.alert(
         'Registration Failed',
 
         message,
@@ -515,12 +512,13 @@ const Register = ({ navigation }) => {
             </Text>
 
             {/* ================================================= */}
-            {/* FIRST NAME */}
+            {/* FULL NAME */}
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>First Name <Text style={styles.labelspam}>*</Text></Text>
-              
+              <Text style={styles.label}>
+                Full Name <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -530,9 +528,9 @@ const Register = ({ navigation }) => {
                 />
 
                 <TextInput
-                  value={formData.first_name}
-                  onChangeText={value => updateField('first_name', value)}
-                  placeholder="Jane"
+                  value={formData.name}
+                  onChangeText={value => updateField('name', value)}
+                  placeholder="Jane Doe"
                   placeholderTextColor="#9B9B9B"
                   autoCapitalize="words"
                   autoCorrect={false}
@@ -544,41 +542,8 @@ const Register = ({ navigation }) => {
                   blurOnSubmit={false}
                   /*
                    * Next:
-                   * First Name → Last Name
+                   * Full Name → Email
                    */
-                  onSubmitEditing={() => {
-                    lastNameInputRef.current?.focus();
-                  }}
-                  editable={!loading}
-                  style={styles.input}
-                />
-              </View>
-            </View>
-
-            {/* ================================================= */}
-            {/* LAST NAME */}
-            {/* ================================================= */}
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Last Name <Text style={styles.labelspam}>*</Text></Text>
-
-              <View style={styles.inputContainer}>
-                <Image
-                  source={require('../assets/login-icons/user-1.png')}
-                  style={styles.inputImageIcon}
-                  resizeMode="contain"
-                />
-
-                <TextInput
-                  ref={lastNameInputRef}
-                  value={formData.last_name}
-                  onChangeText={value => updateField('last_name', value)}
-                  placeholder="Doe"
-                  placeholderTextColor="#9B9B9B"
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
                   onSubmitEditing={() => {
                     emailInputRef.current?.focus();
                   }}
@@ -593,7 +558,9 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address <Text style={styles.labelspam}>*</Text></Text>
+              <Text style={styles.label}>
+                Email Address <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -627,7 +594,9 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Mobile Number <Text style={styles.labelspam}>*</Text></Text>
+              <Text style={styles.label}>
+                Mobile Number <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -640,9 +609,79 @@ const Register = ({ navigation }) => {
                   ref={phoneInputRef}
                   value={formData.phone}
                   onChangeText={value => updateField('phone', value)}
-                  placeholder="0412345678"
+                  placeholder="+61 400 123 456"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="phone-pad"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    streetAddressInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+
+            {/* ================================================= */}
+            {/* STREET ADDRESS */}
+            {/* ================================================= */}
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                Street Address <Text style={styles.requiredStar}>*</Text>
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Image
+                  source={require('../assets/login-icons/location.png')}
+                  style={styles.inputImageIcon}
+                  resizeMode="contain"
+                />
+
+                <TextInput
+                  ref={streetAddressInputRef}
+                  value={formData.street_address}
+                  onChangeText={value => updateField('street_address', value)}
+                  placeholder="Suite 4B, 100 Queen St"
+                  placeholderTextColor="#9B9B9B"
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    cityInputRef.current?.focus();
+                  }}
+                  editable={!loading}
+                  style={styles.input}
+                />
+              </View>
+            </View>
+
+            {/* ================================================= */}
+            {/* CITY */}
+            {/* ================================================= */}
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>
+                City <Text style={styles.requiredStar}>*</Text>
+              </Text>
+
+              <View style={styles.inputContainer}>
+                <Image
+                  source={require('../assets/login-icons/home.png')}
+                  style={styles.inputImageIcon}
+                  resizeMode="contain"
+                />
+
+                <TextInput
+                  ref={cityInputRef}
+                  value={formData.city}
+                  onChangeText={value => updateField('city', value)}
+                  placeholder="Melbourne"
+                  placeholderTextColor="#9B9B9B"
+                  autoCapitalize="words"
                   autoCorrect={false}
                   returnKeyType="next"
                   blurOnSubmit={false}
@@ -660,7 +699,9 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Pincode <Text style={styles.labelspam}>*</Text></Text>
+              <Text style={styles.label}>
+                Pincode <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -673,48 +714,16 @@ const Register = ({ navigation }) => {
                   ref={pincodeInputRef}
                   value={formData.pincode}
                   onChangeText={value => updateField('pincode', value)}
-                  placeholder="5000"
+                  placeholder="3000"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="number-pad"
                   returnKeyType="next"
                   blurOnSubmit={false}
                   onSubmitEditing={() => {
-                    addressInputRef.current?.focus();
+                    passwordInputRef.current?.focus();
                   }}
                   editable={!loading}
                   style={styles.input}
-                />
-              </View>
-            </View>
-
-            {/* ================================================= */}
-            {/* ADDRESS */}
-            {/* ================================================= */}
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Address <Text style={styles.labelspam}>*</Text></Text>
-
-              <View
-                style={[styles.inputContainer, styles.addressInputContainer]}
-              >
-                <Image
-                  source={require('../assets/login-icons/location.png')}
-                  style={[styles.inputImageIcon, styles.addressImageIcon]}
-                  resizeMode="contain"
-                />
-
-                <TextInput
-                  ref={addressInputRef}
-                  value={formData.address}
-                  onChangeText={value => updateField('address', value)}
-                  placeholder="12 Adelaide St, Town/Suburbs, 5000"
-                  placeholderTextColor="#9B9B9B"
-                  autoCapitalize="sentences"
-                  autoCorrect={false}
-                  multiline
-                  textAlignVertical="top"
-                  editable={!loading}
-                  style={[styles.input, styles.addressInput]}
                 />
               </View>
             </View>
@@ -724,7 +733,9 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password <Text style={styles.labelspam}>*</Text></Text>
+              <Text style={styles.label}>
+                Password <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -785,7 +796,9 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Confirm Password <Text style={styles.labelspam}>*</Text></Text>
+              <Text style={styles.label}>
+                Confirm Password <Text style={styles.requiredStar}>*</Text>
+              </Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -1035,14 +1048,12 @@ const styles = StyleSheet.create({
 
     marginBottom: 7,
   },
-  labelspam:{
-    color: '#A00B0F',
+  requiredStar: {
+    color: '#E53935',
 
-    fontSize: 13,
+    fontSize: 14,
 
-    fontWeight: '600',
-
-    marginBottom: 7,
+    fontWeight: '800',
   },
 
   /* =====================================================
@@ -1087,30 +1098,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
 
     paddingVertical: 0,
-  },
-
-  /* =====================================================
-   * ADDRESS
-   * ===================================================== */
-
-  addressInputContainer: {
-    minHeight: 90,
-
-    alignItems: 'flex-start',
-
-    paddingTop: 14,
-  },
-
-  addressImageIcon: {
-    marginTop: 2,
-  },
-
-  addressInput: {
-    minHeight: 75,
-
-    paddingTop: 0,
-
-    paddingBottom: 10,
   },
 
   /* =====================================================

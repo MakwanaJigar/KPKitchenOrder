@@ -6,7 +6,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -21,6 +20,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import {
   SafeAreaView,
@@ -838,7 +839,7 @@ const AddAddress = ({
           ),
         );
 
-        Alert.alert(
+        AppAlert.alert(
           isEdit
             ? 'Address Updated'
             : 'Address Added',
@@ -865,7 +866,7 @@ const AddAddress = ({
           saveError,
         );
 
-        Alert.alert(
+        AppAlert.alert(
           'Address Save Failed',
           saveError?.message ??
             'Unable to save address.',

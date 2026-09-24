@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -164,7 +165,7 @@ const ForgotPassword = ({ navigation }) => {
      * ============================================= */
 
     if (!cleanEmail) {
-      Alert.alert(
+      AppAlert.alert(
         'Email Required',
 
         'Please enter your registered email address.',
@@ -174,7 +175,7 @@ const ForgotPassword = ({ navigation }) => {
     }
 
     if (!validateEmail(cleanEmail)) {
-      Alert.alert(
+      AppAlert.alert(
         'Invalid Email',
 
         'Please enter a valid email address.',
@@ -234,7 +235,7 @@ const ForgotPassword = ({ navigation }) => {
        * ============================================= */
 
       if (response.data?.status === false || response.data?.success === false) {
-        Alert.alert(
+        AppAlert.alert(
           'Request Failed',
 
           response.data?.message || 'Unable to send the verification code.',
@@ -255,7 +256,7 @@ const ForgotPassword = ({ navigation }) => {
         response.data?.message ||
         'A verification code has been sent to your email address.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Code Sent',
 
         successMessage,
@@ -293,7 +294,7 @@ const ForgotPassword = ({ navigation }) => {
         ? getApiErrorMessage(error)
         : 'An unexpected error occurred. Please try again.';
 
-      Alert.alert(
+      AppAlert.alert(
         'Request Failed',
 
         errorMessage,

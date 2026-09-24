@@ -6,7 +6,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -17,6 +16,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import {
   SafeAreaView,
@@ -623,7 +624,7 @@ const AddressList = ({
           syncError,
         );
 
-        Alert.alert(
+        AppAlert.alert(
           'Address Update Failed',
           syncError?.message ??
             'Unable to update address.',
@@ -680,7 +681,7 @@ const AddressList = ({
       if (
         address.isDefault
       ) {
-        Alert.alert(
+        AppAlert.alert(
           'Default Address',
           'Set another address as default before deleting this address.',
         );
@@ -688,7 +689,7 @@ const AddressList = ({
         return;
       }
 
-      Alert.alert(
+      AppAlert.alert(
         'Delete Address',
         'Are you sure you want to delete this address?',
         [

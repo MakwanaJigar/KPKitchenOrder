@@ -6,7 +6,6 @@ import React, {
 
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -17,6 +16,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+
+import AppAlert from '../components/AppAlert';
 
 import {
   SafeAreaView,
@@ -854,7 +855,7 @@ const CustomizeTiffin =
           tiffinId <=
             0
         ) {
-          Alert.alert(
+          AppAlert.alert(
             'Unable to Add',
             'The selected tiffin does not have a valid ID.',
           );
@@ -1044,7 +1045,7 @@ const CustomizeTiffin =
             error,
           );
 
-          Alert.alert(
+          AppAlert.alert(
             'Unable to Add',
             'Something went wrong while adding the tiffin.',
           );
