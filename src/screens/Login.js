@@ -23,6 +23,8 @@ import axios from 'axios';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { syncFcmToken } from '../notifications/NotificationService';
+
 /* =========================================================
  * Login API
  * ========================================================= */
@@ -424,6 +426,12 @@ const Login = ({ navigation, route }) => {
        * =============================================== */
 
       axios.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      /* ===============================================
+       * Push Notification Token
+       * =============================================== */
+
+      syncFcmToken();
 
       /* ===============================================
        * Verify Token

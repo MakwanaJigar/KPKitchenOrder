@@ -519,7 +519,8 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>First Name</Text>
+              <Text style={styles.label}>First Name <Text style={styles.labelspam}>*</Text></Text>
+              
 
               <View style={styles.inputContainer}>
                 <Image
@@ -559,7 +560,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Last Name</Text>
+              <Text style={styles.label}>Last Name <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -592,7 +593,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email Address</Text>
+              <Text style={styles.label}>Email Address <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -626,7 +627,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Mobile Number</Text>
+              <Text style={styles.label}>Mobile Number <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -659,7 +660,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Pincode</Text>
+              <Text style={styles.label}>Pincode <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -691,7 +692,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Address</Text>
+              <Text style={styles.label}>Address <Text style={styles.labelspam}>*</Text></Text>
 
               <View
                 style={[styles.inputContainer, styles.addressInputContainer]}
@@ -723,7 +724,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Password</Text>
+              <Text style={styles.label}>Password <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -784,7 +785,7 @@ const Register = ({ navigation }) => {
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
+              <Text style={styles.label}>Confirm Password <Text style={styles.labelspam}>*</Text></Text>
 
               <View style={styles.inputContainer}>
                 <Image
@@ -1027,6 +1028,15 @@ const styles = StyleSheet.create({
 
   label: {
     color: '#25344A',
+
+    fontSize: 13,
+
+    fontWeight: '600',
+
+    marginBottom: 7,
+  },
+  labelspam:{
+    color: '#A00B0F',
 
     fontSize: 13,
 

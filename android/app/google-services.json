@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "261712976809",
+    "project_id": "kpkitchenorder",
+    "storage_bucket": "kpkitchenorder.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:261712976809:android:6a01ea7b36f504b5c282b8",
+        "android_client_info": {
+          "package_name": "com.kpkitchen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2DKX2Bt8SsDbczA1-9C3dUop-a8Jxap8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

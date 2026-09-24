@@ -43,6 +43,14 @@ import Welcome from './src/screens/Welcome';
 import Notification from './src/screens/Notifications';
 import WeeklyInvoice from './src/screens/WeeklyInvoice';
 
+import {
+  createNotificationChannel,
+  flushPendingNotification,
+  navigationRef,
+  registerNotificationListeners,
+  syncFcmToken,
+} from './src/notifications/NotificationService';
+
 /* =========================================================
  * STRIPE
  * =========================================================
@@ -79,7 +87,14 @@ const AppNavigator = ({
   initialRoute,
 }) => {
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={
+        navigationRef
+      }
+      onReady={
+        flushPendingNotification
+      }
+    >
       <Stack.Navigator
         initialRouteName={
           initialRoute
@@ -244,6 +259,21 @@ const App = () => {
   ] = useState(null);
 
   /* =======================================================
+   * Push Notifications
+   * ======================================================= */
+
+  useEffect(() => {
+    createNotificationChannel().catch(
+      () => {},
+    );
+
+    const unsubscribe =
+      registerNotificationListeners();
+
+    return unsubscribe;
+  }, []);
+
+  /* =======================================================
    * App Initialization
    * ======================================================= */
 
@@ -307,6 +337,8 @@ const App = () => {
           ) {
             axios.defaults.headers.common.Authorization =
               `Bearer ${token}`;
+
+            syncFcmToken();
 
             console.log(
               'USER LOGGED IN -> MAIN TABS',

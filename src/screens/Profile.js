@@ -35,6 +35,10 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  removeFcmToken,
+} from '../notifications/NotificationService';
+
+import {
   launchCamera,
   launchImageLibrary,
 } from 'react-native-image-picker';
@@ -1881,6 +1885,8 @@ const Profile = ({
           logoutError,
         );
       } finally {
+        await removeFcmToken();
+
         await AsyncStorage.removeItem(
           'token',
         );
