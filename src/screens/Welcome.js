@@ -92,7 +92,7 @@ const Welcome = ({
       {/* ================================================= */}
 
       <ImageBackground
-        source={require('../assets/tiffin-1.png')}
+        source={require('../assets/logo.png')}
         style={
           styles.backgroundImage
         }

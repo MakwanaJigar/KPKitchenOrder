@@ -819,9 +819,9 @@ const PreviousOrders = ({ navigation }) => {
 
         <View style={styles.orderHeader}>
           <View style={styles.orderNumberContainer}>
-            <View style={styles.orderIcon}>
+            {/* <View style={styles.orderIcon}>
               <Ionicons name="receipt-outline" size={20} color="#A00B0F" />
-            </View>
+            </View> */}
 
             <View>
               <Text style={styles.orderNumberLabel}>Order</Text>
@@ -831,11 +831,11 @@ const PreviousOrders = ({ navigation }) => {
           </View>
 
           <View style={[styles.statusBadge, statusStyle.container]}>
-            <Ionicons
+            {/* <Ionicons
               name={statusStyle.icon}
               size={12}
               color={statusStyle.iconColor}
-            />
+            /> */}
 
             <Text style={[styles.statusText, statusStyle.text]}>
               {item.status}
@@ -851,7 +851,7 @@ const PreviousOrders = ({ navigation }) => {
           <View style={styles.dateRow}>
             {!!item.date && (
               <>
-                <Ionicons name="calendar-outline" size={13} color="#89756B" />
+                {/* <Ionicons name="calendar-outline" size={13} color="#89756B" /> */}
 
                 <Text style={styles.dateText}>{item.date}</Text>
               </>
@@ -861,7 +861,7 @@ const PreviousOrders = ({ navigation }) => {
 
             {!!item.time && (
               <>
-                <Ionicons name="time-outline" size={13} color="#89756B" />
+                {/* <Ionicons name="time-outline" size={13} color="#89756B" /> */}
 
                 <Text style={styles.dateText}>{item.time}</Text>
               </>
@@ -952,7 +952,7 @@ const PreviousOrders = ({ navigation }) => {
 
         <View style={styles.priceRow}>
           <View style={styles.shippingLabelContainer}>
-            <Ionicons name="car-outline" size={13} color="#76635A" />
+            {/* <Ionicons name="car-outline" size={13} color="#76635A" /> */}
 
             <Text style={styles.priceLabel}>Shipping</Text>
           </View>
@@ -992,13 +992,13 @@ const PreviousOrders = ({ navigation }) => {
 
     return (
       <View style={styles.emptyContainer}>
-        <View style={styles.emptyIconContainer}>
+        {/* <View style={styles.emptyIconContainer}>
           <Ionicons
             name={error ? 'alert-circle-outline' : 'receipt-outline'}
             size={42}
             color="#A00B0F"
           />
-        </View>
+        </View> */}
 
         <Text style={styles.emptyTitle}>
           {error ? 'Unable to Load Orders' : 'No Previous Orders'}
@@ -1138,7 +1138,7 @@ const PreviousOrders = ({ navigation }) => {
                 </Text>
 
                 <View style={styles.orderCountBadge}>
-                  <Ionicons name="receipt-outline" size={14} color="#A00B0F" />
+                  {/* <Ionicons name="receipt-outline" size={14} color="#A00B0F" /> */}
 
                   <Text style={styles.orderCountText}>
                     {orders.length}{' '}

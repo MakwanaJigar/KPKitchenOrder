@@ -44,10 +44,10 @@ const Register = ({ navigation }) => {
     email: '',
     phone: '',
     street_address: '',
-    city: '',
-    pincode: '',
+    suburbs: '',
+    postcode: '',
     password: '',
-    password_confirmation: '',
+    confirm_password: '',
   });
 
   /* =======================================================
@@ -74,9 +74,9 @@ const Register = ({ navigation }) => {
 
   const streetAddressInputRef = useRef(null);
 
-  const cityInputRef = useRef(null);
+  const suburbsInputRef = useRef(null);
 
-  const pincodeInputRef = useRef(null);
+  const postcodeInputRef = useRef(null);
 
   const passwordInputRef = useRef(null);
 
@@ -166,10 +166,10 @@ const Register = ({ navigation }) => {
       email,
       phone,
       street_address,
-      city,
-      pincode,
+      suburbs,
+      postcode,
       password,
-      password_confirmation,
+      confirm_password,
     } = formData;
 
     /* ===================================================
@@ -181,10 +181,10 @@ const Register = ({ navigation }) => {
       !email?.trim() ||
       !phone?.trim() ||
       !street_address?.trim() ||
-      !city?.trim() ||
-      !pincode?.trim() ||
+      !suburbs?.trim() ||
+      !postcode?.trim() ||
       !password ||
-      !password_confirmation
+      !confirm_password
     ) {
       AppAlert.alert(
         'Required Fields',
@@ -242,30 +242,30 @@ const Register = ({ navigation }) => {
     }
 
     /* ===================================================
-     * CITY
+     * SUBURB
      * =================================================== */
 
-    if (city.trim().length < 2) {
+    if (suburbs.trim().length < 2) {
       AppAlert.alert(
-        'Invalid City',
+        'Invalid Suburb',
 
-        'Please enter a valid city.',
+        'Please enter a valid suburb.',
       );
 
       return;
     }
 
     /* ===================================================
-     * PINCODE
+     * POSTCODE
      * =================================================== */
 
-    const cleanPincode = pincode.trim().replace(/\s+/g, '');
+    const cleanPostcode = postcode.trim().replace(/\s+/g, '');
 
-    if (cleanPincode.length < 3) {
+    if (cleanPostcode.length < 3) {
       AppAlert.alert(
-        'Invalid Pincode',
+        'Invalid Postcode',
 
-        'Please enter a valid pincode.',
+        'Please enter a valid postcode.',
       );
 
       return;
@@ -289,7 +289,7 @@ const Register = ({ navigation }) => {
      * PASSWORD CONFIRMATION
      * =================================================== */
 
-    if (password !== password_confirmation) {
+    if (password !== confirm_password) {
       AppAlert.alert(
         'Password Mismatch',
 
@@ -308,15 +308,17 @@ const Register = ({ navigation }) => {
 
       email: email.trim().toLowerCase(),
 
-      phone: phone.trim(),
+      phone: cleanPhone,
 
       password,
 
+      confirm_password,
+
       street_address: street_address.trim(),
 
-      city: city.trim(),
+      suburbs: suburbs.trim(),
 
-      pincode: pincode.trim(),
+      postcode: cleanPostcode,
     };
 
     console.log('======================================');
@@ -331,6 +333,8 @@ const Register = ({ navigation }) => {
       ...payload,
 
       password: '********',
+
+      confirm_password: '********',
     });
 
     console.log('======================================');
@@ -651,7 +655,7 @@ const Register = ({ navigation }) => {
                   returnKeyType="next"
                   blurOnSubmit={false}
                   onSubmitEditing={() => {
-                    cityInputRef.current?.focus();
+                    suburbsInputRef.current?.focus();
                   }}
                   editable={!loading}
                   style={styles.input}
@@ -660,12 +664,12 @@ const Register = ({ navigation }) => {
             </View>
 
             {/* ================================================= */}
-            {/* CITY */}
+            {/* SUBURB */}
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                City <Text style={styles.requiredStar}>*</Text>
+                Suburb <Text style={styles.requiredStar}>*</Text>
               </Text>
 
               <View style={styles.inputContainer}>
@@ -676,9 +680,9 @@ const Register = ({ navigation }) => {
                 />
 
                 <TextInput
-                  ref={cityInputRef}
-                  value={formData.city}
-                  onChangeText={value => updateField('city', value)}
+                  ref={suburbsInputRef}
+                  value={formData.suburbs}
+                  onChangeText={value => updateField('suburbs', value)}
                   placeholder="Melbourne"
                   placeholderTextColor="#9B9B9B"
                   autoCapitalize="words"
@@ -686,7 +690,7 @@ const Register = ({ navigation }) => {
                   returnKeyType="next"
                   blurOnSubmit={false}
                   onSubmitEditing={() => {
-                    pincodeInputRef.current?.focus();
+                    postcodeInputRef.current?.focus();
                   }}
                   editable={!loading}
                   style={styles.input}
@@ -695,12 +699,12 @@ const Register = ({ navigation }) => {
             </View>
 
             {/* ================================================= */}
-            {/* PINCODE */}
+            {/* POSTCODE */}
             {/* ================================================= */}
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>
-                Pincode <Text style={styles.requiredStar}>*</Text>
+                Postcode <Text style={styles.requiredStar}>*</Text>
               </Text>
 
               <View style={styles.inputContainer}>
@@ -711,9 +715,9 @@ const Register = ({ navigation }) => {
                 />
 
                 <TextInput
-                  ref={pincodeInputRef}
-                  value={formData.pincode}
-                  onChangeText={value => updateField('pincode', value)}
+                  ref={postcodeInputRef}
+                  value={formData.postcode}
+                  onChangeText={value => updateField('postcode', value)}
                   placeholder="3000"
                   placeholderTextColor="#9B9B9B"
                   keyboardType="number-pad"
@@ -809,9 +813,9 @@ const Register = ({ navigation }) => {
 
                 <TextInput
                   ref={confirmPasswordInputRef}
-                  value={formData.password_confirmation}
+                  value={formData.confirm_password}
                   onChangeText={value =>
-                    updateField('password_confirmation', value)
+                    updateField('confirm_password', value)
                   }
                   placeholder="Confirm password"
                   placeholderTextColor="#9B9B9B"
@@ -847,17 +851,17 @@ const Register = ({ navigation }) => {
                 </Pressable>
               </View>
 
-              {formData.password_confirmation.length > 0 && (
+              {formData.confirm_password.length > 0 && (
                 <Text
                   style={[
                     styles.passwordHint,
 
-                    formData.password === formData.password_confirmation
+                    formData.password === formData.confirm_password
                       ? styles.passwordMatchText
                       : styles.passwordMismatchText,
                   ]}
                 >
-                  {formData.password === formData.password_confirmation
+                  {formData.password === formData.confirm_password
                     ? 'Passwords match'
                     : 'Passwords do not match'}
                 </Text>

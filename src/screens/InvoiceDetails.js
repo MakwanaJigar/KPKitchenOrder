@@ -463,9 +463,9 @@ const InvoiceDetails = ({ navigation, route }) => {
 
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.iconBox}>
+              {/* <View style={styles.iconBox}>
                 <Ionicons name="receipt-outline" size={22} color="#A9090D" />
-              </View>
+              </View> */}
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.eyebrow}>INVOICE NUMBER</Text>
@@ -626,13 +626,13 @@ const InvoiceDetails = ({ navigation, route }) => {
                     ]}
                   >
                     <View style={styles.orderTop}>
-                      <View style={styles.orderIcon}>
+                      {/* <View style={styles.orderIcon}>
                         <Ionicons
                           name="restaurant-outline"
                           size={16}
                           color="#A9090D"
                         />
-                      </View>
+                      </View> */}
 
                       <View style={{ flex: 1 }}>
                         <Text style={styles.orderName}>
@@ -725,7 +725,7 @@ const InvoiceDetails = ({ navigation, route }) => {
                 navigation.navigate('PaymentDetails', paymentParams)
               }
             >
-              <Ionicons name="card-outline" size={19} color="#FFF" />
+              {/* <Ionicons name="card-outline" size={19} color="#FFF" /> */}
 
               <Text style={styles.payButtonText}>
                 Pay {formatMoney(totals.balanceAmount, currency)}
@@ -766,9 +766,9 @@ const InfoLine = ({ label, value }) => (
 
 const DetailRow = ({ icon, label, value, last = false }) => (
   <View style={[styles.detailRow, last && { borderBottomWidth: 0 }]}>
-    <View style={styles.detailIcon}>
+    {/* <View style={styles.detailIcon}>
       <Ionicons name={icon} size={16} color="#A9090D" />
-    </View>
+    </View> */}
 
     <View style={{ flex: 1 }}>
       <Text style={styles.detailLabel}>{label}</Text>

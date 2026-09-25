@@ -1437,9 +1437,9 @@ const WeeklyInvoice = ({ navigation }) => {
         onPress={() => openInvoiceDetails(item)}
       >
         <View style={styles.cardHeader}>
-          <View style={styles.invoiceIcon}>
+          {/* <View style={styles.invoiceIcon}>
             <Ionicons name="receipt-outline" size={22} color="#A9090D" />
-          </View>
+          </View> */}
 
           <View style={styles.cardHeaderMain}>
             <Text style={styles.eyebrow}>WEEKLY INVOICE</Text>
@@ -1550,9 +1550,9 @@ const WeeklyInvoice = ({ navigation }) => {
 
         {isCurrentWeek && !item.paid && parseMoney(item.balanceAmount) > 0 && (
           <View style={styles.currentWeekNotice}>
-            <View style={styles.currentWeekIcon}>
+            {/* <View style={styles.currentWeekIcon}>
               <Ionicons name="time-outline" size={18} color="#A9090D" />
-            </View>
+            </View> */}
 
             <View
               style={{
@@ -1581,11 +1581,11 @@ const WeeklyInvoice = ({ navigation }) => {
                   : `View ${item.orders.length} Orders`}
               </Text>
 
-              <Ionicons
+              {/* <Ionicons
                 name={expanded ? 'chevron-up' : 'chevron-down'}
                 size={17}
                 color="#A9090D"
-              />
+              /> */}
             </Pressable>
 
             {expanded && (
@@ -1596,11 +1596,11 @@ const WeeklyInvoice = ({ navigation }) => {
                     style={styles.orderRow}
                   >
                     <View style={styles.orderIcon}>
-                      <Ionicons
+                      {/* <Ionicons
                         name="restaurant-outline"
                         size={16}
                         color="#A9090D"
-                      />
+                      /> */}
                     </View>
 
                     <View
@@ -1641,11 +1641,11 @@ const WeeklyInvoice = ({ navigation }) => {
             onPress={() => openPayBill(item)}
           >
             <View style={styles.payIcon}>
-              <Ionicons
+              {/* <Ionicons
                 name={item.overdue ? 'alert-circle-outline' : 'card-outline'}
                 size={21}
                 color={item.overdue ? '#B42318' : '#A9090D'}
-              />
+              /> */}
             </View>
 
             <View
@@ -1696,7 +1696,7 @@ const WeeklyInvoice = ({ navigation }) => {
         >
           <Text style={styles.detailsLinkText}>View Invoice Details</Text>
 
-          <Ionicons name="chevron-forward" size={16} color="#A9090D" />
+          {/* <Ionicons name="chevron-forward" size={16} color="#A9090D" /> */}
         </Pressable>
       </Pressable>
     );
@@ -1747,7 +1747,7 @@ const WeeklyInvoice = ({ navigation }) => {
               },
             ]}
           >
-            <Ionicons name="alert-circle-outline" size={20} color="#A9090D" />
+            {/* <Ionicons name="alert-circle-outline" size={20} color="#A9090D" /> */}
 
             <Text style={styles.errorText}>{error}</Text>
           </View>
@@ -1870,7 +1870,7 @@ const WeeklyInvoice = ({ navigation }) => {
                   Show More ({filteredInvoices.length - visibleCount} remaining)
                 </Text>
 
-                <Ionicons name="chevron-down" size={16} color="#A9090D" />
+                {/* <Ionicons name="chevron-down" size={16} color="#A9090D" /> */}
               </TouchableOpacity>
             ) : null
           }
@@ -1990,7 +1990,7 @@ const WeeklyInvoice = ({ navigation }) => {
             {!selectedPaymentInvoice?.paymentBillId &&
               (selectedPaymentInvoice?.sourceInvoiceIds?.length ?? 0) > 1 && (
                 <View style={styles.warningBox}>
-                  <Ionicons name="warning-outline" size={18} color="#B87300" />
+                  {/* <Ionicons name="warning-outline" size={18} color="#B87300" /> */}
 
                   <Text style={styles.warningText}>
                     The API did not return one shared weekly_bill_id for this
@@ -2036,7 +2036,7 @@ const WeeklyInvoice = ({ navigation }) => {
               >
                 <Text style={styles.continueText}>Continue to Pay</Text>
 
-                <Ionicons name="arrow-forward" size={17} color="#FFF" />
+                {/* <Ionicons name="arrow-forward" size={17} color="#FFF" /> */}
               </TouchableOpacity>
             </View>
           </View>
@@ -2112,11 +2112,11 @@ const WeeklyInvoice = ({ navigation }) => {
                       </Text>
                     </View>
 
-                    <Ionicons
+                    {/* <Ionicons
                       name={active ? 'radio-button-on' : 'radio-button-off'}
                       size={20}
                       color={active ? '#A9090D' : '#C7BAB4'}
-                    />
+                    /> */}
                   </Pressable>
                 );
               })}

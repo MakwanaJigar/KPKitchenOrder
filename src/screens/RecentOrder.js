@@ -1,9 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -20,13 +15,9 @@ import {
   View,
 } from 'react-native';
 
-import {
-  SafeAreaView,
-} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  useFocusEffect,
-} from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -36,11 +27,9 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
  * API
  * ========================================================= */
 
-const BASE_URL =
-  'https://replete-software.com/projects/kp_admin';
+const BASE_URL = 'https://replete-software.com/projects/kp_admin';
 
-const RECENT_ORDERS_API =
-  `${BASE_URL}/api/customer/orders`;
+const RECENT_ORDERS_API = `${BASE_URL}/api/customer/orders`;
 
 /*
  * IMPORTANT:
@@ -49,786 +38,441 @@ const RECENT_ORDERS_API =
  * cancellation endpoint is different.
  */
 
-const getCancelOrderApi =
-  orderId =>
-    `${BASE_URL}/api/customer/orders/${orderId}/cancel`;
+const getCancelOrderApi = orderId =>
+  `${BASE_URL}/api/customer/orders/${orderId}/cancel`;
 
 /* =========================================================
  * Status
  * ========================================================= */
 
-const normalizeStatus =
-  value =>
-    String(
-      value ?? '',
-    )
-      .trim()
-      .toLowerCase()
-      .replace(
-        /\s+/g,
-        '_',
-      );
+const normalizeStatus = value =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
 
 /* =========================================================
  * Cancellable Statuses
  * ========================================================= */
 
-const CANCELLABLE_STATUSES = [
-  'pending',
-  'placed',
-  'confirmed',
-  'order_placed',
-];
+const CANCELLABLE_STATUSES = ['pending', 'placed', 'confirmed', 'order_placed'];
 
 /* =========================================================
  * Recent Orders
  * ========================================================= */
 
-const RecentOrder = ({
-  navigation,
-}) => {
-  const {
-    width,
-  } = useWindowDimensions();
+const RecentOrder = ({ navigation }) => {
+  const { width } = useWindowDimensions();
 
   /* =======================================================
    * State
    * ======================================================= */
 
-  const [
-    orders,
-    setOrders,
-  ] = useState([]);
+  const [orders, setOrders] = useState([]);
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState(null);
+  const [error, setError] = useState(null);
 
   /* =======================================================
    * Cancel Popup
    * ======================================================= */
 
-  const [
-    cancelPopupVisible,
-    setCancelPopupVisible,
-  ] = useState(false);
+  const [cancelPopupVisible, setCancelPopupVisible] = useState(false);
 
-  const [
-    selectedOrder,
-    setSelectedOrder,
-  ] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
-  const [
-    cancellingOrderId,
-    setCancellingOrderId,
-  ] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
 
   /* =======================================================
    * Success Popup
    * ======================================================= */
 
-  const [
-    successPopupVisible,
-    setSuccessPopupVisible,
-  ] = useState(false);
+  const [successPopupVisible, setSuccessPopupVisible] = useState(false);
 
   /* =======================================================
    * Responsive
    * ======================================================= */
 
-  const responsive =
-    useMemo(
-      () => ({
-        contentWidth:
-          width >= 768
-            ? Math.min(
-                width - 80,
-                760,
-              )
-            : width,
+  const responsive = useMemo(
+    () => ({
+      contentWidth: width >= 768 ? Math.min(width - 80, 760) : width,
 
-        horizontalPadding:
-          width >= 768
-            ? 28
-            : 14,
-      }),
-      [
-        width,
-      ],
-    );
+      horizontalPadding: width >= 768 ? 28 : 14,
+    }),
+    [width],
+  );
 
   /* =======================================================
    * Parse Price
    * ======================================================= */
 
-  const parsePrice =
-    value => {
-      const parsed =
-        Number(
-          String(
-            value ?? 0,
-          ).replace(
-            /[^\d.-]/g,
-            '',
-          ),
-        );
+  const parsePrice = value => {
+    const parsed = Number(String(value ?? 0).replace(/[^\d.-]/g, ''));
 
-      return Number.isFinite(
-        parsed,
-      )
-        ? parsed
-        : 0;
-    };
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
 
   /* =======================================================
    * Extract Order Array
    * ======================================================= */
 
-  const extractOrders =
-    result => {
-      if (
-        Array.isArray(
-          result,
-        )
-      ) {
-        return result;
-      }
+  const extractOrders = result => {
+    if (Array.isArray(result)) {
+      return result;
+    }
 
-      if (
-        Array.isArray(
-          result?.data,
-        )
-      ) {
-        return result.data;
-      }
+    if (Array.isArray(result?.data)) {
+      return result.data;
+    }
 
-      if (
-        Array.isArray(
-          result?.orders,
-        )
-      ) {
-        return result.orders;
-      }
+    if (Array.isArray(result?.orders)) {
+      return result.orders;
+    }
 
-      if (
-        Array.isArray(
-          result?.data
-            ?.orders,
-        )
-      ) {
-        return result.data.orders;
-      }
+    if (Array.isArray(result?.data?.orders)) {
+      return result.data.orders;
+    }
 
-      /*
-       * Laravel paginator:
-       *
-       * {
-       *   data: {
-       *     data: [...]
-       *   }
-       * }
-       */
+    /*
+     * Laravel paginator:
+     *
+     * {
+     *   data: {
+     *     data: [...]
+     *   }
+     * }
+     */
 
-      if (
-        Array.isArray(
-          result?.data
-            ?.data,
-        )
-      ) {
-        return result.data.data;
-      }
+    if (Array.isArray(result?.data?.data)) {
+      return result.data.data;
+    }
 
-      if (
-        Array.isArray(
-          result?.orders
-            ?.data,
-        )
-      ) {
-        return result.orders.data;
-      }
+    if (Array.isArray(result?.orders?.data)) {
+      return result.orders.data;
+    }
 
-      return [];
-    };
+    return [];
+  };
 
   /* =======================================================
    * Normalize Customization
    * ======================================================= */
 
-  const normalizeCustomizations =
-    value => {
-      if (
-        !Array.isArray(
-          value,
-        )
-      ) {
-        return [];
-      }
+  const normalizeCustomizations = value => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
 
-      return value
-        .map(
-          (
-            item,
-            index,
-          ) => {
-            if (
-              typeof item ===
-              'string'
-            ) {
-              return {
-                id:
-                  `custom-${index}`,
+    return value
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          return {
+            id: `custom-${index}`,
 
-                category:
-                  '',
+            category: '',
 
-                name:
-                  item,
-              };
-            }
+            name: item,
+          };
+        }
 
-            if (
-              !item ||
-              typeof item !==
-                'object'
-            ) {
-              return null;
-            }
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
 
-            return {
-              ...item,
+        return {
+          ...item,
 
-              id:
-                item?.id ??
-                `custom-${index}`,
+          id: item?.id ?? `custom-${index}`,
 
-              category:
-                item?.category ??
-                item?.group_name ??
-                item?.group ??
-                '',
+          category: item?.category ?? item?.group_name ?? item?.group ?? '',
 
-              name:
-                item?.name ??
-                item?.item_name ??
-                item?.option_name ??
-                item?.title ??
-                '',
-            };
-          },
-        )
-        .filter(
-          item =>
-            item &&
-            item.name,
-        );
-    };
+          name:
+            item?.name ??
+            item?.item_name ??
+            item?.option_name ??
+            item?.title ??
+            '',
+        };
+      })
+      .filter(item => item && item.name);
+  };
 
   /* =======================================================
    * Normalize Extras
    * ======================================================= */
 
-  const normalizeExtras =
-    value => {
-      if (
-        !Array.isArray(
-          value,
-        )
-      ) {
-        return [];
-      }
+  const normalizeExtras = value => {
+    if (!Array.isArray(value)) {
+      return [];
+    }
 
-      return value
-        .map(
-          (
-            item,
-            index,
-          ) => {
-            if (
-              typeof item ===
-              'string'
-            ) {
-              return {
-                id:
-                  `extra-${index}`,
+    return value
+      .map((item, index) => {
+        if (typeof item === 'string') {
+          return {
+            id: `extra-${index}`,
 
-                name:
-                  item,
+            name: item,
 
-                quantity:
-                  1,
+            quantity: 1,
 
-                price:
-                  0,
-              };
-            }
+            price: 0,
+          };
+        }
 
-            if (
-              !item ||
-              typeof item !==
-                'object'
-            ) {
-              return null;
-            }
+        if (!item || typeof item !== 'object') {
+          return null;
+        }
 
-            return {
-              ...item,
+        return {
+          ...item,
 
-              id:
-                item?.id ??
-                `extra-${index}`,
+          id: item?.id ?? `extra-${index}`,
 
-              name:
-                item?.name ??
-                item?.item_name ??
-                item?.title ??
-                'Extra Item',
+          name: item?.name ?? item?.item_name ?? item?.title ?? 'Extra Item',
 
-              quantity:
-                Number(
-                  item?.quantity ??
-                    item?.qty ??
-                    1,
-                ),
+          quantity: Number(item?.quantity ?? item?.qty ?? 1),
 
-              price:
-                parsePrice(
-                  item?.price ??
-                    0,
-                ),
-            };
-          },
-        )
-        .filter(
-          Boolean,
-        );
-    };
+          price: parsePrice(item?.price ?? 0),
+        };
+      })
+      .filter(Boolean);
+  };
 
   /* =======================================================
    * Normalize Order Item
    * ======================================================= */
 
-  const normalizeOrderItem =
-    (
-      item,
-      index,
-    ) => {
-      const tiffin =
-        item?.tiffin ??
-        item?.product ??
-        item?.menu ??
-        {};
+  const normalizeOrderItem = (item, index) => {
+    const tiffin = item?.tiffin ?? item?.product ?? item?.menu ?? {};
 
-      const image =
-        item?.image ??
-        item?.image_url ??
-        tiffin?.image ??
-        tiffin?.image_url ??
-        null;
+    const image =
+      item?.image ??
+      item?.image_url ??
+      tiffin?.image ??
+      tiffin?.image_url ??
+      null;
 
-      let imageUrl =
-        image;
+    let imageUrl = image;
 
-      if (
-        image &&
-        !String(
-          image,
-        ).startsWith(
-          'http',
-        )
-      ) {
-        imageUrl =
-          `${BASE_URL}/${String(
-            image,
-          ).replace(
-            /^\/+/,
-            '',
-          )}`;
-      }
+    if (image && !String(image).startsWith('http')) {
+      imageUrl = `${BASE_URL}/${String(image).replace(/^\/+/, '')}`;
+    }
 
-      return {
-        ...item,
+    return {
+      ...item,
 
-        id:
-          item?.id ??
-          `item-${index}`,
+      id: item?.id ?? `item-${index}`,
 
-        tiffinId:
-          item?.tiffin_id ??
-          item?.tiffinId ??
-          tiffin?.id ??
-          null,
+      tiffinId: item?.tiffin_id ?? item?.tiffinId ?? tiffin?.id ?? null,
 
-        name:
-          item?.tiffin_name ??
-          item?.name ??
-          tiffin?.name ??
-          tiffin?.tiffin_name ??
-          'Tiffin',
+      name:
+        item?.tiffin_name ??
+        item?.name ??
+        tiffin?.name ??
+        tiffin?.tiffin_name ??
+        'Tiffin',
 
-        image:
-          imageUrl,
+      image: imageUrl,
 
-        quantity:
-          Number(
-            item?.quantity ??
-              item?.qty ??
-              1,
-          ),
+      quantity: Number(item?.quantity ?? item?.qty ?? 1),
 
-        price:
-          parsePrice(
-            item?.price ??
-              item?.subtotal ??
-              tiffin?.price ??
-              0,
-          ),
+      price: parsePrice(item?.price ?? item?.subtotal ?? tiffin?.price ?? 0),
 
-        customizations:
-          normalizeCustomizations(
-            item?.customizations ??
-              item?.selections ??
-              [],
-          ),
+      customizations: normalizeCustomizations(
+        item?.customizations ?? item?.selections ?? [],
+      ),
 
-        extras:
-          normalizeExtras(
-            item?.extras ??
-              [],
-          ),
-      };
+      extras: normalizeExtras(item?.extras ?? []),
     };
+  };
 
   /* =======================================================
    * Normalize Order
    * ======================================================= */
 
-  const normalizeOrder =
-    (
-      order,
-      index,
-    ) => {
-      let orderItems =
-        order?.items ??
-        order?.order_items ??
-        order?.orderItems ??
-        [];
+  const normalizeOrder = (order, index) => {
+    let orderItems =
+      order?.items ?? order?.order_items ?? order?.orderItems ?? [];
 
-      if (
-        !Array.isArray(
-          orderItems,
-        )
-      ) {
-        orderItems =
-          [];
-      }
+    if (!Array.isArray(orderItems)) {
+      orderItems = [];
+    }
 
-      /*
-       * Some APIs return a single tiffin directly
-       * on the order rather than an items array.
-       */
+    /*
+     * Some APIs return a single tiffin directly
+     * on the order rather than an items array.
+     */
 
-      if (
-        orderItems.length ===
-          0 &&
-        (
-          order?.tiffin_id ||
-          order?.tiffin
-        )
-      ) {
-        orderItems = [
-          {
-            ...order,
+    if (orderItems.length === 0 && (order?.tiffin_id || order?.tiffin)) {
+      orderItems = [
+        {
+          ...order,
 
-            id:
-              `single-${order?.id ?? index}`,
-          },
-        ];
-      }
+          id: `single-${order?.id ?? index}`,
+        },
+      ];
+    }
 
-      const status =
-        normalizeStatus(
-          order?.status ??
-            order?.order_status ??
-            'pending',
-        );
+    const status = normalizeStatus(
+      order?.status ?? order?.order_status ?? 'pending',
+    );
 
-      return {
-        ...order,
+    return {
+      ...order,
 
-        id:
-          String(
-            order?.id ??
-              order?.order_id ??
-              `order-${index}`,
-          ),
+      id: String(order?.id ?? order?.order_id ?? `order-${index}`),
 
-        orderNumber:
-          order?.order_number ??
-          order?.order_no ??
-          order?.invoice_number ??
-          order?.id ??
-          index + 1,
+      orderNumber:
+        order?.order_number ??
+        order?.order_no ??
+        order?.invoice_number ??
+        order?.id ??
+        index + 1,
 
-        status,
+      status,
 
-        createdAt:
-          order?.created_at ??
-          order?.createdAt ??
-          order?.order_date ??
-          null,
+      createdAt:
+        order?.created_at ?? order?.createdAt ?? order?.order_date ?? null,
 
-        total:
-          parsePrice(
-            order?.total_amount ??
-              order?.grand_total ??
-              order?.total ??
-              0,
-          ),
+      total: parsePrice(
+        order?.total_amount ?? order?.grand_total ?? order?.total ?? 0,
+      ),
 
-        subtotal:
-          parsePrice(
-            order?.subtotal ??
-              0,
-          ),
+      subtotal: parsePrice(order?.subtotal ?? 0),
 
-        deliveryFee:
-          parsePrice(
-            order?.delivery_fee ??
-              order?.shipping_charge ??
-              0,
-          ),
+      deliveryFee: parsePrice(
+        order?.delivery_fee ?? order?.shipping_charge ?? 0,
+      ),
 
-        address:
-          order?.delivery_address ??
-          order?.address ??
-          order?.delivery_location ??
-          '',
+      address:
+        order?.delivery_address ??
+        order?.address ??
+        order?.delivery_location ??
+        '',
 
-        notes:
-          order?.order_notes ??
-          order?.notes ??
-          '',
+      notes: order?.order_notes ?? order?.notes ?? '',
 
-        items:
-          orderItems.map(
-            normalizeOrderItem,
-          ),
-      };
+      items: orderItems.map(normalizeOrderItem),
     };
+  };
 
   /* =======================================================
    * Fetch Orders
    * ======================================================= */
 
-  const fetchOrders =
-    async (
-      options = {},
-    ) => {
-      const {
-        isRefresh = false,
-      } = options;
+  const fetchOrders = async (options = {}) => {
+    const { isRefresh = false } = options;
+
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError(null);
+
+      /* =============================================
+       * Token
+       * ============================================= */
+
+      const token = await AsyncStorage.getItem('token');
+
+      if (!token) {
+        setOrders([]);
+
+        setError('Please login to view your recent orders.');
+
+        return;
+      }
+
+      /* =============================================
+       * API
+       * ============================================= */
+
+      const response = await fetch(RECENT_ORDERS_API, {
+        method: 'GET',
+
+        headers: {
+          Accept: 'application/json',
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const responseText = await response.text();
+
+      let result;
 
       try {
-        if (
-          isRefresh
-        ) {
-          setRefreshing(
-            true,
-          );
-        } else {
-          setLoading(
-            true,
-          );
-        }
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.log('RECENT ORDER RAW RESPONSE:', responseText);
 
-        setError(
-          null,
-        );
+        throw new Error('Server returned an invalid response.');
+      }
 
-        /* =============================================
-         * Token
-         * ============================================= */
+      console.log('RECENT ORDER RESPONSE:', JSON.stringify(result, null, 2));
 
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
+      /* =============================================
+       * Authentication Error
+       * ============================================= */
 
-        if (!token) {
-          setOrders([]);
+      if (response.status === 401 || response.status === 403) {
+        setOrders([]);
 
-          setError(
-            'Please login to view your recent orders.',
-          );
+        setError('Please login to view your recent orders.');
 
-          return;
-        }
+        return;
+      }
 
-        /* =============================================
-         * API
-         * ============================================= */
-
-        const response =
-          await fetch(
-            RECENT_ORDERS_API,
-            {
-              method:
-                'GET',
-
-              headers: {
-                Accept:
-                  'application/json',
-
-                'Content-Type':
-                  'application/json',
-
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            },
-          );
-
-        const responseText =
-          await response.text();
-
-        let result;
-
-        try {
-          result =
-            JSON.parse(
-              responseText,
-            );
-        } catch (
-          parseError
-        ) {
-          console.log(
-            'RECENT ORDER RAW RESPONSE:',
-            responseText,
-          );
-
-          throw new Error(
-            'Server returned an invalid response.',
-          );
-        }
-
-        console.log(
-          'RECENT ORDER RESPONSE:',
-          JSON.stringify(
-            result,
-            null,
-            2,
-          ),
-        );
-
-        /* =============================================
-         * Authentication Error
-         * ============================================= */
-
-        if (
-          response.status ===
-            401 ||
-          response.status ===
-            403
-        ) {
-          setOrders([]);
-
-          setError(
-            'Please login to view your recent orders.',
-          );
-
-          return;
-        }
-
-        if (
-          !response.ok
-        ) {
-          throw new Error(
-            result?.message ??
-              result?.error ??
-              'Unable to load recent orders.',
-          );
-        }
-
-        /* =============================================
-         * Normalize
-         * ============================================= */
-
-        const rawOrders =
-          extractOrders(
-            result,
-          );
-
-        let normalizedOrders =
-          rawOrders.map(
-            normalizeOrder,
-          );
-
-        /* =============================================
-         * Latest First
-         * ============================================= */
-
-        normalizedOrders.sort(
-          (
-            first,
-            second,
-          ) => {
-            const firstTime =
-              first?.createdAt
-                ? new Date(
-                    first.createdAt,
-                  ).getTime()
-                : 0;
-
-            const secondTime =
-              second?.createdAt
-                ? new Date(
-                    second.createdAt,
-                  ).getTime()
-                : 0;
-
-            return (
-              secondTime -
-              firstTime
-            );
-          },
-        );
-
-        setOrders(
-          normalizedOrders,
-        );
-      } catch (
-        apiError
-      ) {
-        console.log(
-          'RECENT ORDER ERROR:',
-          apiError,
-        );
-
-        setError(
-          apiError?.message ??
-            'Unable to load your orders.',
-        );
-      } finally {
-        setLoading(
-          false,
-        );
-
-        setRefreshing(
-          false,
+      if (!response.ok) {
+        throw new Error(
+          result?.message ?? result?.error ?? 'Unable to load recent orders.',
         );
       }
-    };
+
+      /* =============================================
+       * Normalize
+       * ============================================= */
+
+      const rawOrders = extractOrders(result);
+
+      let normalizedOrders = rawOrders.map(normalizeOrder);
+
+      /* =============================================
+       * Latest First
+       * ============================================= */
+
+      normalizedOrders.sort((first, second) => {
+        const firstTime = first?.createdAt
+          ? new Date(first.createdAt).getTime()
+          : 0;
+
+        const secondTime = second?.createdAt
+          ? new Date(second.createdAt).getTime()
+          : 0;
+
+        return secondTime - firstTime;
+      });
+
+      setOrders(normalizedOrders);
+    } catch (apiError) {
+      console.log('RECENT ORDER ERROR:', apiError);
+
+      setError(apiError?.message ?? 'Unable to load your orders.');
+    } finally {
+      setLoading(false);
+
+      setRefreshing(false);
+    }
+  };
 
   /* =======================================================
    * Initial Load
@@ -852,1145 +496,567 @@ const RecentOrder = ({
    * Format Date
    * ======================================================= */
 
-  const formatDate =
-    value => {
-      if (!value) {
-        return '';
+  const formatDate = value => {
+    if (!value) {
+      return '';
+    }
+
+    try {
+      const date = new Date(value);
+
+      if (Number.isNaN(date.getTime())) {
+        return String(value);
       }
 
-      try {
-        const date =
-          new Date(
-            value,
-          );
+      return date.toLocaleString('en-AU', {
+        day: '2-digit',
 
-        if (
-          Number.isNaN(
-            date.getTime(),
-          )
-        ) {
-          return String(
-            value,
-          );
-        }
+        month: 'short',
 
-        return date.toLocaleString(
-          'en-AU',
-          {
-            day:
-              '2-digit',
+        year: 'numeric',
 
-            month:
-              'short',
+        hour: 'numeric',
 
-            year:
-              'numeric',
-
-            hour:
-              'numeric',
-
-            minute:
-              '2-digit',
-          },
-        );
-      } catch (
-        error
-      ) {
-        return '';
-      }
-    };
+        minute: '2-digit',
+      });
+    } catch (error) {
+      return '';
+    }
+  };
 
   /* =======================================================
    * Status Text
    * ======================================================= */
 
-  const getStatusText =
-    status => {
-      switch (
-        normalizeStatus(
-          status,
-        )
-      ) {
-        case 'pending':
-          return 'Pending';
+  const getStatusText = status => {
+    switch (normalizeStatus(status)) {
+      case 'pending':
+        return 'Pending';
 
-        case 'placed':
-        case 'order_placed':
-          return 'Order Placed';
+      case 'placed':
+      case 'order_placed':
+        return 'Order Placed';
 
-        case 'confirmed':
-          return 'Confirmed';
+      case 'confirmed':
+        return 'Confirmed';
 
-        case 'preparing':
-        case 'processing':
-          return 'Preparing';
+      case 'preparing':
+      case 'processing':
+        return 'Preparing';
 
-        case 'ready':
-          return 'Ready';
+      case 'ready':
+        return 'Ready';
 
-        case 'out_for_delivery':
-          return 'Out for Delivery';
+      case 'out_for_delivery':
+        return 'Out for Delivery';
 
-        case 'delivered':
-        case 'completed':
-          return 'Delivered';
+      case 'delivered':
+      case 'completed':
+        return 'Delivered';
 
-        case 'cancelled':
-        case 'canceled':
-          return 'Cancelled';
+      case 'cancelled':
+      case 'canceled':
+        return 'Cancelled';
 
-        default:
-          return String(
-            status ??
-              'Pending',
-          )
-            .replace(
-              /_/g,
-              ' ',
-            );
-      }
-    };
+      default:
+        return String(status ?? 'Pending').replace(/_/g, ' ');
+    }
+  };
 
   /* =======================================================
    * Status Style
    * ======================================================= */
 
-  const getStatusStyle =
-    status => {
-      const value =
-        normalizeStatus(
-          status,
-        );
+  const getStatusStyle = status => {
+    const value = normalizeStatus(status);
 
-      if (
-        value ===
-          'delivered' ||
-        value ===
-          'completed'
-      ) {
-        return {
-          backgroundColor:
-            '#EAF7EF',
-
-          color:
-            '#24804B',
-        };
-      }
-
-      if (
-        value ===
-          'cancelled' ||
-        value ===
-          'canceled'
-      ) {
-        return {
-          backgroundColor:
-            '#FCECEC',
-
-          color:
-            '#CB4343',
-        };
-      }
-
-      if (
-        value ===
-          'preparing' ||
-        value ===
-          'processing'
-      ) {
-        return {
-          backgroundColor:
-            '#FFF3E5',
-
-          color:
-            '#B76A19',
-        };
-      }
-
-      if (
-        value ===
-          'ready' ||
-        value ===
-          'out_for_delivery'
-      ) {
-        return {
-          backgroundColor:
-            '#EBF1FC',
-
-          color:
-            '#426DAA',
-        };
-      }
-
+    if (value === 'delivered' || value === 'completed') {
       return {
-        backgroundColor:
-          '#FBEAEC',
+        backgroundColor: '#EAF7EF',
 
-        color:
-          '#A00B0F',
+        color: '#24804B',
       };
+    }
+
+    if (value === 'cancelled' || value === 'canceled') {
+      return {
+        backgroundColor: '#FCECEC',
+
+        color: '#CB4343',
+      };
+    }
+
+    if (value === 'preparing' || value === 'processing') {
+      return {
+        backgroundColor: '#FFF3E5',
+
+        color: '#B76A19',
+      };
+    }
+
+    if (value === 'ready' || value === 'out_for_delivery') {
+      return {
+        backgroundColor: '#EBF1FC',
+
+        color: '#426DAA',
+      };
+    }
+
+    return {
+      backgroundColor: '#FBEAEC',
+
+      color: '#A00B0F',
     };
+  };
 
   /* =======================================================
    * Can Cancel
    * ======================================================= */
 
-  const canCancelOrder =
-    order => {
-      return CANCELLABLE_STATUSES.includes(
-        normalizeStatus(
-          order?.status,
-        ),
-      );
-    };
+  const canCancelOrder = order => {
+    return CANCELLABLE_STATUSES.includes(normalizeStatus(order?.status));
+  };
 
   /* =======================================================
    * Ask Cancel Order
    * ======================================================= */
 
-  const handleCancelPress =
-    order => {
-      if (
-        !order ||
-        !canCancelOrder(
-          order,
-        )
-      ) {
-        return;
-      }
+  const handleCancelPress = order => {
+    if (!order || !canCancelOrder(order)) {
+      return;
+    }
 
-      setSelectedOrder(
-        order,
-      );
+    setSelectedOrder(order);
 
-      setCancelPopupVisible(
-        true,
-      );
-    };
+    setCancelPopupVisible(true);
+  };
 
   /* =======================================================
    * Close Cancel Popup
    * ======================================================= */
 
-  const closeCancelPopup =
-    () => {
-      if (
-        cancellingOrderId
-      ) {
-        return;
-      }
+  const closeCancelPopup = () => {
+    if (cancellingOrderId) {
+      return;
+    }
 
-      setCancelPopupVisible(
-        false,
-      );
+    setCancelPopupVisible(false);
 
-      setSelectedOrder(
-        null,
-      );
-    };
+    setSelectedOrder(null);
+  };
 
   /* =======================================================
    * Confirm Cancel Order
    * ======================================================= */
 
-  const confirmCancelOrder =
-    async () => {
-      if (
-        !selectedOrder ||
-        cancellingOrderId
-      ) {
+  const confirmCancelOrder = async () => {
+    if (!selectedOrder || cancellingOrderId) {
+      return;
+    }
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+
+      if (!token) {
+        setCancelPopupVisible(false);
+
+        navigation.navigate('Login', {
+          redirectTo: 'RecentOrder',
+        });
+
         return;
       }
 
-      try {
-        const token =
-          await AsyncStorage.getItem(
-            'token',
-          );
+      const orderId = selectedOrder.id;
 
-        if (!token) {
-          setCancelPopupVisible(
-            false,
-          );
+      setCancellingOrderId(orderId);
 
-          navigation.navigate(
-            'Login',
-            {
-              redirectTo:
-                'RecentOrder',
-            },
-          );
+      /* =============================================
+       * Cancel API
+       * ============================================= */
 
-          return;
+      const response = await fetch(getCancelOrderApi(orderId), {
+        method: 'POST',
+
+        headers: {
+          Accept: 'application/json',
+
+          'Content-Type': 'application/json',
+
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const responseText = await response.text();
+
+      let result = {};
+
+      if (responseText) {
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.log('CANCEL ORDER RAW RESPONSE:', responseText);
         }
+      }
 
-        const orderId =
-          selectedOrder.id;
+      console.log('CANCEL ORDER RESPONSE:', result);
 
-        setCancellingOrderId(
-          orderId,
-        );
+      if (response.status === 401) {
+        setCancelPopupVisible(false);
 
-        /* =============================================
-         * Cancel API
-         * ============================================= */
+        navigation.navigate('Login', {
+          redirectTo: 'RecentOrder',
+        });
 
-        const response =
-          await fetch(
-            getCancelOrderApi(
-              orderId,
-            ),
-            {
-              method:
-                'POST',
+        return;
+      }
 
-              headers: {
-                Accept:
-                  'application/json',
+      if (response.status === 422 && result?.errors) {
+        const validationErrors = Object.values(result.errors).flat();
 
-                'Content-Type':
-                  'application/json',
-
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            },
-          );
-
-        const responseText =
-          await response.text();
-
-        let result =
-          {};
-
-        if (
-          responseText
-        ) {
-          try {
-            result =
-              JSON.parse(
-                responseText,
-              );
-          } catch (
-            parseError
-          ) {
-            console.log(
-              'CANCEL ORDER RAW RESPONSE:',
-              responseText,
-            );
-          }
-        }
-
-        console.log(
-          'CANCEL ORDER RESPONSE:',
-          result,
-        );
-
-        if (
-          response.status ===
-          401
-        ) {
-          setCancelPopupVisible(
-            false,
-          );
-
-          navigation.navigate(
-            'Login',
-            {
-              redirectTo:
-                'RecentOrder',
-            },
-          );
-
-          return;
-        }
-
-        if (
-          response.status ===
-            422 &&
-          result?.errors
-        ) {
-          const validationErrors =
-            Object.values(
-              result.errors,
-            ).flat();
-
-          throw new Error(
-            validationErrors[0] ??
-              result?.message ??
-              'This order cannot be cancelled.',
-          );
-        }
-
-        if (
-          !response.ok
-        ) {
-          throw new Error(
+        throw new Error(
+          validationErrors[0] ??
             result?.message ??
-              result?.error ??
-              'Unable to cancel this order.',
-          );
-        }
-
-        /* =============================================
-         * Update Current UI Immediately
-         * ============================================= */
-
-        setOrders(
-          current =>
-            current.map(
-              order =>
-                String(
-                  order.id,
-                ) ===
-                String(
-                  orderId,
-                )
-                  ? {
-                      ...order,
-
-                      status:
-                        'cancelled',
-                    }
-                  : order,
-            ),
-        );
-
-        setCancelPopupVisible(
-          false,
-        );
-
-        setSelectedOrder(
-          null,
-        );
-
-        setSuccessPopupVisible(
-          true,
-        );
-
-        /*
-         * Also reload from the server so the
-         * frontend stays synchronized.
-         */
-
-        fetchOrders();
-      } catch (
-        cancelError
-      ) {
-        console.log(
-          'CANCEL ORDER ERROR:',
-          cancelError,
-        );
-
-        /*
-         * Keep popup open and display a small
-         * server error through the existing state.
-         */
-
-        setCancelPopupVisible(
-          false,
-        );
-
-        setSelectedOrder(
-          null,
-        );
-
-        setError(
-          cancelError?.message ??
-            'Unable to cancel this order.',
-        );
-      } finally {
-        setCancellingOrderId(
-          null,
+            'This order cannot be cancelled.',
         );
       }
-    };
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message ?? result?.error ?? 'Unable to cancel this order.',
+        );
+      }
+
+      /* =============================================
+       * Update Current UI Immediately
+       * ============================================= */
+
+      setOrders(current =>
+        current.map(order =>
+          String(order.id) === String(orderId)
+            ? {
+                ...order,
+
+                status: 'cancelled',
+              }
+            : order,
+        ),
+      );
+
+      setCancelPopupVisible(false);
+
+      setSelectedOrder(null);
+
+      setSuccessPopupVisible(true);
+
+      /*
+       * Also reload from the server so the
+       * frontend stays synchronized.
+       */
+
+      fetchOrders();
+    } catch (cancelError) {
+      console.log('CANCEL ORDER ERROR:', cancelError);
+
+      /*
+       * Keep popup open and display a small
+       * server error through the existing state.
+       */
+
+      setCancelPopupVisible(false);
+
+      setSelectedOrder(null);
+
+      setError(cancelError?.message ?? 'Unable to cancel this order.');
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   /* =======================================================
    * Back
    * ======================================================= */
 
-  const handleBack =
-    () => {
-      if (
-        navigation.canGoBack()
-      ) {
-        navigation.goBack();
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
 
-        return;
-      }
+      return;
+    }
 
-      navigation.navigate(
-        'MainTabs',
-      );
-    };
+    navigation.navigate('MainTabs');
+  };
 
   /* =======================================================
    * Render Order Item
    * ======================================================= */
 
-  const renderTiffin =
-    (
-      item,
-      orderId,
-    ) => {
-      const itemTotal =
-        Number(
-          item.price ??
-            0,
-        ) *
-        Number(
-          item.quantity ??
-            1,
-        );
+  const renderTiffin = (item, orderId) => {
+    const itemTotal = Number(item.price ?? 0) * Number(item.quantity ?? 1);
 
-      return (
-        <View
-          key={`${orderId}-${item.id}`}
+    return (
+      <View key={`${orderId}-${item.id}`} style={styles.tiffinCard}>
+        {/* Image */}
 
-          style={
-            styles.tiffinCard
-          }>
+        {item.image ? (
+          <Image
+            source={{
+              uri: item.image,
+            }}
+            style={styles.tiffinImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.tiffinImage, styles.noImage]}>
+            {/* <Ionicons name="restaurant-outline" size={23} color="#A00B0F" /> */}
+          </View>
+        )}
 
-          {/* Image */}
+        {/* Content */}
 
-          {item.image ? (
-            <Image
-              source={{
-                uri:
-                  item.image,
-              }}
+        <View style={styles.tiffinContent}>
+          <View style={styles.tiffinTitleRow}>
+            <Text numberOfLines={2} style={styles.tiffinName}>
+              {item.name}
+            </Text>
 
-              style={
-                styles.tiffinImage
-              }
+            <Text style={styles.tiffinPrice}>${itemTotal.toFixed(2)}</Text>
+          </View>
 
-              resizeMode="cover"
-            />
-          ) : (
-            <View
-              style={[
-                styles.tiffinImage,
+          <Text style={styles.tiffinQuantity}>Quantity: {item.quantity}</Text>
 
-                styles.noImage,
-              ]}>
+          {/* Customizations */}
 
-              <Ionicons
-                name="restaurant-outline"
+          {!!item.customizations?.length && (
+            <View style={styles.itemDetailsBox}>
+              <Text style={styles.itemDetailsHeading}>Customizations</Text>
 
-                size={
-                  23
-                }
+              {item.customizations.map((custom, index) => (
+                <Text
+                  key={`${item.id}-custom-${custom.id ?? index}`}
+                  style={styles.itemDetailText}
+                >
+                  {custom.category ? `${custom.category}: ` : ''}
 
-                color="#A00B0F"
-              />
-
+                  {custom.name}
+                </Text>
+              ))}
             </View>
           )}
 
-          {/* Content */}
+          {/* Extras */}
 
-          <View
-            style={
-              styles.tiffinContent
-            }>
+          {!!item.extras?.length && (
+            <View style={styles.itemDetailsBox}>
+              <Text style={styles.itemDetailsHeading}>Extras</Text>
 
-            <View
-              style={
-                styles.tiffinTitleRow
-              }>
-
-              <Text
-                numberOfLines={
-                  2
-                }
-
-                style={
-                  styles.tiffinName
-                }>
-
-                {
-                  item.name
-                }
-
-              </Text>
-
-              <Text
-                style={
-                  styles.tiffinPrice
-                }>
-                $
-                {itemTotal.toFixed(
-                  2,
-                )}
-              </Text>
-
+              {item.extras.map((extra, index) => (
+                <Text
+                  key={`${item.id}-extra-${extra.id ?? index}`}
+                  style={styles.itemDetailText}
+                >
+                  + {extra.name} × {extra.quantity}
+                </Text>
+              ))}
             </View>
-
-            <Text
-              style={
-                styles.tiffinQuantity
-              }>
-              Quantity:{' '}
-              {
-                item.quantity
-              }
-            </Text>
-
-            {/* Customizations */}
-
-            {!!item.customizations
-              ?.length && (
-              <View
-                style={
-                  styles.itemDetailsBox
-                }>
-
-                <Text
-                  style={
-                    styles.itemDetailsHeading
-                  }>
-                  Customizations
-                </Text>
-
-                {item.customizations.map(
-                  (
-                    custom,
-                    index,
-                  ) => (
-                    <Text
-                      key={`${item.id}-custom-${custom.id ?? index}`}
-
-                      style={
-                        styles.itemDetailText
-                      }>
-
-                      {custom.category
-                        ? `${custom.category}: `
-                        : ''}
-
-                      {
-                        custom.name
-                      }
-
-                    </Text>
-                  ),
-                )}
-
-              </View>
-            )}
-
-            {/* Extras */}
-
-            {!!item.extras
-              ?.length && (
-              <View
-                style={
-                  styles.itemDetailsBox
-                }>
-
-                <Text
-                  style={
-                    styles.itemDetailsHeading
-                  }>
-                  Extras
-                </Text>
-
-                {item.extras.map(
-                  (
-                    extra,
-                    index,
-                  ) => (
-                    <Text
-                      key={`${item.id}-extra-${extra.id ?? index}`}
-
-                      style={
-                        styles.itemDetailText
-                      }>
-                      +{' '}
-                      {
-                        extra.name
-                      }{' '}
-                      ×{' '}
-                      {
-                        extra.quantity
-                      }
-                    </Text>
-                  ),
-                )}
-
-              </View>
-            )}
-
-          </View>
-
+          )}
         </View>
-      );
-    };
+      </View>
+    );
+  };
 
   /* =======================================================
    * Render Order
    * ======================================================= */
 
-  const renderOrder =
-    ({
-      item,
-    }) => {
-      const statusStyle =
-        getStatusStyle(
-          item.status,
-        );
+  const renderOrder = ({ item }) => {
+    const statusStyle = getStatusStyle(item.status);
 
-      const cancellable =
-        canCancelOrder(
-          item,
-        );
+    const cancellable = canCancelOrder(item);
 
-      const isCancelling =
-        String(
-          cancellingOrderId,
-        ) ===
-        String(
-          item.id,
-        );
+    const isCancelling = String(cancellingOrderId) === String(item.id);
 
-      return (
-        <View
-          style={
-            styles.orderCard
-          }>
+    return (
+      <View style={styles.orderCard}>
+        {/* ========================================= */}
+        {/* Header */}
+        {/* ========================================= */}
 
-          {/* ========================================= */}
-          {/* Header */}
-          {/* ========================================= */}
+        <View style={styles.orderHeader}>
+          <View style={styles.orderNumberContainer}>
+            <Text style={styles.orderLabel}>ORDER</Text>
 
-          <View
-            style={
-              styles.orderHeader
-            }>
-
-            <View
-              style={
-                styles.orderNumberContainer
-              }>
-
-              <Text
-                style={
-                  styles.orderLabel
-                }>
-                ORDER
-              </Text>
-
-              <Text
-                style={
-                  styles.orderNumber
-                }>
-                #
-                {
-                  item.orderNumber
-                }
-              </Text>
-
-            </View>
-
-            <View
-              style={[
-                styles.statusBadge,
-
-                {
-                  backgroundColor:
-                    statusStyle.backgroundColor,
-                },
-              ]}>
-
-              <Text
-                style={[
-                  styles.statusText,
-
-                  {
-                    color:
-                      statusStyle.color,
-                  },
-                ]}>
-
-                {
-                  getStatusText(
-                    item.status,
-                  )
-                }
-
-              </Text>
-
-            </View>
-
+            <Text style={styles.orderNumber}>#{item.orderNumber}</Text>
           </View>
 
-          {/* Date */}
+          <View
+            style={[
+              styles.statusBadge,
 
-          {!!item.createdAt && (
-            <View
-              style={
-                styles.orderDateRow
-              }>
-
-              <Ionicons
-                name="time-outline"
-
-                size={
-                  13
-                }
-
-                color="#948B97"
-              />
-
-              <Text
-                style={
-                  styles.orderDate
-                }>
+              {
+                backgroundColor: statusStyle.backgroundColor,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
 
                 {
-                  formatDate(
-                    item.createdAt,
-                  )
-                }
+                  color: statusStyle.color,
+                },
+              ]}
+            >
+              {getStatusText(item.status)}
+            </Text>
+          </View>
+        </View>
 
-              </Text>
+        {/* Date */}
 
+        {!!item.createdAt && (
+          <View style={styles.orderDateRow}>
+            {/* <Ionicons name="time-outline" size={13} color="#948B97" /> */}
+
+            <Text style={styles.orderDate}>{formatDate(item.createdAt)}</Text>
+          </View>
+        )}
+
+        <View style={styles.divider} />
+
+        {/* ========================================= */}
+        {/* Tiffins */}
+        {/* ========================================= */}
+
+        <Text style={styles.sectionTitle}>Tiffins</Text>
+
+        {item.items.length > 0 ? (
+          item.items.map(tiffin => renderTiffin(tiffin, item.id))
+        ) : (
+          <Text style={styles.noItemText}>
+            Order item details are unavailable.
+          </Text>
+        )}
+
+        {/* ========================================= */}
+        {/* Delivery Address */}
+        {/* ========================================= */}
+
+        {!!item.address && (
+          <View style={styles.infoSection}>
+            <View style={styles.infoHeader}>
+              {/* <Ionicons name="location-outline" size={15} color="#A00B0F" /> */}
+
+              <Text style={styles.infoTitle}>Delivery Address</Text>
             </View>
+
+            <Text style={styles.infoText}>
+              {typeof item.address === 'string'
+                ? item.address
+                : JSON.stringify(item.address)}
+            </Text>
+          </View>
+        )}
+
+        {/* Notes */}
+
+        {!!item.notes && (
+          <View style={styles.infoSection}>
+            <View style={styles.infoHeader}>
+              {/* <Ionicons
+                name="document-text-outline"
+                size={15}
+                color="#A00B0F"
+              /> */}
+
+              <Text style={styles.infoTitle}>Order Notes</Text>
+            </View>
+
+            <Text style={styles.infoText}>{item.notes}</Text>
+          </View>
+        )}
+
+        {/* ========================================= */}
+        {/* Bill */}
+        {/* ========================================= */}
+
+        <View style={styles.billSection}>
+          {item.subtotal > 0 && (
+            <BillRow label="Subtotal" value={`$${item.subtotal.toFixed(2)}`} />
           )}
 
-          <View
-            style={
-              styles.divider
+          <BillRow
+            label="Delivery"
+            value={
+              item.deliveryFee > 0 ? `$${item.deliveryFee.toFixed(2)}` : 'FREE'
             }
           />
 
-          {/* ========================================= */}
-          {/* Tiffins */}
-          {/* ========================================= */}
+          <View style={styles.billDivider} />
 
-          <Text
-            style={
-              styles.sectionTitle
-            }>
-            Tiffins
-          </Text>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total</Text>
 
-          {item.items.length >
-          0 ? (
-            item.items.map(
-              tiffin =>
-                renderTiffin(
-                  tiffin,
-                  item.id,
-                ),
-            )
-          ) : (
-            <Text
-              style={
-                styles.noItemText
-              }>
-              Order item details are unavailable.
-            </Text>
-          )}
-
-          {/* ========================================= */}
-          {/* Delivery Address */}
-          {/* ========================================= */}
-
-          {!!item.address && (
-            <View
-              style={
-                styles.infoSection
-              }>
-
-              <View
-                style={
-                  styles.infoHeader
-                }>
-
-                <Ionicons
-                  name="location-outline"
-
-                  size={
-                    15
-                  }
-
-                  color="#A00B0F"
-                />
-
-                <Text
-                  style={
-                    styles.infoTitle
-                  }>
-                  Delivery Address
-                </Text>
-
-              </View>
-
-              <Text
-                style={
-                  styles.infoText
-                }>
-
-                {
-                  typeof item.address ===
-                    'string'
-                    ? item.address
-                    : JSON.stringify(
-                        item.address,
-                      )
-                }
-
-              </Text>
-
-            </View>
-          )}
-
-          {/* Notes */}
-
-          {!!item.notes && (
-            <View
-              style={
-                styles.infoSection
-              }>
-
-              <View
-                style={
-                  styles.infoHeader
-                }>
-
-                <Ionicons
-                  name="document-text-outline"
-
-                  size={
-                    15
-                  }
-
-                  color="#A00B0F"
-                />
-
-                <Text
-                  style={
-                    styles.infoTitle
-                  }>
-                  Order Notes
-                </Text>
-
-              </View>
-
-              <Text
-                style={
-                  styles.infoText
-                }>
-
-                {
-                  item.notes
-                }
-
-              </Text>
-
-            </View>
-          )}
-
-          {/* ========================================= */}
-          {/* Bill */}
-          {/* ========================================= */}
-
-          <View
-            style={
-              styles.billSection
-            }>
-
-            {item.subtotal >
-              0 && (
-              <BillRow
-                label="Subtotal"
-
-                value={`$${item.subtotal.toFixed(
-                  2,
-                )}`}
-              />
-            )}
-
-            <BillRow
-              label="Delivery"
-
-              value={
-                item.deliveryFee >
-                0
-                  ? `$${item.deliveryFee.toFixed(
-                      2,
-                    )}`
-                  : 'FREE'
-              }
-            />
-
-            <View
-              style={
-                styles.billDivider
-              }
-            />
-
-            <View
-              style={
-                styles.totalRow
-              }>
-
-              <Text
-                style={
-                  styles.totalLabel
-                }>
-                Total
-              </Text>
-
-              <Text
-                style={
-                  styles.totalValue
-                }>
-                $
-                {
-                  item.total.toFixed(
-                    2,
-                  )
-                }
-              </Text>
-
-            </View>
-
+            <Text style={styles.totalValue}>${item.total.toFixed(2)}</Text>
           </View>
-
-          {/* ========================================= */}
-          {/* Cancel */}
-          {/* ========================================= */}
-
-          {cancellable && (
-            <TouchableOpacity
-              disabled={
-                isCancelling
-              }
-
-              activeOpacity={
-                0.85
-              }
-
-              onPress={() =>
-                handleCancelPress(
-                  item,
-                )
-              }
-
-              style={[
-                styles.cancelOrderButton,
-
-                isCancelling &&
-                  styles.disabledButton,
-              ]}>
-
-              <Ionicons
-                name="close-circle-outline"
-
-                size={
-                  17
-                }
-
-                color="#D04444"
-              />
-
-              <Text
-                style={
-                  styles.cancelOrderText
-                }>
-                Cancel Order
-              </Text>
-
-            </TouchableOpacity>
-          )}
-
-          {!cancellable &&
-            normalizeStatus(
-              item.status,
-            ) !==
-              'cancelled' &&
-            normalizeStatus(
-              item.status,
-            ) !==
-              'canceled' && (
-              <View
-                style={
-                  styles.cannotCancelBox
-                }>
-
-                <Ionicons
-                  name="information-circle-outline"
-
-                  size={
-                    15
-                  }
-
-                  color="#8E848F"
-                />
-
-                <Text
-                  style={
-                    styles.cannotCancelText
-                  }>
-                  This order can no longer be cancelled.
-                </Text>
-
-              </View>
-            )}
-
         </View>
-      );
-    };
+
+        {/* ========================================= */}
+        {/* Cancel */}
+        {/* ========================================= */}
+
+        {cancellable && (
+          <TouchableOpacity
+            disabled={isCancelling}
+            activeOpacity={0.85}
+            onPress={() => handleCancelPress(item)}
+            style={[
+              styles.cancelOrderButton,
+
+              isCancelling && styles.disabledButton,
+            ]}
+          >
+            {/* <Ionicons name="close-circle-outline" size={17} color="#D04444" /> */}
+
+            <Text style={styles.cancelOrderText}>Cancel Order</Text>
+          </TouchableOpacity>
+        )}
+
+        {!cancellable &&
+          normalizeStatus(item.status) !== 'cancelled' &&
+          normalizeStatus(item.status) !== 'canceled' && (
+            <View style={styles.cannotCancelBox}>
+              {/* <Ionicons
+                name="information-circle-outline"
+                size={15}
+                color="#8E848F"
+              /> */}
+
+              <Text style={styles.cannotCancelText}>
+                This order can no longer be cancelled.
+              </Text>
+            </View>
+          )}
+      </View>
+    );
+  };
 
   /* =======================================================
    * Loading
    * ======================================================= */
 
-  if (
-    loading
-  ) {
+  if (loading) {
     return (
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8FD" />
 
-        <StatusBar
-          barStyle="dark-content"
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#A00B0F" />
 
-          backgroundColor="#FAF8FD"
-        />
+          <Text style={styles.loadingTitle}>Loading Recent Orders</Text>
 
-        <View
-          style={
-            styles.loadingContainer
-          }>
-
-          <ActivityIndicator
-            size="large"
-
-            color="#A00B0F"
-          />
-
-          <Text
-            style={
-              styles.loadingTitle
-            }>
-            Loading Recent Orders
-          </Text>
-
-          <Text
-            style={
-              styles.loadingText
-            }>
-            Please wait...
-          </Text>
-
+          <Text style={styles.loadingText}>Please wait...</Text>
         </View>
-
       </SafeAreaView>
     );
   }
@@ -2001,27 +1067,18 @@ const RecentOrder = ({
 
   return (
     <>
-      <SafeAreaView
-        style={
-          styles.safeArea
-        }>
-
-        <StatusBar
-          barStyle="dark-content"
-
-          backgroundColor="#FAF8FD"
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FAF8FD" />
 
         <View
           style={[
             styles.screen,
 
             {
-              width:
-                responsive.contentWidth,
+              width: responsive.contentWidth,
             },
-          ]}>
-
+          ]}
+        >
           {/* ========================================= */}
           {/* Header */}
           {/* ========================================= */}
@@ -2031,286 +1088,116 @@ const RecentOrder = ({
               styles.header,
 
               {
-                paddingHorizontal:
-                  responsive.horizontalPadding,
+                paddingHorizontal: responsive.horizontalPadding,
               },
-            ]}>
-
+            ]}
+          >
             <Pressable
-              hitSlop={
-                10
-              }
-
-              style={
-                styles.backButton
-              }
-
-              onPress={
-                handleBack
-              }>
-
-              <Ionicons
-                name="chevron-back"
-
-                size={
-                  22
-                }
-
-                color="#A00B0F"
-              />
-
+              hitSlop={10}
+              style={styles.backButton}
+              onPress={handleBack}
+            >
+              {/* <Ionicons name="chevron-back" size={22} color="#A00B0F" /> */}
             </Pressable>
 
-            <View
-              style={
-                styles.headerContent
-              }>
+            <View style={styles.headerContent}>
+              <Text style={styles.headerEyebrow}>MY ORDERS</Text>
 
-              <Text
-                style={
-                  styles.headerEyebrow
-                }>
-                MY ORDERS
-              </Text>
-
-              <Text
-                style={
-                  styles.headerTitle
-                }>
-                Recent Orders
-              </Text>
-
+              <Text style={styles.headerTitle}>Recent Orders</Text>
             </View>
-
           </View>
 
           {/* ========================================= */}
           {/* Error */}
           {/* ========================================= */}
 
-          {!!error &&
-          orders.length ===
-            0 ? (
-            <View
-              style={
-                styles.emptyContainer
-              }>
+          {!!error && orders.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              {/* <View style={styles.emptyIconCircle}>
+                <Ionicons name="receipt-outline" size={34} color="#A00B0F" />
+              </View> */}
 
-              <View
-                style={
-                  styles.emptyIconCircle
-                }>
+              <Text style={styles.emptyTitle}>Unable to Show Orders</Text>
 
-                <Ionicons
-                  name="receipt-outline"
+              <Text style={styles.emptyDescription}>{error}</Text>
 
-                  size={
-                    34
-                  }
-
-                  color="#A00B0F"
-                />
-
-              </View>
-
-              <Text
-                style={
-                  styles.emptyTitle
-                }>
-                Unable to Show Orders
-              </Text>
-
-              <Text
-                style={
-                  styles.emptyDescription
-                }>
-
-                {
-                  error
-                }
-
-              </Text>
-
-              {error
-                .toLowerCase()
-                .includes(
-                  'login',
-                ) ? (
+              {error.toLowerCase().includes('login') ? (
                 <TouchableOpacity
-                  activeOpacity={
-                    0.85
-                  }
-
+                  activeOpacity={0.85}
                   onPress={() =>
-                    navigation.navigate(
-                      'Login',
-                      {
-                        redirectTo:
-                          'RecentOrder',
-                      },
-                    )
+                    navigation.navigate('Login', {
+                      redirectTo: 'RecentOrder',
+                    })
                   }
-
-                  style={
-                    styles.primaryButton
-                  }>
-
-                  <Text
-                    style={
-                      styles.primaryButtonText
-                    }>
-                    LOGIN
-                  </Text>
-
+                  style={styles.primaryButton}
+                >
+                  <Text style={styles.primaryButtonText}>LOGIN</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  activeOpacity={
-                    0.85
-                  }
-
-                  onPress={() =>
-                    fetchOrders()
-                  }
-
-                  style={
-                    styles.primaryButton
-                  }>
-
-                  <Text
-                    style={
-                      styles.primaryButtonText
-                    }>
-                    TRY AGAIN
-                  </Text>
-
+                  activeOpacity={0.85}
+                  onPress={() => fetchOrders()}
+                  style={styles.primaryButton}
+                >
+                  <Text style={styles.primaryButtonText}>TRY AGAIN</Text>
                 </TouchableOpacity>
               )}
-
             </View>
           ) : (
             <FlatList
-              data={
-                orders
-              }
-
-              renderItem={
-                renderOrder
-              }
-
-              keyExtractor={
-                item =>
-                  String(
-                    item.id,
-                  )
-              }
-
-              showsVerticalScrollIndicator={
-                false
-              }
-
+              data={orders}
+              renderItem={renderOrder}
+              keyExtractor={item => String(item.id)}
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
 
                 {
-                  paddingHorizontal:
-                    responsive.horizontalPadding,
+                  paddingHorizontal: responsive.horizontalPadding,
                 },
 
-                orders.length ===
-                  0 &&
-                  styles.emptyList,
+                orders.length === 0 && styles.emptyList,
               ]}
-
               refreshControl={
                 <RefreshControl
-                  refreshing={
-                    refreshing
-                  }
-
+                  refreshing={refreshing}
                   onRefresh={() =>
                     fetchOrders({
-                      isRefresh:
-                        true,
+                      isRefresh: true,
                     })
                   }
-
-                  colors={[
-                    '#A00B0F',
-                  ]}
-
+                  colors={['#A00B0F']}
                   tintColor="#A00B0F"
                 />
               }
-
               ListEmptyComponent={
-                <View
-                  style={
-                    styles.emptyContainer
-                  }>
-
-                  <View
-                    style={
-                      styles.emptyIconCircle
-                    }>
-
+                <View style={styles.emptyContainer}>
+                  {/* <View style={styles.emptyIconCircle}>
                     <Ionicons
                       name="receipt-outline"
-
-                      size={
-                        34
-                      }
-
+                      size={34}
                       color="#A00B0F"
                     />
+                  </View> */}
 
-                  </View>
+                  <Text style={styles.emptyTitle}>No Recent Orders</Text>
 
-                  <Text
-                    style={
-                      styles.emptyTitle
-                    }>
-                    No Recent Orders
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.emptyDescription
-                    }>
+                  <Text style={styles.emptyDescription}>
                     Your recent tiffin orders will appear here.
                   </Text>
 
                   <TouchableOpacity
-                    activeOpacity={
-                      0.85
-                    }
-
-                    onPress={() =>
-                      navigation.navigate(
-                        'MainTabs',
-                      )
-                    }
-
-                    style={
-                      styles.primaryButton
-                    }>
-
-                    <Text
-                      style={
-                        styles.primaryButtonText
-                      }>
-                      BROWSE TIFFINS
-                    </Text>
-
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('MainTabs')}
+                    style={styles.primaryButton}
+                  >
+                    <Text style={styles.primaryButtonText}>BROWSE TIFFINS</Text>
                   </TouchableOpacity>
-
                 </View>
               }
             />
           )}
-
         </View>
-
       </SafeAreaView>
 
       {/* ================================================= */}
@@ -2318,200 +1205,82 @@ const RecentOrder = ({
       {/* ================================================= */}
 
       <Modal
-        visible={
-          cancelPopupVisible
-        }
-
+        visible={cancelPopupVisible}
         transparent
-
         animationType="fade"
-
         statusBarTranslucent
-
-        onRequestClose={
-          closeCancelPopup
-        }>
-
-        <Pressable
-          style={
-            styles.modalOverlay
-          }
-
-          onPress={
-            closeCancelPopup
-          }>
-
-          <Pressable
-            style={
-              styles.cancelPopup
-            }
-
-            onPress={() => {}}>
-
+        onRequestClose={closeCancelPopup}
+      >
+        <Pressable style={styles.modalOverlay} onPress={closeCancelPopup}>
+          <Pressable style={styles.cancelPopup} onPress={() => {}}>
             {/* Icon */}
 
-            <View
-              style={
-                styles.cancelIconOuter
-              }>
-
-              <View
-                style={
-                  styles.cancelIconInner
-                }>
-
-                <Ionicons
-                  name="close"
-
-                  size={
-                    29
-                  }
-
-                  color="#FFFFFF"
-                />
-
-              </View>
-
+            <View style={styles.cancelIconOuter}>
+              {/* <View style={styles.cancelIconInner}>
+                <Ionicons name="close" size={29} color="#FFFFFF" />
+              </View> */}
             </View>
 
             {/* Heading */}
 
-            <Text
-              style={
-                styles.cancelPopupTitle
-              }>
-              Cancel Order?
-            </Text>
+            <Text style={styles.cancelPopupTitle}>Cancel Order?</Text>
 
-            <Text
-              style={
-                styles.cancelPopupDescription
-              }>
+            <Text style={styles.cancelPopupDescription}>
               Are you sure you want to cancel order #
-              {
-                selectedOrder
-                  ?.orderNumber
-              }?
+              {selectedOrder?.orderNumber}?
             </Text>
 
-            <View
-              style={
-                styles.warningBox
-              }>
-
-              <Ionicons
+            <View style={styles.warningBox}>
+              {/* <Ionicons
                 name="information-circle-outline"
-
-                size={
-                  18
-                }
-
+                size={18}
                 color="#B46B22"
-              />
+              /> */}
 
-              <Text
-                style={
-                  styles.warningText
-                }>
+              <Text style={styles.warningText}>
                 Once cancelled, this order cannot be restored.
               </Text>
-
             </View>
 
             {/* Buttons */}
 
-            <View
-              style={
-                styles.popupButtons
-              }>
-
+            <View style={styles.popupButtons}>
               <TouchableOpacity
-                disabled={
-                  Boolean(
-                    cancellingOrderId,
-                  )
-                }
-
-                activeOpacity={
-                  0.8
-                }
-
-                onPress={
-                  closeCancelPopup
-                }
-
-                style={
-                  styles.keepOrderButton
-                }>
-
-                <Text
-                  style={
-                    styles.keepOrderText
-                  }>
-                  Keep Order
-                </Text>
-
+                disabled={Boolean(cancellingOrderId)}
+                activeOpacity={0.8}
+                onPress={closeCancelPopup}
+                style={styles.keepOrderButton}
+              >
+                <Text style={styles.keepOrderText}>Keep Order</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                disabled={
-                  Boolean(
-                    cancellingOrderId,
-                  )
-                }
-
-                activeOpacity={
-                  0.85
-                }
-
-                onPress={
-                  confirmCancelOrder
-                }
-
+                disabled={Boolean(cancellingOrderId)}
+                activeOpacity={0.85}
+                onPress={confirmCancelOrder}
                 style={[
                   styles.confirmCancelButton,
 
-                  Boolean(
-                    cancellingOrderId,
-                  ) &&
-                    styles.disabledButton,
-                ]}>
-
+                  Boolean(cancellingOrderId) && styles.disabledButton,
+                ]}
+              >
                 {cancellingOrderId ? (
-                  <ActivityIndicator
-                    size="small"
-
-                    color="#FFFFFF"
-                  />
+                  <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
-                    <Ionicons
+                    {/* <Ionicons
                       name="close-circle-outline"
-
-                      size={
-                        17
-                      }
-
+                      size={17}
                       color="#FFFFFF"
-                    />
+                    /> */}
 
-                    <Text
-                      style={
-                        styles.confirmCancelText
-                      }>
-                      Cancel Order
-                    </Text>
+                    <Text style={styles.confirmCancelText}>Cancel Order</Text>
                   </>
                 )}
-
               </TouchableOpacity>
-
             </View>
-
           </Pressable>
-
         </Pressable>
-
       </Modal>
 
       {/* ================================================= */}
@@ -2519,106 +1288,38 @@ const RecentOrder = ({
       {/* ================================================= */}
 
       <Modal
-        visible={
-          successPopupVisible
-        }
-
+        visible={successPopupVisible}
         transparent
-
         animationType="fade"
-
         statusBarTranslucent
-
-        onRequestClose={() =>
-          setSuccessPopupVisible(
-            false,
-          )
-        }>
-
+        onRequestClose={() => setSuccessPopupVisible(false)}
+      >
         <Pressable
-          style={
-            styles.modalOverlay
-          }
-
-          onPress={() =>
-            setSuccessPopupVisible(
-              false,
-            )
-          }>
-
-          <Pressable
-            style={
-              styles.successPopup
-            }
-
-            onPress={() => {}}>
-
-            <View
-              style={
-                styles.successIconOuter
-              }>
-
-              <View
-                style={
-                  styles.successIconInner
-                }>
-
-                <Ionicons
-                  name="checkmark"
-
-                  size={
-                    29
-                  }
-
-                  color="#FFFFFF"
-                />
-
-              </View>
-
+          style={styles.modalOverlay}
+          onPress={() => setSuccessPopupVisible(false)}
+        >
+          <Pressable style={styles.successPopup} onPress={() => {}}>
+            <View style={styles.successIconOuter}>
+              {/* <View style={styles.successIconInner}>
+                <Ionicons name="checkmark" size={29} color="#FFFFFF" />
+              </View> */}
             </View>
 
-            <Text
-              style={
-                styles.successTitle
-              }>
-              Order Cancelled
-            </Text>
+            <Text style={styles.successTitle}>Order Cancelled</Text>
 
-            <Text
-              style={
-                styles.successDescription
-              }>
+            <Text style={styles.successDescription}>
               Your order has been cancelled successfully.
             </Text>
 
             <TouchableOpacity
-              activeOpacity={
-                0.85
-              }
-
-              onPress={() =>
-                setSuccessPopupVisible(
-                  false,
-                )
-              }
-
-              style={
-                styles.doneButton
-              }>
-
-              <Text
-                style={
-                  styles.doneText
-                }>
-                Done
-              </Text>
-
+              activeOpacity={0.85}
+              onPress={() => setSuccessPopupVisible(false)}
+              style={styles.doneButton}
+            >
+              <Text style={styles.doneText}>Done</Text>
             </TouchableOpacity>
-
           </Pressable>
-
         </Pressable>
-
       </Modal>
     </>
   );
@@ -2628,29 +1329,11 @@ const RecentOrder = ({
  * Bill Row
  * ========================================================= */
 
-const BillRow = ({
-  label,
-  value,
-}) => (
-  <View
-    style={
-      styles.billRow
-    }>
+const BillRow = ({ label, value }) => (
+  <View style={styles.billRow}>
+    <Text style={styles.billLabel}>{label}</Text>
 
-    <Text
-      style={
-        styles.billLabel
-      }>
-      {label}
-    </Text>
-
-    <Text
-      style={
-        styles.billValue
-      }>
-      {value}
-    </Text>
-
+    <Text style={styles.billValue}>{value}</Text>
   </View>
 );
 
@@ -2660,1288 +1343,926 @@ export default RecentOrder;
  * Styles
  * ========================================================= */
 
-const styles =
-  StyleSheet.create({
-    safeArea: {
-      flex:
-        1,
-
-      backgroundColor:
-        '#F8F6FA',
-    },
-
-    screen: {
-      flex:
-        1,
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
 
-      alignSelf:
-        'center',
+    backgroundColor: '#F8F6FA',
+  },
 
-      backgroundColor:
-        '#F8F6FA',
-    },
+  screen: {
+    flex: 1,
 
-    /* =====================================================
-     * Header
-     * ===================================================== */
+    alignSelf: 'center',
 
-    header: {
-      minHeight:
-        74,
+    backgroundColor: '#F8F6FA',
+  },
 
-      flexDirection:
-        'row',
+  /* =====================================================
+   * Header
+   * ===================================================== */
 
-      alignItems:
-        'center',
+  header: {
+    minHeight: 74,
 
-      backgroundColor:
-        '#FFFFFF',
+    flexDirection: 'row',
 
-      borderBottomWidth:
-        1,
+    alignItems: 'center',
 
-      borderBottomColor:
-        '#ECE8F0',
-    },
+    backgroundColor: '#FFFFFF',
 
-    backButton: {
-      width:
-        40,
+    borderBottomWidth: 1,
 
-      height:
-        40,
+    borderBottomColor: '#ECE8F0',
+  },
 
-      alignItems:
-        'center',
+  backButton: {
+    width: 40,
 
-      justifyContent:
-        'center',
+    height: 40,
 
-      backgroundColor:
-        '#FFF1F2',
+    alignItems: 'center',
 
-      borderRadius:
-        12,
+    justifyContent: 'center',
 
-      borderWidth:
-        1,
+    backgroundColor: '#FFF1F2',
 
-      borderColor:
-        '#F2D8DA',
-    },
+    borderRadius: 12,
 
-    headerContent: {
-      flex:
-        1,
+    borderWidth: 1,
 
-      marginLeft:
-        12,
-    },
+    borderColor: '#F2D8DA',
+  },
 
-    headerEyebrow: {
-      color:
-        '#A00B0F',
+  headerContent: {
+    flex: 1,
 
-      fontSize:
-        8,
+    marginLeft: 12,
+  },
 
-      fontWeight:
-        '900',
+  headerEyebrow: {
+    color: '#A00B0F',
 
-      letterSpacing:
-        0.8,
-    },
+    fontSize: 8,
 
-    headerTitle: {
-      color:
-        '#211A25',
+    fontWeight: '900',
 
-      fontSize:
-        18,
+    letterSpacing: 0.8,
+  },
 
-      fontWeight:
-        '900',
-
-      marginTop:
-        2,
-    },
+  headerTitle: {
+    color: '#211A25',
 
-    /* =====================================================
-     * List
-     * ===================================================== */
+    fontSize: 18,
 
-    listContent: {
-      paddingTop:
-        14,
+    fontWeight: '900',
 
-      paddingBottom:
-        100,
-    },
+    marginTop: 2,
+  },
 
-    emptyList: {
-      flexGrow:
-        1,
-    },
+  /* =====================================================
+   * List
+   * ===================================================== */
 
-    /* =====================================================
-     * Order Card
-     * ===================================================== */
+  listContent: {
+    paddingTop: 14,
 
-    orderCard: {
-      backgroundColor:
-        '#FFFFFF',
+    paddingBottom: 100,
+  },
 
-      borderRadius:
-        18,
+  emptyList: {
+    flexGrow: 1,
+  },
 
-      borderWidth:
-        1,
+  /* =====================================================
+   * Order Card
+   * ===================================================== */
 
-      borderColor:
-        '#ECE8F0',
+  orderCard: {
+    backgroundColor: '#FFFFFF',
 
-      padding:
-        14,
+    borderRadius: 18,
 
-      marginBottom:
-        14,
+    borderWidth: 1,
 
-      shadowColor:
-        '#473D4B',
+    borderColor: '#ECE8F0',
 
-      shadowOffset: {
-        width:
-          0,
+    padding: 14,
 
-        height:
-          4,
-      },
+    marginBottom: 14,
 
-      shadowOpacity:
-        0.05,
+    shadowColor: '#473D4B',
 
-      shadowRadius:
-        10,
+    shadowOffset: {
+      width: 0,
 
-      elevation:
-        2,
+      height: 4,
     },
 
-    orderHeader: {
-      flexDirection:
-        'row',
+    shadowOpacity: 0.05,
 
-      alignItems:
-        'center',
+    shadowRadius: 10,
 
-      justifyContent:
-        'space-between',
-    },
+    elevation: 2,
+  },
 
-    orderNumberContainer: {
-      flex:
-        1,
-    },
+  orderHeader: {
+    flexDirection: 'row',
 
-    orderLabel: {
-      color:
-        '#9D949F',
+    alignItems: 'center',
 
-      fontSize:
-        7,
+    justifyContent: 'space-between',
+  },
 
-      fontWeight:
-        '800',
+  orderNumberContainer: {
+    flex: 1,
+  },
 
-      letterSpacing:
-        0.7,
-    },
+  orderLabel: {
+    color: '#9D949F',
 
-    orderNumber: {
-      color:
-        '#211A25',
+    fontSize: 7,
 
-      fontSize:
-        16,
+    fontWeight: '800',
 
-      fontWeight:
-        '900',
+    letterSpacing: 0.7,
+  },
 
-      marginTop:
-        2,
-    },
+  orderNumber: {
+    color: '#211A25',
 
-    statusBadge: {
-      minHeight:
-        29,
+    fontSize: 16,
 
-      alignItems:
-        'center',
+    fontWeight: '900',
 
-      justifyContent:
-        'center',
+    marginTop: 2,
+  },
 
-      borderRadius:
-        20,
+  statusBadge: {
+    minHeight: 29,
 
-      paddingHorizontal:
-        10,
+    alignItems: 'center',
 
-      paddingVertical:
-        5,
-    },
+    justifyContent: 'center',
 
-    statusText: {
-      fontSize:
-        8,
+    borderRadius: 20,
 
-      fontWeight:
-        '900',
+    paddingHorizontal: 10,
 
-      textTransform:
-        'capitalize',
-    },
+    paddingVertical: 5,
+  },
 
-    orderDateRow: {
-      flexDirection:
-        'row',
+  statusText: {
+    fontSize: 8,
 
-      alignItems:
-        'center',
+    fontWeight: '900',
 
-      marginTop:
-        9,
-    },
+    textTransform: 'capitalize',
+  },
 
-    orderDate: {
-      color:
-        '#948B97',
+  orderDateRow: {
+    flexDirection: 'row',
 
-      fontSize:
-        8.5,
+    alignItems: 'center',
 
-      marginLeft:
-        5,
-    },
+    marginTop: 9,
+  },
 
-    divider: {
-      height:
-        1,
+  orderDate: {
+    color: '#948B97',
 
-      backgroundColor:
-        '#EEEAF0',
+    fontSize: 8.5,
 
-      marginVertical:
-        13,
-    },
+    marginLeft: 5,
+  },
 
-    sectionTitle: {
-      color:
-        '#2A222F',
+  divider: {
+    height: 1,
 
-      fontSize:
-        11,
+    backgroundColor: '#EEEAF0',
 
-      fontWeight:
-        '900',
+    marginVertical: 13,
+  },
 
-      marginBottom:
-        9,
-    },
+  sectionTitle: {
+    color: '#2A222F',
 
-    /* =====================================================
-     * Tiffin
-     * ===================================================== */
+    fontSize: 11,
 
-    tiffinCard: {
-      flexDirection:
-        'row',
+    fontWeight: '900',
 
-      alignItems:
-        'flex-start',
+    marginBottom: 9,
+  },
 
-      backgroundColor:
-        '#FBF9FC',
+  /* =====================================================
+   * Tiffin
+   * ===================================================== */
 
-      borderWidth:
-        1,
+  tiffinCard: {
+    flexDirection: 'row',
 
-      borderColor:
-        '#F0EBF2',
+    alignItems: 'flex-start',
 
-      borderRadius:
-        13,
+    backgroundColor: '#FBF9FC',
 
-      padding:
-        9,
+    borderWidth: 1,
 
-      marginBottom:
-        8,
-    },
+    borderColor: '#F0EBF2',
 
-    tiffinImage: {
-      width:
-        68,
+    borderRadius: 13,
 
-      height:
-        72,
+    padding: 9,
 
-      borderRadius:
-        10,
+    marginBottom: 8,
+  },
 
-      backgroundColor:
-        '#F0EBF2',
-    },
+  tiffinImage: {
+    width: 68,
 
-    noImage: {
-      alignItems:
-        'center',
+    height: 72,
 
-      justifyContent:
-        'center',
-    },
+    borderRadius: 10,
 
-    tiffinContent: {
-      flex:
-        1,
+    backgroundColor: '#F0EBF2',
+  },
 
-      paddingLeft:
-        10,
-    },
+  noImage: {
+    alignItems: 'center',
 
-    tiffinTitleRow: {
-      flexDirection:
-        'row',
+    justifyContent: 'center',
+  },
 
-      alignItems:
-        'flex-start',
+  tiffinContent: {
+    flex: 1,
 
-      justifyContent:
-        'space-between',
-    },
+    paddingLeft: 10,
+  },
 
-    tiffinName: {
-      flex:
-        1,
+  tiffinTitleRow: {
+    flexDirection: 'row',
 
-      color:
-        '#2A222F',
+    alignItems: 'flex-start',
 
-      fontSize:
-        10.5,
+    justifyContent: 'space-between',
+  },
 
-      lineHeight:
-        15,
+  tiffinName: {
+    flex: 1,
 
-      fontWeight:
-        '900',
+    color: '#2A222F',
 
-      paddingRight:
-        8,
-    },
+    fontSize: 10.5,
 
-    tiffinPrice: {
-      color:
-        '#A00B0F',
+    lineHeight: 15,
 
-      fontSize:
-        10,
+    fontWeight: '900',
 
-      fontWeight:
-        '900',
-    },
+    paddingRight: 8,
+  },
 
-    tiffinQuantity: {
-      color:
-        '#837985',
+  tiffinPrice: {
+    color: '#A00B0F',
 
-      fontSize:
-        8,
+    fontSize: 10,
 
-      fontWeight:
-        '700',
+    fontWeight: '900',
+  },
 
-      marginTop:
-        4,
-    },
+  tiffinQuantity: {
+    color: '#837985',
 
-    itemDetailsBox: {
-      marginTop:
-        7,
+    fontSize: 8,
 
-      paddingTop:
-        6,
+    fontWeight: '700',
 
-      borderTopWidth:
-        StyleSheet.hairlineWidth,
+    marginTop: 4,
+  },
 
-      borderTopColor:
-        '#E8E1EA',
-    },
+  itemDetailsBox: {
+    marginTop: 7,
 
-    itemDetailsHeading: {
-      color:
-        '#A00B0F',
+    paddingTop: 6,
 
-      fontSize:
-        7.5,
+    borderTopWidth: StyleSheet.hairlineWidth,
 
-      fontWeight:
-        '900',
+    borderTopColor: '#E8E1EA',
+  },
 
-      marginBottom:
-        3,
-    },
+  itemDetailsHeading: {
+    color: '#A00B0F',
 
-    itemDetailText: {
-      color:
-        '#776D79',
+    fontSize: 7.5,
 
-      fontSize:
-        7.5,
+    fontWeight: '900',
 
-      lineHeight:
-        12,
+    marginBottom: 3,
+  },
 
-      marginBottom:
-        2,
-    },
+  itemDetailText: {
+    color: '#776D79',
 
-    noItemText: {
-      color:
-        '#8C838F',
+    fontSize: 7.5,
 
-      fontSize:
-        9,
+    lineHeight: 12,
 
-      lineHeight:
-        15,
-    },
+    marginBottom: 2,
+  },
 
-    /* =====================================================
-     * Order Information
-     * ===================================================== */
+  noItemText: {
+    color: '#8C838F',
 
-    infoSection: {
-      backgroundColor:
-        '#FBF9FC',
+    fontSize: 9,
 
-      borderWidth:
-        1,
+    lineHeight: 15,
+  },
 
-      borderColor:
-        '#EFEAF1',
+  /* =====================================================
+   * Order Information
+   * ===================================================== */
 
-      borderRadius:
-        12,
+  infoSection: {
+    backgroundColor: '#FBF9FC',
 
-      padding:
-        10,
+    borderWidth: 1,
 
-      marginTop:
-        9,
-    },
+    borderColor: '#EFEAF1',
 
-    infoHeader: {
-      flexDirection:
-        'row',
+    borderRadius: 12,
 
-      alignItems:
-        'center',
+    padding: 10,
 
-      marginBottom:
-        5,
-    },
+    marginTop: 9,
+  },
 
-    infoTitle: {
-      color:
-        '#332A36',
+  infoHeader: {
+    flexDirection: 'row',
 
-      fontSize:
-        9,
+    alignItems: 'center',
 
-      fontWeight:
-        '900',
+    marginBottom: 5,
+  },
 
-      marginLeft:
-        5,
-    },
+  infoTitle: {
+    color: '#332A36',
 
-    infoText: {
-      color:
-        '#756B78',
+    fontSize: 9,
 
-      fontSize:
-        8.5,
+    fontWeight: '900',
 
-      lineHeight:
-        14,
-    },
+    marginLeft: 5,
+  },
 
-    /* =====================================================
-     * Bill
-     * ===================================================== */
+  infoText: {
+    color: '#756B78',
 
-    billSection: {
-      backgroundColor:
-        '#FFF9F9',
+    fontSize: 8.5,
 
-      borderWidth:
-        1,
+    lineHeight: 14,
+  },
 
-      borderColor:
-        '#F0E1E2',
+  /* =====================================================
+   * Bill
+   * ===================================================== */
 
-      borderRadius:
-        12,
+  billSection: {
+    backgroundColor: '#FFF9F9',
 
-      padding:
-        11,
+    borderWidth: 1,
 
-      marginTop:
-        10,
-    },
+    borderColor: '#F0E1E2',
 
-    billRow: {
-      flexDirection:
-        'row',
+    borderRadius: 12,
 
-      alignItems:
-        'center',
+    padding: 11,
 
-      justifyContent:
-        'space-between',
+    marginTop: 10,
+  },
 
-      marginBottom:
-        7,
-    },
+  billRow: {
+    flexDirection: 'row',
 
-    billLabel: {
-      color:
-        '#7B717D',
+    alignItems: 'center',
 
-      fontSize:
-        8.5,
-    },
+    justifyContent: 'space-between',
 
-    billValue: {
-      color:
-        '#39303C',
+    marginBottom: 7,
+  },
 
-      fontSize:
-        8.5,
+  billLabel: {
+    color: '#7B717D',
 
-      fontWeight:
-        '800',
-    },
+    fontSize: 8.5,
+  },
 
-    billDivider: {
-      height:
-        1,
+  billValue: {
+    color: '#39303C',
 
-      backgroundColor:
-        '#EBDCDD',
+    fontSize: 8.5,
 
-      marginVertical:
-        5,
-    },
+    fontWeight: '800',
+  },
 
-    totalRow: {
-      flexDirection:
-        'row',
+  billDivider: {
+    height: 1,
 
-      alignItems:
-        'center',
+    backgroundColor: '#EBDCDD',
 
-      justifyContent:
-        'space-between',
-    },
+    marginVertical: 5,
+  },
 
-    totalLabel: {
-      color:
-        '#251D29',
+  totalRow: {
+    flexDirection: 'row',
 
-      fontSize:
-        10,
+    alignItems: 'center',
 
-      fontWeight:
-        '900',
-    },
+    justifyContent: 'space-between',
+  },
 
-    totalValue: {
-      color:
-        '#A00B0F',
+  totalLabel: {
+    color: '#251D29',
 
-      fontSize:
-        14,
+    fontSize: 10,
 
-      fontWeight:
-        '900',
-    },
+    fontWeight: '900',
+  },
 
-    /* =====================================================
-     * Cancel
-     * ===================================================== */
+  totalValue: {
+    color: '#A00B0F',
 
-    cancelOrderButton: {
-      minHeight:
-        44,
+    fontSize: 14,
 
-      flexDirection:
-        'row',
+    fontWeight: '900',
+  },
 
-      alignItems:
-        'center',
+  /* =====================================================
+   * Cancel
+   * ===================================================== */
 
-      justifyContent:
-        'center',
+  cancelOrderButton: {
+    minHeight: 44,
 
-      backgroundColor:
-        '#FFF4F4',
+    flexDirection: 'row',
 
-      borderWidth:
-        1,
+    alignItems: 'center',
 
-      borderColor:
-        '#F0CECE',
+    justifyContent: 'center',
 
-      borderRadius:
-        11,
+    backgroundColor: '#FFF4F4',
 
-      marginTop:
-        11,
-    },
+    borderWidth: 1,
 
-    cancelOrderText: {
-      color:
-        '#D04444',
+    borderColor: '#F0CECE',
 
-      fontSize:
-        9,
+    borderRadius: 11,
 
-      fontWeight:
-        '900',
+    marginTop: 11,
+  },
 
-      marginLeft:
-        6,
-    },
+  cancelOrderText: {
+    color: '#D04444',
 
-    cannotCancelBox: {
-      minHeight:
-        40,
+    fontSize: 9,
 
-      flexDirection:
-        'row',
+    fontWeight: '900',
 
-      alignItems:
-        'center',
+    marginLeft: 6,
+  },
 
-      backgroundColor:
-        '#F8F6F9',
+  cannotCancelBox: {
+    minHeight: 40,
 
-      borderRadius:
-        10,
+    flexDirection: 'row',
 
-      paddingHorizontal:
-        10,
+    alignItems: 'center',
 
-      marginTop:
-        10,
-    },
+    backgroundColor: '#F8F6F9',
 
-    cannotCancelText: {
-      flex:
-        1,
+    borderRadius: 10,
 
-      color:
-        '#8E848F',
+    paddingHorizontal: 10,
 
-      fontSize:
-        8,
+    marginTop: 10,
+  },
 
-      lineHeight:
-        12,
+  cannotCancelText: {
+    flex: 1,
 
-      marginLeft:
-        6,
-    },
+    color: '#8E848F',
 
-    disabledButton: {
-      opacity:
-        0.6,
-    },
+    fontSize: 8,
 
-    /* =====================================================
-     * Loading + Empty
-     * ===================================================== */
+    lineHeight: 12,
 
-    loadingContainer: {
-      flex:
-        1,
+    marginLeft: 6,
+  },
 
-      alignItems:
-        'center',
+  disabledButton: {
+    opacity: 0.6,
+  },
 
-      justifyContent:
-        'center',
+  /* =====================================================
+   * Loading + Empty
+   * ===================================================== */
 
-      paddingHorizontal:
-        30,
-    },
+  loadingContainer: {
+    flex: 1,
 
-    loadingTitle: {
-      color:
-        '#211A25',
+    alignItems: 'center',
 
-      fontSize:
-        15,
+    justifyContent: 'center',
 
-      fontWeight:
-        '900',
+    paddingHorizontal: 30,
+  },
 
-      marginTop:
-        14,
-    },
+  loadingTitle: {
+    color: '#211A25',
 
-    loadingText: {
-      color:
-        '#918794',
+    fontSize: 15,
 
-      fontSize:
-        9,
+    fontWeight: '900',
 
-      marginTop:
-        5,
-    },
+    marginTop: 14,
+  },
 
-    emptyContainer: {
-      flex:
-        1,
+  loadingText: {
+    color: '#918794',
 
-      minHeight:
-        450,
+    fontSize: 9,
 
-      alignItems:
-        'center',
+    marginTop: 5,
+  },
 
-      justifyContent:
-        'center',
+  emptyContainer: {
+    flex: 1,
 
-      paddingHorizontal:
-        30,
-    },
+    minHeight: 450,
 
-    emptyIconCircle: {
-      width:
-        78,
+    alignItems: 'center',
 
-      height:
-        78,
+    justifyContent: 'center',
 
-      alignItems:
-        'center',
+    paddingHorizontal: 30,
+  },
 
-      justifyContent:
-        'center',
+  emptyIconCircle: {
+    width: 78,
 
-      backgroundColor:
-        '#FBEAEC',
+    height: 78,
 
-      borderRadius:
-        39,
-    },
+    alignItems: 'center',
 
-    emptyTitle: {
-      color:
-        '#211A25',
+    justifyContent: 'center',
 
-      fontSize:
-        17,
+    backgroundColor: '#FBEAEC',
 
-      fontWeight:
-        '900',
+    borderRadius: 39,
+  },
 
-      marginTop:
-        16,
+  emptyTitle: {
+    color: '#211A25',
 
-      textAlign:
-        'center',
-    },
+    fontSize: 17,
 
-    emptyDescription: {
-      maxWidth:
-        300,
+    fontWeight: '900',
 
-      color:
-        '#8C838F',
+    marginTop: 16,
 
-      fontSize:
-        10,
+    textAlign: 'center',
+  },
 
-      lineHeight:
-        16,
+  emptyDescription: {
+    maxWidth: 300,
 
-      textAlign:
-        'center',
+    color: '#8C838F',
 
-      marginTop:
-        6,
-    },
+    fontSize: 10,
 
-    primaryButton: {
-      minWidth:
-        145,
+    lineHeight: 16,
 
-      minHeight:
-        45,
+    textAlign: 'center',
 
-      alignItems:
-        'center',
+    marginTop: 6,
+  },
 
-      justifyContent:
-        'center',
+  primaryButton: {
+    minWidth: 145,
 
-      backgroundColor:
-        '#A00B0F',
+    minHeight: 45,
 
-      borderRadius:
-        11,
+    alignItems: 'center',
 
-      paddingHorizontal:
-        20,
+    justifyContent: 'center',
 
-      marginTop:
-        18,
-    },
+    backgroundColor: '#A00B0F',
 
-    primaryButtonText: {
-      color:
-        '#FFFFFF',
+    borderRadius: 11,
 
-      fontSize:
-        9,
+    paddingHorizontal: 20,
 
-      fontWeight:
-        '900',
-    },
+    marginTop: 18,
+  },
 
-    /* =====================================================
-     * Modal
-     * ===================================================== */
+  primaryButtonText: {
+    color: '#FFFFFF',
 
-    modalOverlay: {
-      flex:
-        1,
+    fontSize: 9,
 
-      alignItems:
-        'center',
+    fontWeight: '900',
+  },
 
-      justifyContent:
-        'center',
+  /* =====================================================
+   * Modal
+   * ===================================================== */
 
-      backgroundColor:
-        'rgba(23,16,20,0.62)',
+  modalOverlay: {
+    flex: 1,
 
-      paddingHorizontal:
-        22,
-    },
+    alignItems: 'center',
+
+    justifyContent: 'center',
 
-    cancelPopup: {
-      width:
-        '100%',
+    backgroundColor: 'rgba(23,16,20,0.62)',
 
-      maxWidth:
-        380,
+    paddingHorizontal: 22,
+  },
 
-      alignItems:
-        'center',
+  cancelPopup: {
+    width: '100%',
 
-      backgroundColor:
-        '#FFFFFF',
+    maxWidth: 380,
 
-      borderRadius:
-        24,
+    alignItems: 'center',
 
-      paddingHorizontal:
-        22,
+    backgroundColor: '#FFFFFF',
 
-      paddingTop:
-        27,
+    borderRadius: 24,
 
-      paddingBottom:
-        20,
+    paddingHorizontal: 22,
 
-      elevation:
-        18,
+    paddingTop: 27,
 
-      shadowColor:
-        '#000',
+    paddingBottom: 20,
 
-      shadowOffset: {
-        width:
-          0,
+    elevation: 18,
 
-        height:
-          10,
-      },
+    shadowColor: '#000',
 
-      shadowOpacity:
-        0.22,
+    shadowOffset: {
+      width: 0,
 
-      shadowRadius:
-        18,
+      height: 10,
     },
 
-    cancelIconOuter: {
-      width:
-        82,
+    shadowOpacity: 0.22,
 
-      height:
-        82,
+    shadowRadius: 18,
+  },
 
-      alignItems:
-        'center',
+  cancelIconOuter: {
+    width: 82,
 
-      justifyContent:
-        'center',
+    height: 82,
 
-      backgroundColor:
-        '#FFF0F0',
+    alignItems: 'center',
 
-      borderRadius:
-        41,
+    justifyContent: 'center',
 
-      marginBottom:
-        15,
-    },
+    backgroundColor: '#FFF0F0',
 
-    cancelIconInner: {
-      width:
-        56,
+    borderRadius: 41,
 
-      height:
-        56,
+    marginBottom: 15,
+  },
 
-      alignItems:
-        'center',
+  cancelIconInner: {
+    width: 56,
 
-      justifyContent:
-        'center',
+    height: 56,
 
-      backgroundColor:
-        '#D84A4A',
+    alignItems: 'center',
 
-      borderRadius:
-        28,
-    },
+    justifyContent: 'center',
 
-    cancelPopupTitle: {
-      color:
-        '#251D29',
+    backgroundColor: '#D84A4A',
 
-      fontSize:
-        20,
+    borderRadius: 28,
+  },
 
-      fontWeight:
-        '900',
+  cancelPopupTitle: {
+    color: '#251D29',
 
-      textAlign:
-        'center',
-    },
+    fontSize: 20,
 
-    cancelPopupDescription: {
-      maxWidth:
-        285,
+    fontWeight: '900',
 
-      color:
-        '#766C78',
+    textAlign: 'center',
+  },
 
-      fontSize:
-        10,
+  cancelPopupDescription: {
+    maxWidth: 285,
 
-      lineHeight:
-        16,
+    color: '#766C78',
 
-      textAlign:
-        'center',
+    fontSize: 10,
 
-      marginTop:
-        7,
-    },
+    lineHeight: 16,
 
-    warningBox: {
-      width:
-        '100%',
+    textAlign: 'center',
 
-      minHeight:
-        50,
+    marginTop: 7,
+  },
 
-      flexDirection:
-        'row',
+  warningBox: {
+    width: '100%',
 
-      alignItems:
-        'center',
+    minHeight: 50,
 
-      backgroundColor:
-        '#FFF8EE',
+    flexDirection: 'row',
 
-      borderWidth:
-        1,
+    alignItems: 'center',
 
-      borderColor:
-        '#F3E1C6',
+    backgroundColor: '#FFF8EE',
 
-      borderRadius:
-        11,
+    borderWidth: 1,
 
-      padding:
-        10,
+    borderColor: '#F3E1C6',
 
-      marginTop:
-        17,
-    },
+    borderRadius: 11,
 
-    warningText: {
-      flex:
-        1,
+    padding: 10,
 
-      color:
-        '#82633D',
+    marginTop: 17,
+  },
 
-      fontSize:
-        8,
+  warningText: {
+    flex: 1,
 
-      lineHeight:
-        13,
+    color: '#82633D',
 
-      fontWeight:
-        '700',
+    fontSize: 8,
 
-      marginLeft:
-        7,
-    },
+    lineHeight: 13,
 
-    popupButtons: {
-      width:
-        '100%',
+    fontWeight: '700',
 
-      flexDirection:
-        'row',
+    marginLeft: 7,
+  },
 
-      marginTop:
-        20,
-    },
+  popupButtons: {
+    width: '100%',
 
-    keepOrderButton: {
-      flex:
-        1,
+    flexDirection: 'row',
 
-      minHeight:
-        48,
+    marginTop: 20,
+  },
 
-      alignItems:
-        'center',
+  keepOrderButton: {
+    flex: 1,
 
-      justifyContent:
-        'center',
+    minHeight: 48,
 
-      backgroundColor:
-        '#F7F4F6',
+    alignItems: 'center',
 
-      borderWidth:
-        1,
+    justifyContent: 'center',
 
-      borderColor:
-        '#E7E0E8',
+    backgroundColor: '#F7F4F6',
 
-      borderRadius:
-        12,
+    borderWidth: 1,
 
-      marginRight:
-        5,
-    },
+    borderColor: '#E7E0E8',
 
-    keepOrderText: {
-      color:
-        '#665D68',
+    borderRadius: 12,
 
-      fontSize:
-        9,
+    marginRight: 5,
+  },
 
-      fontWeight:
-        '900',
-    },
+  keepOrderText: {
+    color: '#665D68',
 
-    confirmCancelButton: {
-      flex:
-        1,
+    fontSize: 9,
 
-      minHeight:
-        48,
+    fontWeight: '900',
+  },
 
-      flexDirection:
-        'row',
+  confirmCancelButton: {
+    flex: 1,
 
-      alignItems:
-        'center',
+    minHeight: 48,
 
-      justifyContent:
-        'center',
+    flexDirection: 'row',
 
-      backgroundColor:
-        '#D44444',
+    alignItems: 'center',
 
-      borderRadius:
-        12,
+    justifyContent: 'center',
 
-      marginLeft:
-        5,
-    },
+    backgroundColor: '#D44444',
 
-    confirmCancelText: {
-      color:
-        '#FFFFFF',
+    borderRadius: 12,
 
-      fontSize:
-        9,
+    marginLeft: 5,
+  },
 
-      fontWeight:
-        '900',
+  confirmCancelText: {
+    color: '#FFFFFF',
 
-      marginLeft:
-        5,
-    },
+    fontSize: 9,
 
-    /* =====================================================
-     * Success
-     * ===================================================== */
+    fontWeight: '900',
 
-    successPopup: {
-      width:
-        '100%',
+    marginLeft: 5,
+  },
 
-      maxWidth:
-        370,
+  /* =====================================================
+   * Success
+   * ===================================================== */
 
-      alignItems:
-        'center',
+  successPopup: {
+    width: '100%',
 
-      backgroundColor:
-        '#FFFFFF',
+    maxWidth: 370,
 
-      borderRadius:
-        24,
+    alignItems: 'center',
 
-      padding:
-        24,
-    },
+    backgroundColor: '#FFFFFF',
 
-    successIconOuter: {
-      width:
-        80,
+    borderRadius: 24,
 
-      height:
-        80,
+    padding: 24,
+  },
 
-      alignItems:
-        'center',
+  successIconOuter: {
+    width: 80,
 
-      justifyContent:
-        'center',
+    height: 80,
 
-      backgroundColor:
-        '#EDF8F1',
+    alignItems: 'center',
 
-      borderRadius:
-        40,
-    },
+    justifyContent: 'center',
 
-    successIconInner: {
-      width:
-        55,
+    backgroundColor: '#EDF8F1',
 
-      height:
-        55,
+    borderRadius: 40,
+  },
 
-      alignItems:
-        'center',
+  successIconInner: {
+    width: 55,
 
-      justifyContent:
-        'center',
+    height: 55,
 
-      backgroundColor:
-        '#289557',
+    alignItems: 'center',
 
-      borderRadius:
-        28,
-    },
+    justifyContent: 'center',
 
-    successTitle: {
-      color:
-        '#251D29',
+    backgroundColor: '#289557',
 
-      fontSize:
-        18,
+    borderRadius: 28,
+  },
 
-      fontWeight:
-        '900',
+  successTitle: {
+    color: '#251D29',
 
-      textAlign:
-        'center',
+    fontSize: 18,
 
-      marginTop:
-        15,
-    },
+    fontWeight: '900',
 
-    successDescription: {
-      color:
-        '#7A707C',
+    textAlign: 'center',
 
-      fontSize:
-        10,
+    marginTop: 15,
+  },
 
-      lineHeight:
-        16,
+  successDescription: {
+    color: '#7A707C',
 
-      textAlign:
-        'center',
+    fontSize: 10,
 
-      marginTop:
-        7,
-    },
+    lineHeight: 16,
 
-    doneButton: {
-      width:
-        '100%',
+    textAlign: 'center',
 
-      minHeight:
-        47,
+    marginTop: 7,
+  },
 
-      alignItems:
-        'center',
+  doneButton: {
+    width: '100%',
 
-      justifyContent:
-        'center',
+    minHeight: 47,
 
-      backgroundColor:
-        '#A00B0F',
+    alignItems: 'center',
 
-      borderRadius:
-        12,
+    justifyContent: 'center',
 
-      marginTop:
-        19,
-    },
+    backgroundColor: '#A00B0F',
 
-    doneText: {
-      color:
-        '#FFFFFF',
+    borderRadius: 12,
 
-      fontSize:
-        10,
+    marginTop: 19,
+  },
 
-      fontWeight:
-        '900',
-    },
-  });
+  doneText: {
+    color: '#FFFFFF',
+
+    fontSize: 10,
+
+    fontWeight: '900',
+  },
+});

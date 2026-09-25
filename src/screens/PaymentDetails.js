@@ -2431,11 +2431,11 @@ const PaymentDetails = ({ navigation, route }) => {
 
             {!!error && !loading && (
               <View style={styles.errorCard}>
-                <Ionicons
+                {/* <Ionicons
                   name="alert-circle-outline"
                   size={22}
                   color="#A00B0F"
-                />
+                /> */}
 
                 <View
                   style={{
@@ -2483,7 +2483,7 @@ const PaymentDetails = ({ navigation, route }) => {
               payableInvoices.length > 0 &&
               overdueInvoices.length === 0 && (
                 <View style={styles.paymentDueCard}>
-                  <Ionicons name="receipt-outline" size={22} color="#A00B0F" />
+                  {/* <Ionicons name="receipt-outline" size={22} color="#A00B0F" /> */}
 
                   <View
                     style={{
@@ -2785,7 +2785,7 @@ const PaymentDetails = ({ navigation, route }) => {
               !paymentBillId &&
               !loading && (
                 <View style={styles.missingBillCard}>
-                  <Ionicons name="warning-outline" size={22} color="#B87300" />
+                  {/* <Ionicons name="warning-outline" size={22} color="#B87300" /> */}
 
                   <View
                     style={{
@@ -2813,9 +2813,9 @@ const PaymentDetails = ({ navigation, route }) => {
               paymentBillId &&
               invoiceAmount > 0 && (
                 <View style={styles.overduePayCard}>
-                  <View style={styles.overduePayIcon}>
+                  {/* <View style={styles.overduePayIcon}>
                     <Ionicons name="alert-circle" size={26} color="#B42318" />
-                  </View>
+                  </View> */}
 
                   <View
                     style={{
@@ -2897,11 +2897,11 @@ const PaymentDetails = ({ navigation, route }) => {
                         </Text>
                       </View>
 
-                      <Ionicons
+                      {/* <Ionicons
                         name="chevron-forward"
                         size={18}
                         color="#A00B0F"
-                      />
+                      /> */}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -2922,7 +2922,7 @@ const PaymentDetails = ({ navigation, route }) => {
                     },
                   ]}
                 >
-                  <Ionicons
+                  {/* <Ionicons
                     name={
                       invoicePaid
                         ? 'checkmark-circle-outline'
@@ -2930,7 +2930,7 @@ const PaymentDetails = ({ navigation, route }) => {
                     }
                     size={32}
                     color={invoicePaid ? '#278850' : '#A00B0F'}
-                  />
+                  /> */}
 
                   <Text style={styles.emptyTitle}>
                     {invoicePaid
@@ -2987,11 +2987,11 @@ const PaymentDetails = ({ navigation, route }) => {
                 },
               ]}
             >
-              <Ionicons
+              {/* <Ionicons
                 name={popupTheme.icon}
                 size={36}
                 color={popupTheme.color}
-              />
+              /> */}
             </View>
 
             <Text style={styles.popupTitle}>{popup.title}</Text>
@@ -3033,7 +3033,7 @@ const PaymentDetails = ({ navigation, route }) => {
                 },
               ]}
             >
-              <Ionicons name="checkmark-circle" size={42} color="#278850" />
+              {/* <Ionicons name="checkmark-circle" size={42} color="#278850" /> */}
             </View>
 
             <Text style={styles.popupTitle}>Weekly Bill Paid!</Text>

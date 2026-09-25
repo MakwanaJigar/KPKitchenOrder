@@ -649,15 +649,39 @@ const Profile = ({
    * PROFILE IMAGE STORAGE
    * ======================================================= */
 
+  /*
+   * Photo is stored per user so it survives logout
+   * and another account on this device never sees it.
+   */
+
+  const profileOwnerId =
+    profile?.id ??
+    profile?.customer_id ??
+    profile?.email ??
+    null;
+
+  const profileImageKey =
+    profileOwnerId
+      ? `${PROFILE_IMAGE_STORAGE_KEY}_${profileOwnerId}`
+      : null;
+
   const loadStoredProfileImage =
     async () => {
+      if (!profileImageKey) {
+        return;
+      }
+
       try {
         const stored =
           await AsyncStorage.getItem(
-            PROFILE_IMAGE_STORAGE_KEY,
+            profileImageKey,
           );
 
         if (!stored) {
+          setSelectedProfileImage(
+            null,
+          );
+
           return;
         }
 
@@ -875,10 +899,17 @@ const Profile = ({
   useEffect(
     () => {
       fetchProfile();
-
-      loadStoredProfileImage();
     },
     [],
+  );
+
+  useEffect(
+    () => {
+      loadStoredProfileImage();
+    },
+    [
+      profileImageKey,
+    ],
   );
 
   /* =======================================================
@@ -893,6 +924,7 @@ const Profile = ({
       },
       [
         loadLocalAddresses,
+        profileImageKey,
       ],
     ),
   );
@@ -1736,12 +1768,14 @@ const Profile = ({
        * supplied edit API has no image field.
        */
 
-      await AsyncStorage.setItem(
-        PROFILE_IMAGE_STORAGE_KEY,
-        JSON.stringify(
-          imageData,
-        ),
-      );
+      if (profileImageKey) {
+        await AsyncStorage.setItem(
+          profileImageKey,
+          JSON.stringify(
+            imageData,
+          ),
+        );
+      }
     };
 
   const takePhoto =
@@ -1985,7 +2019,19 @@ const Profile = ({
             uri:
               serverImage,
           }
-        : require('../assets/user-profile.jpg');
+        : null;
+
+  const userInitial =
+    String(
+      displayFirstName ||
+        profile?.name ||
+        profile?.email ||
+        'C',
+    )
+      .trim()
+      .charAt(0)
+      .toUpperCase() ||
+    'C';
 
   /* =======================================================
    * LOADING
@@ -2111,22 +2157,56 @@ const Profile = ({
               }
             >
               <View>
-                <Image
-                  source={
-                    profileImageSource
-                  }
-                  style={{
-                    width:
-                      responsive.avatarSize,
+                {profileImageSource ? (
+                  <Image
+                    source={
+                      profileImageSource
+                    }
+                    style={{
+                      width:
+                        responsive.avatarSize,
 
-                    height:
-                      responsive.avatarSize,
+                      height:
+                        responsive.avatarSize,
 
-                    borderRadius:
-                      responsive.avatarSize /
-                      2,
-                  }}
-                />
+                      borderRadius:
+                        responsive.avatarSize /
+                        2,
+                    }}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.initialAvatar,
+
+                      {
+                        width:
+                          responsive.avatarSize,
+
+                        height:
+                          responsive.avatarSize,
+
+                        borderRadius:
+                          responsive.avatarSize /
+                          2,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.initialText,
+
+                        {
+                          fontSize:
+                            responsive.avatarSize *
+                            0.42,
+                        },
+                      ]}
+                    >
+                      {userInitial}
+                    </Text>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={
@@ -3424,6 +3504,25 @@ const styles =
 
       marginBottom:
         14,
+    },
+
+    initialAvatar: {
+      backgroundColor:
+        '#A00B0F',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'center',
+    },
+
+    initialText: {
+      color:
+        '#FFFFFF',
+
+      fontWeight:
+        '900',
     },
 
     cameraButton: {
