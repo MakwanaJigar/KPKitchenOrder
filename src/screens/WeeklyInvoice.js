@@ -2182,7 +2182,7 @@ const InfoLine = ({ label, value, strong = false }) => (
         strong && {
           color: '#A9090D',
 
-          fontSize: 12,
+          fontSize: 15,
         },
       ]}
     >
@@ -2307,7 +2307,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#2C201C',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
 
@@ -2317,7 +2317,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: '#A9090D',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
 
@@ -2327,7 +2327,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#2B201C',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
 
@@ -2345,9 +2345,9 @@ const styles = StyleSheet.create({
   summaryText: {
     color: '#90817B',
 
-    fontSize: 8,
+    fontSize: 11,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     marginTop: 4,
 
@@ -2375,7 +2375,7 @@ const styles = StyleSheet.create({
   weekCountNumber: {
     color: '#A9090D',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
   },
@@ -2383,7 +2383,7 @@ const styles = StyleSheet.create({
   weekCountLabel: {
     color: '#A8766D',
 
-    fontSize: 6,
+    fontSize: 9,
 
     fontWeight: '900',
   },
@@ -2415,13 +2415,13 @@ const styles = StyleSheet.create({
   summaryBoxLabel: {
     color: '#978982',
 
-    fontSize: 6.5,
+    fontSize: 9.5,
 
     fontWeight: '900',
   },
 
   summaryBoxValue: {
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
 
@@ -2465,7 +2465,7 @@ const styles = StyleSheet.create({
   billingCycleTitle: {
     color: '#5E332D',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2473,9 +2473,9 @@ const styles = StyleSheet.create({
   billingCycleText: {
     color: '#87716B',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
-    lineHeight: 12,
+    lineHeight: 15,
 
     marginTop: 3,
   },
@@ -2493,7 +2493,7 @@ const styles = StyleSheet.create({
   listSubtitle: {
     color: '#93857F',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     marginTop: 2,
   },
@@ -2525,7 +2525,7 @@ const styles = StyleSheet.create({
 
     color: '#A9090D',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -2593,7 +2593,7 @@ const styles = StyleSheet.create({
   invoiceNumber: {
     color: '#342722',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
 
@@ -2603,7 +2603,7 @@ const styles = StyleSheet.create({
   period: {
     color: '#94857F',
 
-    fontSize: 7,
+    fontSize: 10,
 
     marginTop: 3,
   },
@@ -2617,7 +2617,7 @@ const styles = StyleSheet.create({
   smallLabel: {
     color: '#9A8A83',
 
-    fontSize: 5.5,
+    fontSize: 8.5,
 
     fontWeight: '900',
   },
@@ -2625,7 +2625,7 @@ const styles = StyleSheet.create({
   weekAmount: {
     color: '#A9090D',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -2651,7 +2651,7 @@ const styles = StyleSheet.create({
   },
 
   statusText: {
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
   },
@@ -2683,7 +2683,7 @@ const styles = StyleSheet.create({
   weekLabel: {
     color: '#958780',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '700',
   },
@@ -2713,7 +2713,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     color: '#83746E',
 
-    fontSize: 8,
+    fontSize: 11,
   },
 
   infoValue: {
@@ -2721,7 +2721,7 @@ const styles = StyleSheet.create({
 
     color: '#443630',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -2745,13 +2745,13 @@ const styles = StyleSheet.create({
   amountLabel: {
     color: '#7F706A',
 
-    fontSize: 8,
+    fontSize: 11,
   },
 
   amountValue: {
     color: '#4A3933',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2793,7 +2793,7 @@ const styles = StyleSheet.create({
   currentWeekTitle: {
     color: '#7D4A18',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
   },
@@ -2801,9 +2801,9 @@ const styles = StyleSheet.create({
   currentWeekText: {
     color: '#94714D',
 
-    fontSize: 7,
+    fontSize: 10,
 
-    lineHeight: 11,
+    lineHeight: 14,
 
     marginTop: 2,
   },
@@ -2833,7 +2833,7 @@ const styles = StyleSheet.create({
   expandText: {
     color: '#A9090D',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
   },
@@ -2879,7 +2879,7 @@ const styles = StyleSheet.create({
   orderNumber: {
     color: '#3F302A',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
   },
@@ -2887,7 +2887,7 @@ const styles = StyleSheet.create({
   orderName: {
     color: '#796B65',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     marginTop: 2,
   },
@@ -2895,7 +2895,7 @@ const styles = StyleSheet.create({
   orderQty: {
     color: '#A1928B',
 
-    fontSize: 6.5,
+    fontSize: 9.5,
 
     marginTop: 2,
   },
@@ -2903,7 +2903,7 @@ const styles = StyleSheet.create({
   orderAmount: {
     color: '#A9090D',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -2955,7 +2955,7 @@ const styles = StyleSheet.create({
   payTitle: {
     color: '#A9090D',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2963,9 +2963,9 @@ const styles = StyleSheet.create({
   paySubtitle: {
     color: '#7D6D68',
 
-    fontSize: 7.2,
+    fontSize: 10.2,
 
-    lineHeight: 11,
+    lineHeight: 14,
 
     marginTop: 3,
   },
@@ -2973,7 +2973,7 @@ const styles = StyleSheet.create({
   payAmount: {
     color: '#A9090D',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
 
@@ -3001,7 +3001,7 @@ const styles = StyleSheet.create({
   detailsLinkText: {
     color: '#A9090D',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -3033,7 +3033,7 @@ const styles = StyleSheet.create({
   showMoreText: {
     color: '#A9090D',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -3063,9 +3063,9 @@ const styles = StyleSheet.create({
 
     color: '#8C3436',
 
-    fontSize: 9,
+    fontSize: 12,
 
-    lineHeight: 14,
+    lineHeight: 17,
 
     marginLeft: 8,
   },
@@ -3083,7 +3083,7 @@ const styles = StyleSheet.create({
   loadingTitle: {
     color: '#2C201C',
 
-    fontSize: 16,
+    fontSize: 19,
 
     fontWeight: '900',
 
@@ -3093,7 +3093,7 @@ const styles = StyleSheet.create({
   loadingSubtitle: {
     color: '#91847E',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     textAlign: 'center',
 
@@ -3113,7 +3113,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#362A25',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '900',
 
@@ -3125,9 +3125,9 @@ const styles = StyleSheet.create({
 
     color: '#91847E',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
-    lineHeight: 14,
+    lineHeight: 17,
 
     textAlign: 'center',
 
@@ -3153,7 +3153,7 @@ const styles = StyleSheet.create({
   showAllButtonText: {
     color: '#FFF',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
   },
@@ -3215,7 +3215,7 @@ const styles = StyleSheet.create({
   alertEyebrow: {
     color: '#A9090D',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
 
@@ -3227,7 +3227,7 @@ const styles = StyleSheet.create({
   alertTitle: {
     color: '#2C201C',
 
-    fontSize: 19,
+    fontSize: 22,
 
     fontWeight: '900',
 
@@ -3241,9 +3241,9 @@ const styles = StyleSheet.create({
 
     color: '#796B66',
 
-    fontSize: 9,
+    fontSize: 12,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     textAlign: 'center',
 
@@ -3291,9 +3291,9 @@ const styles = StyleSheet.create({
 
     color: '#876A3A',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
-    lineHeight: 12,
+    lineHeight: 15,
 
     marginLeft: 7,
   },
@@ -3329,7 +3329,7 @@ const styles = StyleSheet.create({
   cancelText: {
     color: '#73645E',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '900',
   },
@@ -3355,7 +3355,7 @@ const styles = StyleSheet.create({
   continueText: {
     color: '#FFF',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '900',
 
@@ -3401,7 +3401,7 @@ const styles = StyleSheet.create({
   filterTitle: {
     color: '#2D211D',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
   },
@@ -3409,7 +3409,7 @@ const styles = StyleSheet.create({
   filterSubtitle: {
     color: '#8F817B',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     marginTop: 4,
 
@@ -3445,7 +3445,7 @@ const styles = StyleSheet.create({
   filterOptionTitle: {
     color: '#4A3B35',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -3453,7 +3453,7 @@ const styles = StyleSheet.create({
   filterOptionSubtitle: {
     color: '#91837D',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     marginTop: 3,
   },
@@ -3475,7 +3475,7 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: '#FFF',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },

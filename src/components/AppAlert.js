@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   iconSymbol: {
     color: '#FFFFFF',
 
-    fontSize: 22,
+    fontSize: 25,
 
     fontWeight: '900',
   },
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   title: {
     color: COLORS.title,
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '800',
 
@@ -448,9 +448,9 @@ const styles = StyleSheet.create({
   message: {
     color: COLORS.message,
 
-    fontSize: 14,
+    fontSize: 17,
 
-    lineHeight: 20,
+    lineHeight: 23,
 
     textAlign: 'center',
   },
@@ -516,7 +516,7 @@ const styles = StyleSheet.create({
   },
 
   buttonText: {
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '800',
   },

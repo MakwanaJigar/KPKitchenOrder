@@ -680,9 +680,9 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 32,
+    fontSize: 35,
 
-    lineHeight: 34,
+    lineHeight: 37,
 
     fontWeight: '400',
   },
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
   },
@@ -752,7 +752,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#111111',
 
-    fontSize: 27,
+    fontSize: 30,
 
     fontWeight: '800',
 
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
   },
 
   titleSmall: {
-    fontSize: 24,
+    fontSize: 27,
   },
 
   subtitle: {
@@ -774,17 +774,17 @@ const styles = StyleSheet.create({
 
     color: '#777777',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 20,
+    lineHeight: 23,
 
     textAlign: 'center',
   },
 
   subtitleSmall: {
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     marginBottom: 23,
   },
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
 
     color: '#202020',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '600',
   },
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
 
     color: '#222222',
 
-    fontSize: 14,
+    fontSize: 17,
   },
 
   submitButton: {
@@ -888,7 +888,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '800',
 
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '700',
   },
@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '700',
   },
@@ -938,13 +938,13 @@ const styles = StyleSheet.create({
   loginQuestion: {
     color: '#555555',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   loginText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -988,7 +988,7 @@ const styles = StyleSheet.create({
   helpIcon: {
     color: '#FFFFFF',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '800',
   },
@@ -998,9 +998,9 @@ const styles = StyleSheet.create({
 
     color: '#765E5D',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 16,
+    lineHeight: 19,
   },
 
   footerContainer: {
@@ -1016,7 +1016,7 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#A0A0A0',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   footerSeparator: {

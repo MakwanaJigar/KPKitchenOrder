@@ -1582,7 +1582,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#17121E',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
   },
@@ -1590,9 +1590,9 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     color: '#97909E',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 3,
   },
@@ -1638,7 +1638,7 @@ const styles = StyleSheet.create({
   },
 
   socketStatusText: {
-    fontSize: 6.5,
+    fontSize: 9.5,
 
     fontWeight: '900',
 
@@ -1694,7 +1694,7 @@ const styles = StyleSheet.create({
   markAllIcon: {
     color: '#A00B0F',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -1704,7 +1704,7 @@ const styles = StyleSheet.create({
   markAllText: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -1740,9 +1740,9 @@ const styles = StyleSheet.create({
   deleteAllIcon: {
     color: '#D34747',
 
-    fontSize: 17,
+    fontSize: 20,
 
-    lineHeight: 17,
+    lineHeight: 20,
 
     fontWeight: '900',
 
@@ -1752,7 +1752,7 @@ const styles = StyleSheet.create({
   deleteAllText: {
     color: '#D34747',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -1860,9 +1860,9 @@ const styles = StyleSheet.create({
 
     color: '#17121E',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     fontWeight: '800',
 
@@ -1884,9 +1884,9 @@ const styles = StyleSheet.create({
   notificationMessage: {
     color: '#6F6773',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     marginTop: 5,
   },
@@ -1906,7 +1906,7 @@ const styles = StyleSheet.create({
 
     color: '#AAA1AE',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '600',
 
@@ -1916,7 +1916,7 @@ const styles = StyleSheet.create({
   readMoreText: {
     color: '#A00B0F',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '800',
   },
@@ -1934,7 +1934,7 @@ const styles = StyleSheet.create({
   loadingTitle: {
     color: '#17121E',
 
-    fontSize: 16,
+    fontSize: 19,
 
     fontWeight: '800',
 
@@ -1944,7 +1944,7 @@ const styles = StyleSheet.create({
   loadingDescription: {
     color: '#97909E',
 
-    fontSize: 11,
+    fontSize: 14,
 
     marginTop: 6,
   },
@@ -1988,7 +1988,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#17121E',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
 
@@ -2002,9 +2002,9 @@ const styles = StyleSheet.create({
 
     color: '#8D8592',
 
-    fontSize: 11,
+    fontSize: 14,
 
-    lineHeight: 17,
+    lineHeight: 20,
 
     textAlign: 'center',
 
@@ -2032,7 +2032,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '800',
 
@@ -2130,7 +2130,7 @@ const styles = StyleSheet.create({
   incomingAppName: {
     color: '#7C7278',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '800',
 
@@ -2142,15 +2142,15 @@ const styles = StyleSheet.create({
   incomingNow: {
     color: '#AAA0A5',
 
-    fontSize: 8,
+    fontSize: 11,
   },
 
   incomingTitle: {
     color: '#21191D',
 
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 17,
+    lineHeight: 20,
 
     fontWeight: '900',
   },
@@ -2158,9 +2158,9 @@ const styles = StyleSheet.create({
   incomingMessage: {
     color: '#70666C',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
-    lineHeight: 14,
+    lineHeight: 17,
 
     marginTop: 2,
   },
@@ -2178,9 +2178,9 @@ const styles = StyleSheet.create({
   incomingCloseText: {
     color: '#92888D',
 
-    fontSize: 21,
+    fontSize: 24,
 
-    lineHeight: 22,
+    lineHeight: 25,
   },
 
   deleteOverlay: {
@@ -2248,9 +2248,9 @@ const styles = StyleSheet.create({
   deletePopupIcon: {
     color: '#FFFFFF',
 
-    fontSize: 31,
+    fontSize: 34,
 
-    lineHeight: 32,
+    lineHeight: 35,
 
     fontWeight: '500',
   },
@@ -2258,7 +2258,7 @@ const styles = StyleSheet.create({
   deletePopupTitle: {
     color: '#21191D',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
 
@@ -2270,9 +2270,9 @@ const styles = StyleSheet.create({
 
     color: '#7A7075',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -2310,7 +2310,7 @@ const styles = StyleSheet.create({
   deleteCancelText: {
     color: '#70656B',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -2334,7 +2334,7 @@ const styles = StyleSheet.create({
   deleteConfirmText: {
     color: '#FFFFFF',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -2408,7 +2408,7 @@ const styles = StyleSheet.create({
   detailSmallTitle: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -2418,9 +2418,9 @@ const styles = StyleSheet.create({
   detailDate: {
     color: '#94898F',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     marginTop: 3,
   },
@@ -2442,9 +2442,9 @@ const styles = StyleSheet.create({
   detailCloseText: {
     color: '#756B70',
 
-    fontSize: 23,
+    fontSize: 26,
 
-    lineHeight: 25,
+    lineHeight: 28,
   },
 
   detailDivider: {
@@ -2460,9 +2460,9 @@ const styles = StyleSheet.create({
   detailTitle: {
     color: '#21191D',
 
-    fontSize: 18,
+    fontSize: 21,
 
-    lineHeight: 25,
+    lineHeight: 28,
 
     fontWeight: '900',
   },
@@ -2470,9 +2470,9 @@ const styles = StyleSheet.create({
   detailMessage: {
     color: '#655B61',
 
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 20,
+    lineHeight: 23,
 
     marginTop: 10,
   },
@@ -2496,7 +2496,7 @@ const styles = StyleSheet.create({
   detailDoneText: {
     color: '#FFFFFF',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
   },

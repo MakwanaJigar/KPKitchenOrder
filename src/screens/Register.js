@@ -1014,7 +1014,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#172A46',
 
-    fontSize: 25,
+    fontSize: 28,
 
     fontWeight: '800',
 
@@ -1024,9 +1024,9 @@ const styles = StyleSheet.create({
   subtitle: {
     color: '#8A8A8A',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 19,
+    lineHeight: 22,
 
     textAlign: 'center',
 
@@ -1046,7 +1046,7 @@ const styles = StyleSheet.create({
   label: {
     color: '#25344A',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '600',
 
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
   requiredStar: {
     color: '#E53935',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '800',
   },
@@ -1099,7 +1099,7 @@ const styles = StyleSheet.create({
 
     color: '#182230',
 
-    fontSize: 14,
+    fontSize: 17,
 
     paddingVertical: 0,
   },
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
   passwordHint: {
     color: '#9198A3',
 
-    fontSize: 10,
+    fontSize: 13,
 
     marginTop: 6,
 
@@ -1179,7 +1179,7 @@ const styles = StyleSheet.create({
   registerButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '800',
   },
@@ -1195,7 +1195,7 @@ const styles = StyleSheet.create({
   buttonLoadingText: {
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '700',
 
@@ -1219,13 +1219,13 @@ const styles = StyleSheet.create({
   loginText: {
     color: '#828A96',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   loginLink: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
   },

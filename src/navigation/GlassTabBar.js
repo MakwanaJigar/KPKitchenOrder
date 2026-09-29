@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   tabLabel: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '600',
 
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   popupTitle: {
     color: '#211717',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '900',
 
@@ -571,9 +571,9 @@ const styles = StyleSheet.create({
 
     color: '#7D6C68',
 
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     fontWeight: '500',
 
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#786561',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -661,7 +661,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
   loginArrow: {
     color: '#FFFFFF',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '700',
 

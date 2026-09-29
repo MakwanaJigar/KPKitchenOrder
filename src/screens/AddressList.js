@@ -1242,7 +1242,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -1256,7 +1256,7 @@ const styles =
         '#2C211D',
 
       fontSize:
-        22,
+        25,
 
       fontWeight:
         '900',
@@ -1301,7 +1301,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        11,
+        14,
 
       fontWeight:
         '900',
@@ -1312,7 +1312,7 @@ const styles =
         '#F6DDDE',
 
       fontSize:
-        8,
+        11,
 
       marginTop:
         3,
@@ -1337,7 +1337,7 @@ const styles =
 
     sectionTitle: {
       fontSize:
-        16,
+        19,
 
       fontWeight:
         '900',
@@ -1459,7 +1459,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        6,
+        9,
 
       fontWeight:
         '900',
@@ -1467,7 +1467,7 @@ const styles =
 
     name: {
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '700',
@@ -1481,10 +1481,10 @@ const styles =
         '#877972',
 
       fontSize:
-        8,
+        11,
 
       lineHeight:
-        12,
+        15,
 
       marginTop:
         3,
@@ -1560,7 +1560,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -1585,7 +1585,7 @@ const styles =
         '#D44646',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -1622,7 +1622,7 @@ const styles =
         '900',
 
       fontSize:
-        10,
+        13,
     },
 
     empty: {

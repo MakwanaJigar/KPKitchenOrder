@@ -80,10 +80,16 @@ const createEmptyAddress = index => ({
       ? 'Home'
       : 'Work',
 
-  address_line:
+  street_address:
     '',
 
-  pincode:
+  suburb:
+    '',
+
+  city:
+    '',
+
+  postcode:
     '',
 
   is_default:
@@ -94,30 +100,62 @@ const createEmptyAddress = index => ({
  * ADDRESS HELPERS
  * ========================================================= */
 
+const getStreetAddress = address =>
+  String(
+    address?.street_address ??
+      address?.addressLine1 ??
+      address?.address_line_1 ??
+      address?.address_line ??
+      '',
+  ).trim();
+
+const getSuburb = address =>
+  String(
+    address?.suburb ??
+      address?.suburbs ??
+      '',
+  ).trim();
+
+const getPostcode = address =>
+  String(
+    address?.postcode ??
+      address?.pincode ??
+      '',
+  ).trim();
+
 const addressToFullLine = address => {
   if (!address) {
     return '';
   }
 
-  if (address.address_line) {
-    return String(
-      address.address_line,
+  const street =
+    getStreetAddress(
+      address,
+    );
+
+  const suburb =
+    getSuburb(
+      address,
+    );
+
+  const city =
+    String(
+      address.city ??
+        '',
     ).trim();
-  }
 
   return [
-    address.addressLine1 ??
-      address.address_line_1,
+    street,
 
-    address.addressLine2 ??
-      address.address_line_2,
+    suburb,
 
-    address.suburb ??
-      address.city,
+    city &&
+    city.toLowerCase() !==
+      suburb.toLowerCase()
+      ? city
+      : '',
 
     address.state,
-
-    address.country,
   ]
     .filter(Boolean)
     .map(value =>
@@ -128,37 +166,65 @@ const addressToFullLine = address => {
 };
 
 /* =========================================================
- * CONVERT LOCAL ADDRESS -> API ADDRESS
+ * CONVERT FORM ADDRESS -> API ADDRESS
  * ========================================================= */
 
-const localAddressToApiAddress =
-  address => ({
-    type:
-      String(
-        address?.type ??
-          address?.address_type ??
-          'Home',
-      ).trim(),
+const isServerId = id =>
+  id !== undefined &&
+  id !== null &&
+  /^\d+$/.test(
+    String(id),
+  );
 
-    address_line:
-      addressToFullLine(
-        address,
-      ),
+const formAddressToApiAddress =
+  address => {
+    const apiAddress = {
+      type:
+        String(
+          address?.type ??
+            'Home',
+        ).trim(),
 
-    pincode:
-      String(
-        address?.pincode ??
-          address?.postcode ??
-          '',
-      ).trim(),
+      street_address:
+        getStreetAddress(
+          address,
+        ),
 
-    is_default:
-      Boolean(
-        address?.is_default ??
-          address?.isDefault ??
-          false,
-      ),
-  });
+      suburb:
+        getSuburb(
+          address,
+        ),
+
+      city:
+        String(
+          address?.city ??
+            '',
+        ).trim(),
+
+      postcode:
+        getPostcode(
+          address,
+        ),
+
+      is_default:
+        Boolean(
+          address?.is_default,
+        ),
+    };
+
+    if (
+      isServerId(
+        address?.id,
+      )
+    ) {
+      apiAddress.id =
+        Number(
+          address.id,
+        );
+    }
+
+    return apiAddress;
+  };
 
 /* =========================================================
  * CONVERT API ADDRESS -> LOCAL ADDRESS
@@ -196,12 +262,15 @@ const apiAddressToLocalAddress = (
     profile?.phone ??
     '',
 
+  street_address:
+    getStreetAddress(
+      address,
+    ),
+
   addressLine1:
-    address?.addressLine1 ??
-    address?.address_line_1 ??
-    address?.address_line ??
-    address?.address ??
-    '',
+    getStreetAddress(
+      address,
+    ),
 
   addressLine2:
     address?.addressLine2 ??
@@ -209,31 +278,32 @@ const apiAddressToLocalAddress = (
     '',
 
   suburb:
-    address?.suburb ??
-    address?.city ??
-    '',
+    getSuburb(
+      address,
+    ) ||
+    String(
+      address?.city ??
+        '',
+    ),
 
   city:
     address?.city ??
-    address?.suburb ??
-    '',
+    getSuburb(
+      address,
+    ),
 
   state:
     address?.state ??
     '',
 
   postcode:
-    String(
-      address?.postcode ??
-        address?.pincode ??
-        '',
+    getPostcode(
+      address,
     ),
 
   pincode:
-    String(
-      address?.pincode ??
-        address?.postcode ??
-        '',
+    getPostcode(
+      address,
     ),
 
   country:
@@ -417,13 +487,8 @@ const Profile = ({
    * ======================================================= */
 
   const [
-    firstName,
-    setFirstName,
-  ] = useState('');
-
-  const [
-    lastName,
-    setLastName,
+    name,
+    setName,
   ] = useState('');
 
   const [
@@ -935,53 +1000,11 @@ const Profile = ({
 
   const populateEditForm =
     async () => {
-      let resolvedFirstName =
-        profile?.first_name ??
-        profile?.firstName ??
-        '';
-
-      let resolvedLastName =
-        profile?.last_name ??
-        profile?.lastName ??
-        '';
-
-      if (
-        !resolvedFirstName &&
-        profile?.name
-      ) {
-        const parts =
-          String(
-            profile.name,
-          )
-            .trim()
-            .split(
-              /\s+/,
-            );
-
-        resolvedFirstName =
-          parts[0] ??
-          '';
-
-        resolvedLastName =
-          parts
-            .slice(
-              1,
-            )
-            .join(
-              ' ',
-            );
-      }
-
-      setFirstName(
+      setName(
         String(
-          resolvedFirstName,
-        ),
-      );
-
-      setLastName(
-        String(
-          resolvedLastName,
-        ),
+          profile?.name ??
+            '',
+        ).trim(),
       );
 
       setPhone(
@@ -1030,16 +1053,25 @@ const Profile = ({
                 address?.type ??
                 'Home',
 
-              address_line:
-                addressToFullLine(
+              street_address:
+                getStreetAddress(
                   address,
                 ),
 
-              pincode:
+              suburb:
+                getSuburb(
+                  address,
+                ),
+
+              city:
                 String(
-                  address?.pincode ??
-                    address?.postcode ??
+                  address?.city ??
                     '',
+                ),
+
+              postcode:
+                getPostcode(
+                  address,
                 ),
 
               is_default:
@@ -1182,22 +1214,11 @@ const Profile = ({
   const validate =
     () => {
       if (
-        !firstName.trim()
+        !name.trim()
       ) {
         AppAlert.alert(
           'Required',
-          'Please enter your first name.',
-        );
-
-        return false;
-      }
-
-      if (
-        !lastName.trim()
-      ) {
-        AppAlert.alert(
-          'Required',
-          'Please enter your last name.',
+          'Please enter your name.',
         );
 
         return false;
@@ -1233,36 +1254,46 @@ const Profile = ({
         const address =
           editAddresses[index];
 
-        if (
-          !String(
-            address?.address_line ??
-              '',
-          ).trim()
+        const requiredFields = [
+          [
+            'street_address',
+            'street address',
+          ],
+          [
+            'suburb',
+            'suburb',
+          ],
+          [
+            'city',
+            'city',
+          ],
+          [
+            'postcode',
+            'postcode',
+          ],
+        ];
+
+        for (
+          const [
+            field,
+            label,
+          ] of requiredFields
         ) {
-          AppAlert.alert(
-            'Address Required',
-            `Please enter address ${
-              index + 1
-            }.`,
-          );
+          if (
+            !String(
+              address?.[field] ??
+                '',
+            ).trim()
+          ) {
+            AppAlert.alert(
+              'Address Required',
+              `Please enter ${label} for address ${
+                index + 1
+              }.`,
+            );
 
-          return false;
-        }
-
-        if (
-          !String(
-            address?.pincode ??
-              '',
-          ).trim()
-        ) {
-          AppAlert.alert(
-            'Pincode Required',
-            `Please enter pincode for address ${
-              index + 1
-            }.`,
-          );
-
-          return false;
+            return false;
+          }
         }
       }
 
@@ -1343,38 +1374,12 @@ const Profile = ({
 
         const addressesPayload =
           editAddresses.map(
-            address => ({
-              type:
-                String(
-                  address?.type ??
-                    'Home',
-                ).trim(),
-
-              address_line:
-                String(
-                  address?.address_line ??
-                    '',
-                ).trim(),
-
-              pincode:
-                String(
-                  address?.pincode ??
-                    '',
-                ).trim(),
-
-              is_default:
-                Boolean(
-                  address?.is_default,
-                ),
-            }),
+            formAddressToApiAddress,
           );
 
         const payload = {
-          first_name:
-            firstName.trim(),
-
-          last_name:
-            lastName.trim(),
+          name:
+            name.trim(),
 
           phone:
             phone.trim(),
@@ -1546,121 +1551,57 @@ const Profile = ({
         }
 
         /* =============================================
+         * PREFER THE CUSTOMER RETURNED BY THE API,
+         * FALL BACK TO WHAT WAS SENT
+         * ============================================= */
+
+        const updatedProfile = {
+          ...profile,
+          ...payload,
+          ...(result?.customer ??
+            {}),
+        };
+
+        delete updatedProfile.old_password;
+        delete updatedProfile.new_password;
+        delete updatedProfile.new_password_confirmation;
+
+        const updatedAddresses =
+          Array.isArray(
+            result?.customer?.addresses,
+          ) &&
+          result.customer.addresses.length > 0
+            ? result.customer.addresses
+            : addressesPayload.map(
+                (
+                  item,
+                  index,
+                ) => ({
+                  ...item,
+
+                  id:
+                    item.id ??
+                    editAddresses[index]
+                      ?.id ??
+                    `address-${Date.now()}-${index}`,
+                }),
+              );
+
+        /* =============================================
          * SAVE SAME ADDRESSES FOR ADDRESS LIST
          * ============================================= */
 
-        const localList =
-          addressesPayload.map(
-            (
-              item,
-              index,
-            ) => ({
-              id:
-                editAddresses[index]
-                  ?.id ??
-                `address-${Date.now()}-${index}`,
-
-              type:
-                item.type,
-
-              name:
-                `${firstName.trim()} ${lastName.trim()}`.trim(),
-
-              phone:
-                phone.trim(),
-
-              addressLine1:
-                item.address_line,
-
-              addressLine2:
-                '',
-
-              suburb:
-                '',
-
-              city:
-                '',
-
-              state:
-                '',
-
-              postcode:
-                item.pincode,
-
-              pincode:
-                item.pincode,
-
-              country:
-                'Australia',
-
-              deliveryInstructions:
-                '',
-
-              isDefault:
-                item.is_default,
-
-              is_default:
-                item.is_default,
-
-              address_line:
-                item.address_line,
-            }),
-          );
-
         await saveAddressesToStorage(
-          localList,
-          {
-            ...profile,
-
-            first_name:
-              firstName.trim(),
-
-            last_name:
-              lastName.trim(),
-
-            phone:
-              phone.trim(),
-          },
+          updatedAddresses,
+          updatedProfile,
         );
 
-        const defaultAddress =
-          addressesPayload.find(
-            item =>
-              item.is_default,
-          ) ??
-          addressesPayload[0];
+        setProfile({
+          ...updatedProfile,
 
-        setProfile(
-          current => ({
-            ...current,
-
-            first_name:
-              firstName.trim(),
-
-            last_name:
-              lastName.trim(),
-
-            name:
-              `${firstName.trim()} ${lastName.trim()}`.trim(),
-
-            phone:
-              phone.trim(),
-
-            email:
-              email.trim(),
-
-            addresses:
-              addressesPayload,
-
-            address:
-              defaultAddress?.address_line ??
-              '',
-
-            pincode:
-              defaultAddress?.pincode ??
-              '',
-          }),
-        );
+          addresses:
+            updatedAddresses,
+        });
 
         setEditProfileVisible(
           false,
@@ -1956,17 +1897,11 @@ const Profile = ({
    * DISPLAY
    * ======================================================= */
 
-  const displayFirstName =
-    profile?.first_name ??
-    '';
-
-  const displayLastName =
-    profile?.last_name ??
-    '';
-
   const userName =
-    `${displayFirstName} ${displayLastName}`.trim() ||
-    profile?.name ||
+    String(
+      profile?.name ??
+        '',
+    ).trim() ||
     'Customer';
 
   const userEmail =
@@ -1990,16 +1925,15 @@ const Profile = ({
           defaultAddress,
         )
       : (
-          typeof profile?.address ===
-            'string'
-            ? profile.address
-            : 'No address available'
+          addressToFullLine(
+            profile,
+          ) ||
+          'No address available'
         );
 
   const userPincode =
     defaultAddress?.postcode ??
-    defaultAddress?.pincode ??
-    profile?.pincode ??
+    profile?.postcode ??
     '';
 
   const serverImage =
@@ -2023,8 +1957,7 @@ const Profile = ({
 
   const userInitial =
     String(
-      displayFirstName ||
-        profile?.name ||
+      profile?.name ||
         profile?.email ||
         'C',
     )
@@ -2658,23 +2591,14 @@ const Profile = ({
                 }
               >
                 <EditInput
-                  label="First Name"
+                  label="Full Name"
                   value={
-                    firstName
+                    name
                   }
                   onChangeText={
-                    setFirstName
+                    setName
                   }
-                />
-
-                <EditInput
-                  label="Last Name"
-                  value={
-                    lastName
-                  }
-                  onChangeText={
-                    setLastName
-                  }
+                  autoCapitalize="words"
                 />
 
                 <EditInput
@@ -2795,29 +2719,58 @@ const Profile = ({
                       />
 
                       <EditInput
-                        label="Address"
+                        label="Street Address"
                         value={
-                          address.address_line
+                          address.street_address
                         }
                         onChangeText={value =>
                           updateAddressField(
                             index,
-                            'address_line',
+                            'street_address',
                             value,
                           )
                         }
-                        multiline
                       />
 
                       <EditInput
-                        label="Pincode"
+                        label="Suburb"
                         value={
-                          address.pincode
+                          address.suburb
                         }
                         onChangeText={value =>
                           updateAddressField(
                             index,
-                            'pincode',
+                            'suburb',
+                            value,
+                          )
+                        }
+                        autoCapitalize="words"
+                      />
+
+                      <EditInput
+                        label="City"
+                        value={
+                          address.city
+                        }
+                        onChangeText={value =>
+                          updateAddressField(
+                            index,
+                            'city',
+                            value,
+                          )
+                        }
+                        autoCapitalize="words"
+                      />
+
+                      <EditInput
+                        label="Postcode"
+                        value={
+                          address.postcode
+                        }
+                        onChangeText={value =>
+                          updateAddressField(
+                            index,
+                            'postcode',
                             value,
                           )
                         }
@@ -3457,7 +3410,7 @@ const styles =
 
     eyebrow: {
       fontSize:
-        8,
+        11,
 
       color:
         '#A00B0F',
@@ -3471,7 +3424,7 @@ const styles =
 
     title: {
       fontSize:
-        23,
+        26,
 
       fontWeight:
         '900',
@@ -3581,7 +3534,7 @@ const styles =
 
     name: {
       fontSize:
-        17,
+        20,
 
       fontWeight:
         '900',
@@ -3592,7 +3545,7 @@ const styles =
 
     email: {
       fontSize:
-        9,
+        12,
 
       color:
         '#8E817B',
@@ -3603,7 +3556,7 @@ const styles =
 
     phone: {
       fontSize:
-        8,
+        11,
 
       color:
         '#A00B0F',
@@ -3668,7 +3621,7 @@ const styles =
 
     sectionHeading: {
       fontSize:
-        15,
+        18,
 
       fontWeight:
         '900',
@@ -3685,7 +3638,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '900',
@@ -3716,7 +3669,7 @@ const styles =
         '#8C7C76',
 
       fontSize:
-        9,
+        12,
     },
 
     infoValue: {
@@ -3724,7 +3677,7 @@ const styles =
         '#3A2D28',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '700',
@@ -3771,7 +3724,7 @@ const styles =
 
     addressType: {
       fontSize:
-        10,
+        13,
 
       fontWeight:
         '900',
@@ -3799,7 +3752,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        6,
+        9,
 
       fontWeight:
         '900',
@@ -3810,10 +3763,10 @@ const styles =
         '#867871',
 
       fontSize:
-        8,
+        11,
 
       lineHeight:
-        12,
+        15,
 
       marginTop:
         3,
@@ -3867,7 +3820,7 @@ const styles =
 
     menuTitle: {
       fontSize:
-        10,
+        13,
 
       fontWeight:
         '900',
@@ -3875,7 +3828,7 @@ const styles =
 
     menuSubtitle: {
       fontSize:
-        8,
+        11,
 
       color:
         '#92837C',
@@ -3970,7 +3923,7 @@ const styles =
 
     modalTitle: {
       fontSize:
-        19,
+        22,
 
       fontWeight:
         '900',
@@ -3987,7 +3940,7 @@ const styles =
         '#82736D',
 
       fontSize:
-        9,
+        12,
 
       textAlign:
         'center',
@@ -4038,7 +3991,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        22,
+        25,
 
       marginRight:
         10,
@@ -4161,7 +4114,7 @@ const styles =
 
     closeText: {
       fontSize:
-        24,
+        27,
 
       color:
         '#6E625D',
@@ -4169,7 +4122,7 @@ const styles =
 
     editHeaderTitle: {
       fontSize:
-        19,
+        22,
 
       fontWeight:
         '900',
@@ -4193,7 +4146,7 @@ const styles =
         '#574943',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '800',
@@ -4222,7 +4175,7 @@ const styles =
         11,
 
       fontSize:
-        10,
+        13,
     },
 
     passwordWrap: {
@@ -4264,7 +4217,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        7,
+        10,
 
       fontWeight:
         '900',
@@ -4300,7 +4253,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -4347,7 +4300,7 @@ const styles =
         '#D34444',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -4369,7 +4322,7 @@ const styles =
         '800',
 
       fontSize:
-        9,
+        12,
     },
 
     saveButton: {
@@ -4425,7 +4378,7 @@ const styles =
         65,
 
       lineHeight:
-        65,
+        68,
 
       borderRadius:
         33,
@@ -4443,7 +4396,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        30,
+        33,
 
       fontWeight:
         '900',

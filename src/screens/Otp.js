@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
   screenLoaderText: {
     color: '#766863',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
 
@@ -1119,9 +1119,9 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 32,
+    fontSize: 35,
 
-    lineHeight: 34,
+    lineHeight: 37,
 
     fontWeight: '400',
   },
@@ -1131,7 +1131,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
   },
@@ -1273,7 +1273,7 @@ const styles = StyleSheet.create({
   codeBadgeText: {
     color: '#FFFFFF',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '800',
   },
@@ -1281,7 +1281,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#111111',
 
-    fontSize: 27,
+    fontSize: 30,
 
     fontWeight: '800',
 
@@ -1289,7 +1289,7 @@ const styles = StyleSheet.create({
   },
 
   titleSmall: {
-    fontSize: 24,
+    fontSize: 27,
   },
 
   subtitle: {
@@ -1297,17 +1297,17 @@ const styles = StyleSheet.create({
 
     color: '#777777',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 19,
+    lineHeight: 22,
 
     textAlign: 'center',
   },
 
   subtitleSmall: {
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 18,
+    lineHeight: 21,
   },
 
   emailText: {
@@ -1319,9 +1319,9 @@ const styles = StyleSheet.create({
 
     color: '#252525',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     fontWeight: '800',
 
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
     fontWeight: '700',
 
@@ -1365,7 +1365,7 @@ const styles = StyleSheet.create({
 
     color: '#191919',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '800',
 
@@ -1375,7 +1375,7 @@ const styles = StyleSheet.create({
   otpInputSmall: {
     borderRadius: 10,
 
-    fontSize: 18,
+    fontSize: 21,
   },
 
   otpInputFilled: {
@@ -1389,9 +1389,9 @@ const styles = StyleSheet.create({
 
     color: '#8B8B8B',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     textAlign: 'center',
   },
@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
   verifyButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '800',
   },
@@ -1447,7 +1447,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '700',
   },
@@ -1465,7 +1465,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '700',
   },
@@ -1485,13 +1485,13 @@ const styles = StyleSheet.create({
   resendQuestion: {
     color: '#555555',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   timerText: {
     color: '#777777',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
   },
@@ -1499,7 +1499,7 @@ const styles = StyleSheet.create({
   resendButtonText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -1515,7 +1515,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
   },
@@ -1559,7 +1559,7 @@ const styles = StyleSheet.create({
   helpIcon: {
     color: '#FFFFFF',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '800',
   },
@@ -1569,9 +1569,9 @@ const styles = StyleSheet.create({
 
     color: '#765E5D',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 16,
+    lineHeight: 19,
   },
 
   footerContainer: {
@@ -1587,7 +1587,7 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#A0A0A0',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   footerSeparator: {

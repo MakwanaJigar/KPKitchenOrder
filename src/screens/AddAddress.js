@@ -1415,7 +1415,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        8,
+        11,
 
       fontWeight:
         '900',
@@ -1426,7 +1426,7 @@ const styles =
 
     title: {
       fontSize:
-        21,
+        24,
 
       fontWeight:
         '900',
@@ -1457,7 +1457,7 @@ const styles =
 
     cardTitle: {
       fontSize:
-        15,
+        18,
 
       fontWeight:
         '900',
@@ -1516,7 +1516,7 @@ const styles =
         '#685A54',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '900',
@@ -1537,7 +1537,7 @@ const styles =
         '#554741',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '800',
@@ -1566,7 +1566,7 @@ const styles =
         11,
 
       fontSize:
-        10,
+        13,
 
       color:
         '#332720',
@@ -1582,7 +1582,7 @@ const styles =
         '#D74747',
 
       fontSize:
-        7,
+        10,
 
       marginTop:
         4,
@@ -1644,7 +1644,7 @@ const styles =
         '#3A2D27',
 
       fontSize:
-        9,
+        12,
 
       fontWeight:
         '900',
@@ -1655,7 +1655,7 @@ const styles =
         '#94847E',
 
       fontSize:
-        7,
+        10,
 
       marginTop:
         3,
@@ -1689,6 +1689,6 @@ const styles =
         '900',
 
       fontSize:
-        10,
+        13,
     },
   });

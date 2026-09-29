@@ -1942,7 +1942,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#89766B',
 
-    fontSize: 10,
+    fontSize: 13,
 
     marginTop: 10,
   },
@@ -1986,17 +1986,17 @@ const styles = StyleSheet.create({
   },
 
   backText: {
-    fontSize: 28,
+    fontSize: 31,
 
     color: '#8B210C',
 
-    lineHeight: 30,
+    lineHeight: 33,
   },
 
   eyebrow: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -2006,7 +2006,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#26170F',
 
-    fontSize: 22,
+    fontSize: 25,
 
     fontWeight: '900',
 
@@ -2030,7 +2030,7 @@ const styles = StyleSheet.create({
   deliveryLabel: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -2048,7 +2048,7 @@ const styles = StyleSheet.create({
   deliveryChange: {
     color: '#A00B0F',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -2096,7 +2096,7 @@ const styles = StyleSheet.create({
   addressSheetSubtitle: {
     color: '#8F817B',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     marginTop: 3,
 
@@ -2136,7 +2136,7 @@ const styles = StyleSheet.create({
   addressOptionType: {
     color: '#39261C',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
   },
@@ -2144,7 +2144,7 @@ const styles = StyleSheet.create({
   addressDefaultTag: {
     color: '#278850',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '800',
   },
@@ -2152,9 +2152,9 @@ const styles = StyleSheet.create({
   addressOptionText: {
     color: '#6F5E55',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 14,
+    lineHeight: 17,
 
     marginTop: 3,
   },
@@ -2210,7 +2210,7 @@ const styles = StyleSheet.create({
   addAddressText: {
     color: '#A00B0F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
   },
@@ -2238,7 +2238,7 @@ const styles = StyleSheet.create({
 
     color: '#39261C',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
   },
@@ -2296,7 +2296,7 @@ const styles = StyleSheet.create({
   name: {
     color: '#2D1A10',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
   },
@@ -2318,7 +2318,7 @@ const styles = StyleSheet.create({
   customBadgeText: {
     color: '#8B210C',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
   },
@@ -2326,7 +2326,7 @@ const styles = StyleSheet.create({
   price: {
     color: '#A00B0F',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
 
@@ -2346,7 +2346,7 @@ const styles = StyleSheet.create({
   selectedTitle: {
     color: '#95663B',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
 
@@ -2366,13 +2366,13 @@ const styles = StyleSheet.create({
 
     color: '#493226',
 
-    fontSize: 9,
+    fontSize: 12,
   },
 
   selectedQty: {
     color: '#9A7A65',
 
-    fontSize: 8,
+    fontSize: 11,
 
     marginHorizontal: 8,
   },
@@ -2380,7 +2380,7 @@ const styles = StyleSheet.create({
   selectedPrice: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2430,7 +2430,7 @@ const styles = StyleSheet.create({
   minus: {
     color: '#906B4F',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
   },
@@ -2442,7 +2442,7 @@ const styles = StyleSheet.create({
   plusText: {
     color: '#FFFFFF',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
   },
@@ -2456,7 +2456,7 @@ const styles = StyleSheet.create({
 
     color: '#332117',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   remove: {
@@ -2478,7 +2478,7 @@ const styles = StyleSheet.create({
 
     fontWeight: '900',
 
-    fontSize: 9,
+    fontSize: 12,
   },
 
   notes: {
@@ -2498,7 +2498,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#2F1D13',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
   },
@@ -2546,13 +2546,13 @@ const styles = StyleSheet.create({
   summaryLabel: {
     color: '#8B776B',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   summaryValue: {
     color: '#443126',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '800',
   },
@@ -2560,7 +2560,7 @@ const styles = StyleSheet.create({
   freeText: {
     color: '#2E8B57',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -2576,7 +2576,7 @@ const styles = StyleSheet.create({
   totalLabel: {
     fontWeight: '900',
 
-    fontSize: 14,
+    fontSize: 17,
 
     color: '#26170F',
   },
@@ -2586,7 +2586,7 @@ const styles = StyleSheet.create({
 
     fontWeight: '900',
 
-    fontSize: 17,
+    fontSize: 20,
   },
 
   bottomBar: {
@@ -2618,7 +2618,7 @@ const styles = StyleSheet.create({
   bottomLabel: {
     color: '#9C7D64',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
   },
@@ -2626,7 +2626,7 @@ const styles = StyleSheet.create({
   bottomTotal: {
     color: '#E4BC55',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
 
@@ -2658,7 +2658,7 @@ const styles = StyleSheet.create({
 
     fontWeight: '900',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   empty: {
@@ -2694,7 +2694,7 @@ const styles = StyleSheet.create({
   },
 
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '900',
 
@@ -2706,7 +2706,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#8D7A6D',
 
-    fontSize: 10,
+    fontSize: 13,
 
     textAlign: 'center',
 
@@ -2834,7 +2834,7 @@ const styles = StyleSheet.create({
   },
 
   customPopupIconText: {
-    fontSize: 32,
+    fontSize: 35,
 
     fontWeight: '900',
   },
@@ -2854,7 +2854,7 @@ const styles = StyleSheet.create({
   customPopupEyebrow: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -2866,7 +2866,7 @@ const styles = StyleSheet.create({
   customPopupTitle: {
     color: '#26170F',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
 
@@ -2878,9 +2878,9 @@ const styles = StyleSheet.create({
   customPopupMessage: {
     color: '#7F6D63',
 
-    fontSize: 11,
+    fontSize: 14,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     textAlign: 'center',
 
@@ -2908,9 +2908,9 @@ const styles = StyleSheet.create({
   customPopupInfoText: {
     color: '#8B5A2B',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     fontWeight: '700',
 
@@ -2936,7 +2936,7 @@ const styles = StyleSheet.create({
   customPopupPrimaryButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
 
@@ -2974,7 +2974,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     color: '#26170F',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '900',
 
@@ -2984,9 +2984,9 @@ const styles = StyleSheet.create({
   modalText: {
     color: '#89766B',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -3018,7 +3018,7 @@ const styles = StyleSheet.create({
   cancel: {
     color: '#87756A',
 
-    fontSize: 10,
+    fontSize: 13,
 
     marginTop: 14,
   },
@@ -3042,7 +3042,7 @@ const styles = StyleSheet.create({
   success: {
     color: '#2F955B',
 
-    fontSize: 38,
+    fontSize: 41,
 
     fontWeight: '900',
   },
@@ -3064,7 +3064,7 @@ const styles = StyleSheet.create({
   referenceLabel: {
     color: '#9A816E',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
   },
@@ -3074,7 +3074,7 @@ const styles = StyleSheet.create({
 
     fontWeight: '900',
 
-    fontSize: 11,
+    fontSize: 14,
 
     marginTop: 4,
 

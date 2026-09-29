@@ -881,14 +881,14 @@ const styles = StyleSheet.create({
 
   headerEyebrow: {
     color: '#A00B0F',
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
   headerTitle: {
     color: '#25170F',
-    fontSize: 20,
+    fontSize: 23,
     fontWeight: '900',
     marginTop: 2,
   },
@@ -934,7 +934,7 @@ const styles = StyleSheet.create({
 
   foodText: {
     color: '#3D443E',
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: '900',
   },
 
@@ -950,20 +950,20 @@ const styles = StyleSheet.create({
 
   title: {
     color: '#28170F',
-    fontSize: 18,
+    fontSize: 21,
     fontWeight: '900',
   },
 
   description: {
     color: '#8E786B',
-    fontSize: 10,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 18,
     marginTop: 5,
   },
 
   basePrice: {
     color: '#A00B0F',
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '900',
     marginLeft: 10,
   },
@@ -974,14 +974,14 @@ const styles = StyleSheet.create({
 
   sectionLabel: {
     color: '#A00B0F',
-    fontSize: 8,
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
   sectionTitle: {
     color: '#28170F',
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '900',
     marginTop: 3,
     marginBottom: 10,
@@ -1013,7 +1013,7 @@ const styles = StyleSheet.create({
 
   includedName: {
     color: '#4B382D',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '700',
   },
 
@@ -1058,13 +1058,13 @@ const styles = StyleSheet.create({
 
   addonName: {
     color: '#2F1D13',
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '900',
   },
 
   addonPrice: {
     color: '#A00B0F',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '800',
     marginTop: 4,
   },
@@ -1082,7 +1082,7 @@ const styles = StyleSheet.create({
 
   addText: {
     color: '#8B210C',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '900',
   },
 
@@ -1111,7 +1111,7 @@ const styles = StyleSheet.create({
 
   qtyButtonText: {
     color: '#986F4D',
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '900',
   },
 
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
     minWidth: 24,
     textAlign: 'center',
     color: '#3E2418',
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '900',
   },
 
@@ -1132,7 +1132,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#8A7568',
     textAlign: 'center',
-    fontSize: 10,
+    fontSize: 13,
   },
 
   bottomBar: {
@@ -1154,13 +1154,13 @@ const styles = StyleSheet.create({
 
   bottomLabel: {
     color: '#D0AD7C',
-    fontSize: 7,
+    fontSize: 10,
     fontWeight: '900',
   },
 
   totalText: {
     color: '#F1B94F',
-    fontSize: 20,
+    fontSize: 23,
     fontWeight: '900',
     marginTop: 3,
   },
@@ -1177,7 +1177,7 @@ const styles = StyleSheet.create({
 
   continueText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '900',
   },
 });

@@ -15,6 +15,7 @@ import axios from 'axios';
 import store from './src/redux/Store';
 
 import { AppAlertHost } from './src/components/AppAlert';
+import { STRIPE_PUBLISHABLE_KEY } from './src/config/stripe';
 
 import SplashScreen from './src/screens/Spalsh';
 import LoginScreen from './src/screens/Login';
@@ -47,22 +48,10 @@ import {
  * STRIPE
  * =========================================================
  *
- * IMPORTANT:
- *
- * Put your PUBLISHABLE key here:
- *
- * pk_test_...
- *
- * DO NOT put:
- *
- * sk_test_...
- * sk_live_...
- *
- * Stripe secret key must remain on Laravel only.
+ * The publishable key lives in src/config/stripe.js so the
+ * payment screens can match the Google Pay environment to
+ * the key mode (test / live).
  * ========================================================= */
-
-const STRIPE_PUBLISHABLE_KEY =
-  'pk_test_51U6SdyANg7fMOeypPugvZNrDN2FVjt1a6dMdKCvW0iw5se0u3CDdVqsX40eivgN7iBdGCHFFuIkg31uH7SaayEk000vpaKlvhL';
 
 /* =========================================================
  * Stack

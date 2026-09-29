@@ -873,7 +873,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#111111',
 
-    fontSize: 27,
+    fontSize: 30,
 
     fontWeight: '800',
 
@@ -883,9 +883,9 @@ const styles = StyleSheet.create({
   subtitle: {
     color: '#777777',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 19,
+    lineHeight: 22,
 
     marginTop: 6,
 
@@ -901,7 +901,7 @@ const styles = StyleSheet.create({
   label: {
     color: '#202020',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '600',
 
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
   forgotPasswordText: {
     color: '#A00B0F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
 
@@ -957,7 +957,7 @@ const styles = StyleSheet.create({
 
     color: '#222222',
 
-    fontSize: 14,
+    fontSize: 17,
 
     paddingVertical: 0,
   },
@@ -1007,7 +1007,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '800',
   },
@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
   loginArrow: {
     color: '#FFFFFF',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '700',
 
@@ -1033,7 +1033,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '700',
 
@@ -1055,13 +1055,13 @@ const styles = StyleSheet.create({
   accountText: {
     color: '#555555',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   createAccountText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -1087,7 +1087,7 @@ const styles = StyleSheet.create({
   guestButtonText: {
     color: '#A00B0F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
   },
@@ -1105,7 +1105,7 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#A0A0A0',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   footerSeparator: {

@@ -20,6 +20,10 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+      <!-- Required for Google Pay (Stripe PlatformPay) -->
+      <meta-data
+        android:name="com.google.android.gms.wallet.api.enabled"
+        android:value="true" />
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

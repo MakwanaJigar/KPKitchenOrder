@@ -1,9 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import {
   ActivityIndicator,
   Image,
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -26,6 +25,9 @@ import {
   usePlatformPay,
   useStripe,
 } from '@stripe/stripe-react-native';
+
+import AppAlert from '../components/AppAlert';
+import { STRIPE_TEST_MODE } from '../config/stripe';
 
 /* =========================================================
  * CONFIG
@@ -82,6 +84,48 @@ const firstValue = (...values) => {
   }
 
   return null;
+};
+
+/* =========================================================
+ * PAYMENT ERRORS
+ * =========================================================
+ *
+ * Turns raw Stripe / Google Pay / Apple Pay errors into
+ * short customer-friendly messages for the themed alert.
+ * ========================================================= */
+
+const isCancelledPaymentError = error => {
+  const code = String(error?.code ?? '').toLowerCase();
+
+  return code === 'canceled' || code === 'cancelled';
+};
+
+const getFriendlyPaymentError = (error, methodLabel) => {
+  const message = String(error?.message ?? '').trim();
+
+  const text = `${error?.code ?? ''} ${message}`.toLowerCase();
+
+  if (
+    /or_bibed|merchant is having trouble|developer_error|merchant.*(not|un)\s*(enabled|available|configured)/.test(
+      text,
+    )
+  ) {
+    return `${methodLabel} is temporarily unavailable for this merchant. Please try again later or pay with Card instead.`;
+  }
+
+  if (/network|internet|timed? ?out|offline|failed to fetch/.test(text)) {
+    return 'We could not reach the payment server. Please check your internet connection and try again.';
+  }
+
+  if (/declined|insufficient|do_not_honor|card_declined/.test(text)) {
+    return 'Your payment was declined by your bank. Please try a different card or payment method.';
+  }
+
+  if (/not available on this device|not supported|not ready/.test(text)) {
+    return `${methodLabel} is not set up on this device. Add a card to ${methodLabel} or pay with Card instead.`;
+  }
+
+  return message || `Unable to complete the ${methodLabel} payment. Please try again.`;
 };
 
 /* =========================================================
@@ -1295,20 +1339,6 @@ const PaymentDetails = ({ navigation, route }) => {
 
   const [processingMethod, setProcessingMethod] = useState(null);
 
-  const [popup, setPopup] = useState({
-    visible: false,
-
-    type: 'info',
-
-    title: '',
-
-    message: '',
-  });
-
-  const [successVisible, setSuccessVisible] = useState(false);
-
-  const [successfulMethod, setSuccessfulMethod] = useState('');
-
   const responsive = useMemo(
     () => ({
       width: width >= 768 ? Math.min(width - 80, 720) : width,
@@ -1319,16 +1349,48 @@ const PaymentDetails = ({ navigation, route }) => {
     [width],
   );
 
-  const showPopup = (type, title, message) => {
-    setPopup({
-      visible: true,
+  const showPopup = (type, title, message, buttons) => {
+    AppAlert.alert(title, message, buttons, { type });
+  };
 
-      type,
+  /*
+   * Alert buttons run after the payment attempt has finished,
+   * so they must call the latest handlers, not the ones
+   * captured while processingMethod was still set.
+   */
+  const paymentHandlersRef = useRef({});
 
-      title,
+  /*
+   * Themed payment failure alert with quick recovery actions.
+   */
+  const showPaymentError = (methodId, methodLabel, error) => {
+    const buttons = [];
 
-      message,
+    if (methodId !== 'card') {
+      buttons.push({
+        text: 'Pay with Card',
+
+        style: 'cancel',
+
+        onPress: () => paymentHandlersRef.current.card?.(),
+      });
+    }
+
+    buttons.push({
+      text: 'Try Again',
+
+      onPress: () => paymentHandlersRef.current[methodId]?.(),
     });
+
+    showPopup(
+      'error',
+
+      `${methodLabel} Payment Failed`,
+
+      getFriendlyPaymentError(error, methodLabel),
+
+      buttons,
+    );
   };
 
   /* =====================================================
@@ -2009,9 +2071,30 @@ const PaymentDetails = ({ navigation, route }) => {
 
     await savePendingPaymentLock(updated);
 
-    setSuccessfulMethod(paymentMethod);
+    showPopup(
+      'success',
 
-    setSuccessVisible(true);
+      'Weekly Bill Paid!',
+
+      `Your complete weekly bill has been paid successfully using ${paymentMethod}.`,
+
+      [
+        {
+          text: 'Back to Home',
+
+          onPress: () =>
+            navigation.reset({
+              index: 0,
+
+              routes: [
+                {
+                  name: 'MainTabs',
+                },
+              ],
+            }),
+        },
+      ],
+    );
   };
 
   /* =====================================================
@@ -2043,26 +2126,20 @@ const PaymentDetails = ({ navigation, route }) => {
       const { error: paymentError } = await presentPaymentSheet();
 
       if (paymentError) {
-        const code = String(paymentError.code ?? '').toLowerCase();
-
-        if (code === 'canceled' || code === 'cancelled') {
+        if (isCancelledPaymentError(paymentError)) {
           return;
         }
 
-        throw new Error(paymentError.message || 'Card payment failed.');
+        throw paymentError;
       }
 
       await confirmBackendPayment(payment.paymentIntentId, 'stripe');
 
       await completePayment('Card');
     } catch (err) {
-      showPopup(
-        'error',
+      console.log('CARD PAYMENT ERROR:', err);
 
-        'Card Payment Failed',
-
-        err?.message || 'Unable to process your weekly bill.',
-      );
+      showPaymentError('card', 'Card', err);
     } finally {
       setProcessingMethod(null);
     }
@@ -2092,9 +2169,13 @@ const PaymentDetails = ({ navigation, route }) => {
     try {
       setProcessingMethod('google');
 
+      /*
+       * testEnv must follow the Stripe key mode, not __DEV__.
+       * See src/config/stripe.js (fixes OR_BIBED_11).
+       */
       const supported = await isPlatformPaySupported({
         googlePay: {
-          testEnv: __DEV__,
+          testEnv: STRIPE_TEST_MODE,
         },
       });
 
@@ -2109,7 +2190,7 @@ const PaymentDetails = ({ navigation, route }) => {
 
         {
           googlePay: {
-            testEnv: __DEV__,
+            testEnv: STRIPE_TEST_MODE,
 
             merchantName: BUSINESS_NAME,
 
@@ -2129,7 +2210,11 @@ const PaymentDetails = ({ navigation, route }) => {
       );
 
       if (payError) {
-        throw new Error(payError.message || 'Google Pay payment failed.');
+        if (isCancelledPaymentError(payError)) {
+          return;
+        }
+
+        throw payError;
       }
 
       await confirmBackendPayment(
@@ -2140,13 +2225,9 @@ const PaymentDetails = ({ navigation, route }) => {
 
       await completePayment('Google Pay');
     } catch (err) {
-      showPopup(
-        'error',
+      console.log('GOOGLE PAY ERROR:', err);
 
-        'Google Pay',
-
-        err?.message || 'Unable to process Google Pay.',
-      );
+      showPaymentError('google', 'Google Pay', err);
     } finally {
       setProcessingMethod(null);
     }
@@ -2207,7 +2288,11 @@ const PaymentDetails = ({ navigation, route }) => {
       );
 
       if (payError) {
-        throw new Error(payError.message || 'Apple Pay payment failed.');
+        if (isCancelledPaymentError(payError)) {
+          return;
+        }
+
+        throw payError;
       }
 
       await confirmBackendPayment(
@@ -2218,16 +2303,20 @@ const PaymentDetails = ({ navigation, route }) => {
 
       await completePayment('Apple Pay');
     } catch (err) {
-      showPopup(
-        'error',
+      console.log('APPLE PAY ERROR:', err);
 
-        'Apple Pay',
-
-        err?.message || 'Unable to process Apple Pay.',
-      );
+      showPaymentError('apple', 'Apple Pay', err);
     } finally {
       setProcessingMethod(null);
     }
+  };
+
+  paymentHandlersRef.current = {
+    card: handleCardPayment,
+
+    google: handleGooglePay,
+
+    apple: handleApplePay,
   };
 
   const paymentMethods = [
@@ -2267,46 +2356,6 @@ const PaymentDetails = ({ navigation, route }) => {
       onPress: handleApplePay,
     },
   ];
-
-  const popupTheme = {
-    error: {
-      icon: 'close-circle-outline',
-
-      color: '#C83D43',
-
-      bg: '#FDEBEC',
-    },
-
-    warning: {
-      icon: 'warning-outline',
-
-      color: '#B87300',
-
-      bg: '#FFF4DD',
-    },
-
-    success: {
-      icon: 'checkmark-circle-outline',
-
-      color: '#278850',
-
-      bg: '#E8F6ED',
-    },
-
-    info: {
-      icon: 'information-circle-outline',
-
-      color: '#A00B0F',
-
-      bg: '#FFF0F0',
-    },
-  }[popup.type] ?? {
-    icon: 'information-circle-outline',
-
-    color: '#A00B0F',
-
-    bg: '#FFF0F0',
-  };
 
   const billCount = Math.max(
     sourceInvoiceIds.length,
@@ -2962,109 +3011,6 @@ const PaymentDetails = ({ navigation, route }) => {
           </ScrollView>
         </View>
       </SafeAreaView>
-
-      <Modal
-        visible={popup.visible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() =>
-          setPopup(previous => ({
-            ...previous,
-
-            visible: false,
-          }))
-        }
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.popupCard}>
-            <View
-              style={[
-                styles.popupIcon,
-
-                {
-                  backgroundColor: popupTheme.bg,
-                },
-              ]}
-            >
-              {/* <Ionicons
-                name={popupTheme.icon}
-                size={36}
-                color={popupTheme.color}
-              /> */}
-            </View>
-
-            <Text style={styles.popupTitle}>{popup.title}</Text>
-
-            <Text style={styles.popupMessage}>{popup.message}</Text>
-
-            <TouchableOpacity
-              style={styles.popupButton}
-              activeOpacity={0.85}
-              onPress={() =>
-                setPopup(previous => ({
-                  ...previous,
-
-                  visible: false,
-                }))
-              }
-            >
-              <Text style={styles.popupButtonText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={successVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.popupCard}>
-            <View
-              style={[
-                styles.popupIcon,
-
-                {
-                  backgroundColor: '#E8F7ED',
-                },
-              ]}
-            >
-              {/* <Ionicons name="checkmark-circle" size={42} color="#278850" /> */}
-            </View>
-
-            <Text style={styles.popupTitle}>Weekly Bill Paid!</Text>
-
-            <Text style={styles.popupMessage}>
-              Your complete weekly bill has been paid successfully using{' '}
-              {successfulMethod}.
-            </Text>
-
-            <TouchableOpacity
-              style={styles.popupButton}
-              activeOpacity={0.85}
-              onPress={() => {
-                setSuccessVisible(false);
-
-                navigation.reset({
-                  index: 0,
-
-                  routes: [
-                    {
-                      name: 'MainTabs',
-                    },
-                  ],
-                });
-              }}
-            >
-              <Text style={styles.popupButtonText}>Back to Home</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </>
   );
 };
@@ -3145,7 +3091,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -3155,7 +3101,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#2C201C',
 
-    fontSize: 23,
+    fontSize: 26,
 
     fontWeight: '900',
 
@@ -3197,7 +3143,7 @@ const styles = StyleSheet.create({
   ruleTitle: {
     color: '#352722',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3205,9 +3151,9 @@ const styles = StyleSheet.create({
   ruleText: {
     color: '#81736D',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 3,
   },
@@ -3215,7 +3161,7 @@ const styles = StyleSheet.create({
   rulePeriod: {
     color: '#A00B0F',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
 
@@ -3243,7 +3189,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#81736D',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
 
@@ -3271,7 +3217,7 @@ const styles = StyleSheet.create({
   paymentDueTitle: {
     color: '#A00B0F',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
   },
@@ -3279,9 +3225,9 @@ const styles = StyleSheet.create({
   paymentDueText: {
     color: '#775255',
 
-    fontSize: 11,
+    fontSize: 14,
 
-    lineHeight: 17,
+    lineHeight: 20,
 
     marginTop: 4,
   },
@@ -3307,7 +3253,7 @@ const styles = StyleSheet.create({
   blockTitle: {
     color: '#8A5700',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3315,9 +3261,9 @@ const styles = StyleSheet.create({
   blockText: {
     color: '#876A3A',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 3,
   },
@@ -3349,7 +3295,7 @@ const styles = StyleSheet.create({
   weekInfoEyebrow: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -3359,7 +3305,7 @@ const styles = StyleSheet.create({
   weekInfoTitle: {
     color: '#4A2F2A',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
 
@@ -3369,9 +3315,9 @@ const styles = StyleSheet.create({
   weekInfoText: {
     color: '#846B65',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 3,
   },
@@ -3395,7 +3341,7 @@ const styles = StyleSheet.create({
   summarySmall: {
     color: '#DAB9BA',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -3405,7 +3351,7 @@ const styles = StyleSheet.create({
   summaryPeriod: {
     color: '#FFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
 
@@ -3435,7 +3381,7 @@ const styles = StyleSheet.create({
   },
 
   statusText: {
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '900',
   },
@@ -3473,7 +3419,7 @@ const styles = StyleSheet.create({
 
     color: '#E0C7C7',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
   },
 
   summaryValue: {
@@ -3481,7 +3427,7 @@ const styles = StyleSheet.create({
 
     color: '#FFF',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
 
@@ -3497,7 +3443,7 @@ const styles = StyleSheet.create({
   totalLabel: {
     color: '#FFF',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3507,9 +3453,9 @@ const styles = StyleSheet.create({
 
     color: '#D2AEAF',
 
-    fontSize: 9,
+    fontSize: 12,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     marginTop: 4,
   },
@@ -3517,7 +3463,7 @@ const styles = StyleSheet.create({
   totalAmount: {
     color: '#FFF',
 
-    fontSize: 22,
+    fontSize: 25,
 
     fontWeight: '900',
 
@@ -3545,7 +3491,7 @@ const styles = StyleSheet.create({
   errorTitle: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3553,9 +3499,9 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#8A393C',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 4,
   },
@@ -3579,7 +3525,7 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -3599,7 +3545,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#281E1A',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
 
@@ -3623,7 +3569,7 @@ const styles = StyleSheet.create({
   countText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3671,7 +3617,7 @@ const styles = StyleSheet.create({
   orderTitle: {
     color: '#342722',
 
-    fontSize: 11.5,
+    fontSize: 14.5,
 
     fontWeight: '900',
   },
@@ -3679,7 +3625,7 @@ const styles = StyleSheet.create({
   orderDate: {
     color: '#9B8B84',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     marginTop: 3,
   },
@@ -3687,9 +3633,9 @@ const styles = StyleSheet.create({
   deliveryText: {
     color: '#A56A42',
 
-    fontSize: 9,
+    fontSize: 12,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     marginTop: 3,
 
@@ -3699,7 +3645,7 @@ const styles = StyleSheet.create({
   orderAmount: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
 
@@ -3727,7 +3673,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#4A3C36',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -3739,9 +3685,9 @@ const styles = StyleSheet.create({
 
     color: '#998B85',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     textAlign: 'center',
 
@@ -3773,7 +3719,7 @@ const styles = StyleSheet.create({
   noPaymentTitle: {
     color: '#2F3D35',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '900',
 
@@ -3785,9 +3731,9 @@ const styles = StyleSheet.create({
 
     color: '#7F8B84',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -3815,7 +3761,7 @@ const styles = StyleSheet.create({
   missingTitle: {
     color: '#8A5700',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },
@@ -3823,9 +3769,9 @@ const styles = StyleSheet.create({
   missingText: {
     color: '#876A3A',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 3,
   },
@@ -3869,7 +3815,7 @@ const styles = StyleSheet.create({
   overduePayEyebrow: {
     color: '#B42318',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -3879,7 +3825,7 @@ const styles = StyleSheet.create({
   overduePayTitle: {
     color: '#5A1C18',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -3889,9 +3835,9 @@ const styles = StyleSheet.create({
   overduePayText: {
     color: '#87524D',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     marginTop: 4,
   },
@@ -3899,7 +3845,7 @@ const styles = StyleSheet.create({
   overduePayAmount: {
     color: '#A00B0F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
 
@@ -3961,7 +3907,7 @@ const styles = StyleSheet.create({
   methodTitle: {
     color: '#30231E',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
   },
@@ -3969,9 +3915,9 @@ const styles = StyleSheet.create({
   methodSubtitle: {
     color: '#94847D',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     marginTop: 3,
   },
@@ -4017,7 +3963,7 @@ const styles = StyleSheet.create({
   popupTitle: {
     color: '#2A2027',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
 
@@ -4029,9 +3975,9 @@ const styles = StyleSheet.create({
   popupMessage: {
     color: '#776D72',
 
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 18,
+    lineHeight: 21,
 
     textAlign: 'center',
 
@@ -4057,7 +4003,7 @@ const styles = StyleSheet.create({
   popupButtonText: {
     color: '#FFF',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '900',
   },

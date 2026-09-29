@@ -419,7 +419,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        15,
+        18,
 
       fontWeight:
         '800',
@@ -476,7 +476,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        11,
+        14,
 
       fontWeight:
         '700',
@@ -606,10 +606,10 @@ const styles =
         '#242020',
 
       fontSize:
-        22,
+        25,
 
       lineHeight:
-        29,
+        32,
 
       fontWeight:
         '800',
@@ -629,10 +629,10 @@ const styles =
         '#776963',
 
       fontSize:
-        12,
+        15,
 
       lineHeight:
-        18,
+        21,
 
       fontWeight:
         '500',
@@ -699,7 +699,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        14,
+        17,
 
       fontWeight:
         '800',
@@ -710,7 +710,7 @@ const styles =
         '#FFFFFF',
 
       fontSize:
-        21,
+        24,
 
       fontWeight:
         '700',
@@ -745,7 +745,7 @@ const styles =
         '#A0948E',
 
       fontSize:
-        10,
+        13,
 
       fontWeight:
         '500',
@@ -756,7 +756,7 @@ const styles =
         '#A00B0F',
 
       fontSize:
-        10,
+        13,
 
       fontWeight:
         '800',

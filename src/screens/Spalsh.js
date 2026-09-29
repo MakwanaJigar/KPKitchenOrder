@@ -469,7 +469,7 @@ const styles =
     appName: {
       color:
         '#ffffff',
-      fontSize: 30,
+      fontSize: 33,
       fontWeight:
         '900',
       textAlign:
@@ -490,7 +490,7 @@ const styles =
     tagline: {
       color:
         'rgba(255,255,255,0.78)',
-      fontSize: 14,
+      fontSize: 17,
       textAlign:
         'center',
     },
@@ -525,7 +525,7 @@ const styles =
     bottomText: {
       color:
         'rgba(255,255,255,0.55)',
-      fontSize: 8,
+      fontSize: 11,
       fontWeight:
         '800',
       letterSpacing: 1.6,

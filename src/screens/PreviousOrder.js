@@ -1193,7 +1193,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#806C62',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '600',
 
@@ -1259,7 +1259,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#A00B0F',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '800',
 
@@ -1269,7 +1269,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     color: '#8A746A',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '600',
 
@@ -1301,7 +1301,7 @@ const styles = StyleSheet.create({
   pageIntroTitle: {
     color: '#211713',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
   },
@@ -1309,9 +1309,9 @@ const styles = StyleSheet.create({
   pageIntroDescription: {
     color: '#806C62',
 
-    fontSize: 11,
+    fontSize: 14,
 
-    lineHeight: 17,
+    lineHeight: 20,
 
     marginTop: 5,
 
@@ -1339,7 +1339,7 @@ const styles = StyleSheet.create({
   orderCountText: {
     color: '#A00B0F',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '800',
 
@@ -1417,7 +1417,7 @@ const styles = StyleSheet.create({
   orderNumberLabel: {
     color: '#97857B',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '700',
 
@@ -1427,7 +1427,7 @@ const styles = StyleSheet.create({
   orderNumber: {
     color: '#241A15',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -1451,7 +1451,7 @@ const styles = StyleSheet.create({
   },
 
   statusText: {
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '800',
 
@@ -1505,7 +1505,7 @@ const styles = StyleSheet.create({
   dateText: {
     color: '#89756B',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '600',
 
@@ -1551,7 +1551,7 @@ const styles = StyleSheet.create({
   smallHeading: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -1601,7 +1601,7 @@ const styles = StyleSheet.create({
   itemName: {
     color: '#352821',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '700',
   },
@@ -1609,7 +1609,7 @@ const styles = StyleSheet.create({
   itemQuantity: {
     color: '#8D796E',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '700',
 
@@ -1631,7 +1631,7 @@ const styles = StyleSheet.create({
   customBadgeText: {
     color: '#A00B0F',
 
-    fontSize: 6.5,
+    fontSize: 9.5,
 
     fontWeight: '900',
   },
@@ -1659,7 +1659,7 @@ const styles = StyleSheet.create({
   customItemsHeading: {
     color: '#95663B',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
 
@@ -1703,7 +1703,7 @@ const styles = StyleSheet.create({
   customDishName: {
     color: '#493226',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '800',
   },
@@ -1711,7 +1711,7 @@ const styles = StyleSheet.create({
   customDishUnitPrice: {
     color: '#9A887D',
 
-    fontSize: 7,
+    fontSize: 10,
 
     marginTop: 2,
   },
@@ -1719,7 +1719,7 @@ const styles = StyleSheet.create({
   customDishQty: {
     color: '#8D796E',
 
-    fontSize: 8,
+    fontSize: 11,
 
     marginHorizontal: 8,
   },
@@ -1729,7 +1729,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -1769,7 +1769,7 @@ const styles = StyleSheet.create({
   selectionChipText: {
     color: '#725D52',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     fontWeight: '600',
   },
@@ -1791,7 +1791,7 @@ const styles = StyleSheet.create({
   priceLabel: {
     color: '#76635A',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '600',
   },
@@ -1799,7 +1799,7 @@ const styles = StyleSheet.create({
   priceValue: {
     color: '#2B211C',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '800',
   },
@@ -1827,7 +1827,7 @@ const styles = StyleSheet.create({
   totalLabel: {
     color: '#2A1E18',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
   },
@@ -1835,7 +1835,7 @@ const styles = StyleSheet.create({
   totalValue: {
     color: '#A00B0F',
 
-    fontSize: 16,
+    fontSize: 19,
 
     fontWeight: '900',
   },
@@ -1875,7 +1875,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#211713',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
 
@@ -1887,9 +1887,9 @@ const styles = StyleSheet.create({
 
     color: '#826F65',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -1917,7 +1917,7 @@ const styles = StyleSheet.create({
   orderNowButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '800',
   },

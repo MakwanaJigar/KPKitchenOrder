@@ -874,7 +874,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#2C201C',
 
-    fontSize: 21,
+    fontSize: 24,
 
     fontWeight: '900',
 
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     color: '#A9090D',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
 
@@ -904,7 +904,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#2B201C',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '900',
 
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
   sectionRight: {
     color: '#93857F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '700',
   },
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
   invoiceNumber: {
     color: '#342722',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '900',
 
@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
   period: {
     color: '#94857F',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     marginTop: 3,
   },
@@ -998,7 +998,7 @@ const styles = StyleSheet.create({
   },
 
   statusText: {
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '900',
   },
@@ -1052,7 +1052,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     color: '#83746E',
 
-    fontSize: 8,
+    fontSize: 11,
   },
 
   infoValue: {
@@ -1060,7 +1060,7 @@ const styles = StyleSheet.create({
 
     color: '#443630',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '900',
 
@@ -1098,7 +1098,7 @@ const styles = StyleSheet.create({
   detailLabel: {
     color: '#93857F',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     fontWeight: '700',
   },
@@ -1106,11 +1106,11 @@ const styles = StyleSheet.create({
   detailValue: {
     color: '#3F302A',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '800',
 
-    lineHeight: 14,
+    lineHeight: 17,
 
     marginTop: 2,
   },
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
   orderName: {
     color: '#3F302A',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -1156,7 +1156,7 @@ const styles = StyleSheet.create({
   orderMeta: {
     color: '#A1928B',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     marginTop: 2,
   },
@@ -1164,9 +1164,9 @@ const styles = StyleSheet.create({
   orderItems: {
     color: '#796B65',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
-    lineHeight: 11,
+    lineHeight: 14,
 
     marginTop: 3,
   },
@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
   orderTotal: {
     color: '#A9090D',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '900',
 
@@ -1206,13 +1206,13 @@ const styles = StyleSheet.create({
   miniLabel: {
     color: '#83746E',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
   },
 
   miniValue: {
     color: '#443630',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '800',
   },
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#91847E',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     textAlign: 'center',
 
@@ -1244,7 +1244,7 @@ const styles = StyleSheet.create({
   amountLabel: {
     color: '#7F706A',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
   },
 
   amountLabelStrong: {
@@ -1256,7 +1256,7 @@ const styles = StyleSheet.create({
   amountValue: {
     color: '#4A3933',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '900',
   },
@@ -1264,7 +1264,7 @@ const styles = StyleSheet.create({
   amountValueStrong: {
     color: '#A9090D',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   payButton: {
@@ -1286,7 +1286,7 @@ const styles = StyleSheet.create({
   payButtonText: {
     color: '#FFF',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
     fontWeight: '900',
 

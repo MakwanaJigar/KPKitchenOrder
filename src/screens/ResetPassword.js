@@ -1204,7 +1204,7 @@ const styles = StyleSheet.create({
 
     color: '#6D5D57',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '700',
   },
@@ -1302,15 +1302,15 @@ const styles = StyleSheet.create({
   backArrow: {
     color: '#A00B0F',
 
-    fontSize: 31,
+    fontSize: 34,
 
-    lineHeight: 32,
+    lineHeight: 35,
   },
 
   backText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '700',
 
@@ -1436,7 +1436,7 @@ const styles = StyleSheet.create({
   title: {
     color: '#111111',
 
-    fontSize: 27,
+    fontSize: 30,
 
     fontWeight: '800',
 
@@ -1444,7 +1444,7 @@ const styles = StyleSheet.create({
   },
 
   titleSmall: {
-    fontSize: 23,
+    fontSize: 26,
   },
 
   subtitle: {
@@ -1458,17 +1458,17 @@ const styles = StyleSheet.create({
 
     color: '#777777',
 
-    fontSize: 13,
+    fontSize: 16,
 
-    lineHeight: 20,
+    lineHeight: 23,
 
     textAlign: 'center',
   },
 
   subtitleSmall: {
-    fontSize: 12,
+    fontSize: 15,
 
-    lineHeight: 18,
+    lineHeight: 21,
   },
 
   /* =====================================================
@@ -1496,7 +1496,7 @@ const styles = StyleSheet.create({
   emailLabel: {
     color: '#85706F',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
   },
 
   emailText: {
@@ -1506,7 +1506,7 @@ const styles = StyleSheet.create({
 
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -1530,7 +1530,7 @@ const styles = StyleSheet.create({
   emailWarningTitle: {
     color: '#A00B0F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
   },
@@ -1540,9 +1540,9 @@ const styles = StyleSheet.create({
 
     color: '#7D6666',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
 
-    lineHeight: 15,
+    lineHeight: 18,
   },
 
   /* =====================================================
@@ -1560,7 +1560,7 @@ const styles = StyleSheet.create({
 
     color: '#202020',
 
-    fontSize: 13,
+    fontSize: 16,
 
     fontWeight: '600',
   },
@@ -1602,7 +1602,7 @@ const styles = StyleSheet.create({
 
     color: '#222222',
 
-    fontSize: 14,
+    fontSize: 17,
   },
 
   passwordEyeImage: {
@@ -1632,11 +1632,11 @@ const styles = StyleSheet.create({
   strengthLabel: {
     color: '#777777',
 
-    fontSize: 9.5,
+    fontSize: 12.5,
   },
 
   strengthText: {
-    fontSize: 9.5,
+    fontSize: 12.5,
 
     fontWeight: '800',
   },
@@ -1688,7 +1688,7 @@ const styles = StyleSheet.create({
   passwordMatchText: {
     marginTop: 8,
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '700',
   },
@@ -1726,7 +1726,7 @@ const styles = StyleSheet.create({
 
     color: '#303030',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '800',
   },
@@ -1766,7 +1766,7 @@ const styles = StyleSheet.create({
   requirementIconText: {
     color: '#9B9B9B',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '800',
   },
@@ -1774,7 +1774,7 @@ const styles = StyleSheet.create({
   requirementIconTextCompleted: {
     color: '#FFFFFF',
 
-    fontSize: 9,
+    fontSize: 12,
   },
 
   requirementText: {
@@ -1782,9 +1782,9 @@ const styles = StyleSheet.create({
 
     color: '#777777',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 15,
+    lineHeight: 18,
   },
 
   requirementTextCompleted: {
@@ -1832,7 +1832,7 @@ const styles = StyleSheet.create({
   resetButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '800',
   },
@@ -1842,7 +1842,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '700',
   },
@@ -1860,7 +1860,7 @@ const styles = StyleSheet.create({
 
     color: '#FFFFFF',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '700',
   },
@@ -1884,13 +1884,13 @@ const styles = StyleSheet.create({
   loginQuestion: {
     color: '#555555',
 
-    fontSize: 12,
+    fontSize: 15,
   },
 
   loginText: {
     color: '#A00B0F',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -1938,7 +1938,7 @@ const styles = StyleSheet.create({
   securityIcon: {
     color: '#FFFFFF',
 
-    fontSize: 12,
+    fontSize: 15,
 
     fontWeight: '800',
   },
@@ -1948,9 +1948,9 @@ const styles = StyleSheet.create({
 
     color: '#52705B',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 16,
+    lineHeight: 19,
   },
 
   /* =====================================================
@@ -1970,7 +1970,7 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#A0A0A0',
 
-    fontSize: 10,
+    fontSize: 13,
   },
 
   footerSeparator: {

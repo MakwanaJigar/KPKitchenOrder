@@ -1403,7 +1403,7 @@ const styles = StyleSheet.create({
   headerEyebrow: {
     color: '#A00B0F',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -1413,7 +1413,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#211A25',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
 
@@ -1481,7 +1481,7 @@ const styles = StyleSheet.create({
   orderLabel: {
     color: '#9D949F',
 
-    fontSize: 7,
+    fontSize: 10,
 
     fontWeight: '800',
 
@@ -1491,7 +1491,7 @@ const styles = StyleSheet.create({
   orderNumber: {
     color: '#211A25',
 
-    fontSize: 16,
+    fontSize: 19,
 
     fontWeight: '900',
 
@@ -1513,7 +1513,7 @@ const styles = StyleSheet.create({
   },
 
   statusText: {
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '900',
 
@@ -1531,7 +1531,7 @@ const styles = StyleSheet.create({
   orderDate: {
     color: '#948B97',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     marginLeft: 5,
   },
@@ -1547,7 +1547,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: '#2A222F',
 
-    fontSize: 11,
+    fontSize: 14,
 
     fontWeight: '900',
 
@@ -1611,9 +1611,9 @@ const styles = StyleSheet.create({
 
     color: '#2A222F',
 
-    fontSize: 10.5,
+    fontSize: 13.5,
 
-    lineHeight: 15,
+    lineHeight: 18,
 
     fontWeight: '900',
 
@@ -1623,7 +1623,7 @@ const styles = StyleSheet.create({
   tiffinPrice: {
     color: '#A00B0F',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -1631,7 +1631,7 @@ const styles = StyleSheet.create({
   tiffinQuantity: {
     color: '#837985',
 
-    fontSize: 8,
+    fontSize: 11,
 
     fontWeight: '700',
 
@@ -1651,7 +1651,7 @@ const styles = StyleSheet.create({
   itemDetailsHeading: {
     color: '#A00B0F',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
     fontWeight: '900',
 
@@ -1661,9 +1661,9 @@ const styles = StyleSheet.create({
   itemDetailText: {
     color: '#776D79',
 
-    fontSize: 7.5,
+    fontSize: 10.5,
 
-    lineHeight: 12,
+    lineHeight: 15,
 
     marginBottom: 2,
   },
@@ -1671,9 +1671,9 @@ const styles = StyleSheet.create({
   noItemText: {
     color: '#8C838F',
 
-    fontSize: 9,
+    fontSize: 12,
 
-    lineHeight: 15,
+    lineHeight: 18,
   },
 
   /* =====================================================
@@ -1705,7 +1705,7 @@ const styles = StyleSheet.create({
   infoTitle: {
     color: '#332A36',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -1715,9 +1715,9 @@ const styles = StyleSheet.create({
   infoText: {
     color: '#756B78',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
-    lineHeight: 14,
+    lineHeight: 17,
   },
 
   /* =====================================================
@@ -1751,13 +1751,13 @@ const styles = StyleSheet.create({
   billLabel: {
     color: '#7B717D',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
   },
 
   billValue: {
     color: '#39303C',
 
-    fontSize: 8.5,
+    fontSize: 11.5,
 
     fontWeight: '800',
   },
@@ -1781,7 +1781,7 @@ const styles = StyleSheet.create({
   totalLabel: {
     color: '#251D29',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
@@ -1789,7 +1789,7 @@ const styles = StyleSheet.create({
   totalValue: {
     color: '#A00B0F',
 
-    fontSize: 14,
+    fontSize: 17,
 
     fontWeight: '900',
   },
@@ -1821,7 +1821,7 @@ const styles = StyleSheet.create({
   cancelOrderText: {
     color: '#D04444',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -1849,9 +1849,9 @@ const styles = StyleSheet.create({
 
     color: '#8E848F',
 
-    fontSize: 8,
+    fontSize: 11,
 
-    lineHeight: 12,
+    lineHeight: 15,
 
     marginLeft: 6,
   },
@@ -1877,7 +1877,7 @@ const styles = StyleSheet.create({
   loadingTitle: {
     color: '#211A25',
 
-    fontSize: 15,
+    fontSize: 18,
 
     fontWeight: '900',
 
@@ -1887,7 +1887,7 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#918794',
 
-    fontSize: 9,
+    fontSize: 12,
 
     marginTop: 5,
   },
@@ -1921,7 +1921,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     color: '#211A25',
 
-    fontSize: 17,
+    fontSize: 20,
 
     fontWeight: '900',
 
@@ -1935,9 +1935,9 @@ const styles = StyleSheet.create({
 
     color: '#8C838F',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -1965,7 +1965,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2051,7 +2051,7 @@ const styles = StyleSheet.create({
   cancelPopupTitle: {
     color: '#251D29',
 
-    fontSize: 20,
+    fontSize: 23,
 
     fontWeight: '900',
 
@@ -2063,9 +2063,9 @@ const styles = StyleSheet.create({
 
     color: '#766C78',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -2099,9 +2099,9 @@ const styles = StyleSheet.create({
 
     color: '#82633D',
 
-    fontSize: 8,
+    fontSize: 11,
 
-    lineHeight: 13,
+    lineHeight: 16,
 
     fontWeight: '700',
 
@@ -2139,7 +2139,7 @@ const styles = StyleSheet.create({
   keepOrderText: {
     color: '#665D68',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
   },
@@ -2165,7 +2165,7 @@ const styles = StyleSheet.create({
   confirmCancelText: {
     color: '#FFFFFF',
 
-    fontSize: 9,
+    fontSize: 12,
 
     fontWeight: '900',
 
@@ -2221,7 +2221,7 @@ const styles = StyleSheet.create({
   successTitle: {
     color: '#251D29',
 
-    fontSize: 18,
+    fontSize: 21,
 
     fontWeight: '900',
 
@@ -2233,9 +2233,9 @@ const styles = StyleSheet.create({
   successDescription: {
     color: '#7A707C',
 
-    fontSize: 10,
+    fontSize: 13,
 
-    lineHeight: 16,
+    lineHeight: 19,
 
     textAlign: 'center',
 
@@ -2261,7 +2261,7 @@ const styles = StyleSheet.create({
   doneText: {
     color: '#FFFFFF',
 
-    fontSize: 10,
+    fontSize: 13,
 
     fontWeight: '900',
   },
